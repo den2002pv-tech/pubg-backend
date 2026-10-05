@@ -15,6 +15,28 @@ except ImportError:
 
 app = FastAPI()
 
+# Путь к файлу базы данных карточек
+DB_FILE = "card_hashes.json"
+
+def load_db() -> dict:
+    """Загружает базу данных из JSON-файла"""
+    if not os.path.exists(DB_FILE):
+        return {}
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Ошибка чтения {DB_FILE}: {e}")
+        return {}
+
+def save_db(data: dict):
+    """Сохраняет базу данных в JSON-файл"""
+    try:
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Ошибка сохранения в {DB_FILE}: {e}")
+        
 # Включаем CORS, чтобы Vercel мог свободно делать запросы к Render
 app.add_middleware(
     CORSMiddleware,
