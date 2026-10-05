@@ -3,102 +3,102 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PUBG Card Exchange</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <title>PUBG Card Scanner</title>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #121212;
-      color: #ffffff;
-      margin: 0;
-      padding: 16px;
-      text-align: center;
-    }
-    .card {
-      background: #1e1e1e;
-      border-radius: 12px;
-      padding: 20px;
-      margin-top: 20px;
-      border: 1px solid #333;
-    }
-    .btn {
-      background: #0088cc;
-      color: #fff;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      width: 100%;
-      margin-top: 10px;
-    }
-    input[type="file"] { display: none; }
-    .upload-label {
-      display: block;
-      padding: 16px;
-      border: 2px dashed #0088cc;
-      border-radius: 8px;
-      background: rgba(0, 136, 204, 0.1);
-      cursor: pointer;
-    }
+    body { font-family: Arial, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+    input, button { padding: 10px; font-size: 14px; }
+    button { cursor: pointer; }
+    .card { border: 1px solid #ccc; padding: 12px; margin: 12px 0; border-radius: 8px; }
+    .matched { border-color: #2e7d32; }
+    .unknown { border-color: #c62828; }
+    img { max-width: 224px; }
+    .muted { color: #666; }
   </style>
 </head>
 <body>
-  <h2>Обмен карт PUBG Mobile</h2>
-  <p style="color: #aaa; font-size: 14px;">Загрузите скриншот вашей коллекции карт</p>
+  <h1>PUBG Card Scanner</h1>
 
-  <div class="card">
-    <label class="upload-label" for="fileInput">
-      <span id="statusText">📷 Выбрать скриншот</span>
-      <input type="file" id="fileInput" accept="image/*" onchange="uploadImage()">
-    </label>
+  <div class="row">
+    <input id="file" type="file" accept="image/*">
+    <button onclick="scan()">Сканировать</button>
   </div>
 
-  <div id="results" class="card" style="display: none;">
-    <h3>Найденные карты:</h3>
-    <div id="cardsList" style="text-align: left; color: #ccc;"></div>
-    <button class="btn" onclick="requestTrade()">Искать 3-сторонний обмен</button>
-  </div>
+  <div id="status" class="muted"></div>
+  <div id="results"></div>
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
+<script>
+const API = location.origin;
 
-    async function uploadImage() {
-      const input = document.getElementById('fileInput');
-      const status = document.getElementById('statusText');
-      if (!input.files[0]) return;
+async function scan() {
+  const input = document.getElementById("file");
 
-      status.innerText = "⏳ Сканирование скриншота...";
+  if (!input.files.length) {
+    alert("Выбери скриншот");
+    return;
+  }
 
-      const formData = new FormData();
-      formData.append('file', input.files[0]);
+  const fd = new FormData();
+  fd.append("file", input.files[0]);
 
-      try {
-        // Запрос к бэкенду (URL укажем после деплоя Python-сервера)
-        const res = await fetch('https://pubg-backend-3rtc.onrender.com/scan', {
-          method: 'POST',
-          body: formData
-        });
-        const data = await res.json();
-        
-        status.innerText = "✅ Скриншот успешно обработан!";
-        showResults(data.cards);
-      } catch (err) {
-        status.innerText = "❌ Ошибка сканирования (сервер не ответил)";
-      }
-    }
+  document.getElementById("status").textContent = "Сканирование...";
 
-    function showResults(cards) {
-      const list = document.getElementById('cardsList');
-      list.innerHTML = cards.map(c => `• ${c}`).join('<br>');
-      document.getElementById('results').style.display = 'block';
-    }
+  const response = await fetch(`${API}/scan`, {
+    method: "POST",
+    body: fd
+  });
 
-    function requestTrade() {
-      tg.showAlert("Запрос на обмен отправлен! Как только зациклится 3-сторонний обмен, бот пришлет код.");
-    }
-  </script>
+  const data = await response.json();
+
+  if (!response.ok) {
+    document.getElementById("status").textContent = data.detail || "Ошибка";
+    return;
+  }
+
+  document.getElementById("status").textContent =
+    `Найдено карт: ${data.count}`;
+
+  renderResults(data.cards || []);
+}
+
+function renderResults(cards) {
+  const root = document.getElementById("results");
+
+  if (!cards.length) {
+    root.innerHTML = "<p>Карты не найдены.</p>";
+    return;
+  }
+
+  root.innerHTML = cards.map((card, index) => {
+    const match = card.match || {};
+    const ok = match.matched;
+
+    return `
+      <div class="card ${ok ? "matched" : "unknown"}">
+        <h3>Карта ${index + 1}</h3>
+        <p>
+          <b>Результат:</b>
+          ${ok
+            ? `${escapeHtml(match.name || match.id)}`
+            : "Неизвестная карта"}
+        </p>
+        <p>
+          <b>Distance:</b> ${match.distance ?? "—"}
+        </p>
+        <p>
+          <b>Позиция:</b> ряд ${card.row + 1}, колонка ${card.col + 1}
+        </p>
+      </div>
+    `;
+  }).join("");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+</script>
 </body>
 </html>
