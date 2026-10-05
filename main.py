@@ -1,97 +1,15 @@
-import io
-import json
 import base64
 import os
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+import time
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
-
-# Импортируем сканер из нашего файла
-try:
-    from scanner import scan_screenshot
-except ImportError:
-    # Заглушка на случай, если файл scanner.py не найдется
-    def scan_screenshot(pil_img):
-        return []
-
-DB_FILE = "card_hashes.json"
-
-def load_db() -> dict:
-    if not os.path.exists(DB_FILE):
-        return {}
-    try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Ошибка чтения {DB_FILE}: {e}")
-        return {}
-
-def save_db(data: dict):
-    try:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"Ошибка сохранения в {DB_FILE}: {e}")
-
-def dhash(image: Image.Image, hash_size: int = 8) -> str:
-    image = image.convert('L').resize((hash_size + 1, hash_size), Image.Resampling.LANCZOS)
-    pixels = list(image.getdata())
-    
-    difference = []
-    for row in range(hash_size):
-        for col in range(hash_size):
-            pixel_left = pixels[row * (hash_size + 1) + col]
-            pixel_right = pixels[row * (hash_size + 1) + col + 1]
-            difference.append(pixel_left > pixel_right)
-            
-    decimal_value = 0
-    hex_string = []
-    for i, value in enumerate(difference):
-        if value:
-            decimal_value += 2 ** (i % 8)
-        if (i % 8) == 7:
-            hex_string.append(hex(decimal_value)[2:].zfill(2))
-            decimal_value = 0
-            
-    return ''.join(hex_string)
-
-def process_and_hash(pil_img: Image.Image) -> str:
-    w, h = pil_img.size
-    crop_box = (int(w * 0.10), int(h * 0.15), int(w * 0.90), int(h * 0.70))
-    cropped_art = pil_img.crop(crop_box)
-    return dhash(cropped_art)
-
-def hamming_distance(h1: str, h2: str) -> int:
-    return bin(int(h1, 16) ^ int(h2, 16)).count('1')
-
-def image_to_base64(pil_img: Image.Image) -> str:
-    buffered = io.BytesIO()
-    pil_img.save(buffered, format="JPEG", quality=80)
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    return f"data:image/jpeg;base64,{img_str}"
-
-def check_duplicate(new_hash: str, db: dict, threshold: int = 5):
-    for card_id, card_data in db.items():
-        existing_hash = ""
-        card_name = card_id
-
-        if isinstance(card_data, dict):
-            existing_hash = card_data.get("hash", "")
-            card_name = card_data.get("name", card_id)
-        elif isinstance(card_data, str):
-            existing_hash = card_data
-
-        if existing_hash:
-            try:
-                diff = hamming_distance(new_hash, existing_hash)
-                if diff <= threshold:
-                    return f"{card_name} (ID: {card_id})"
-            except Exception:
-                continue
-    return None
+from pydantic import BaseModel
 
 app = FastAPI()
 
+# Разрешаем CORS для связи с фронтендом на Vercel
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -100,74 +18,153 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"status": "ok", "message": "PUBG Card Scanner API is running!"}
+# Папка для временных превью картинок
+TEMP_DIR = "temp_images"
+os.makedirs(TEMP_DIR, exist_ok=True)
+app.mount(
+    "/temp_images", StaticFiles(directory=TEMP_DIR), name="temp_images"
+)
 
-@app.get("/cards")
-def get_cards():
-    return load_db()
+# Путь к JSON базе данных
+DB_FILE = "card_hashes.json"
+
+
+def load_db():
+  if os.path.exists(DB_FILE):
+    import json
+
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+      try:
+        return json.load(f)
+      except:
+        return {}
+  return {}
+
+
+def save_db(data):
+  import json
+
+  with open(DB_FILE, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def compute_dhash(image: Image.Image, hash_size=8):
+  """Упрощенное вычисление dhash для карточки"""
+  img = image.convert("L").resize(
+      (hash_size + 1, hash_size), Image.Resampling.LANCZOS
+  )
+  pixels = list(img.getdata())
+  difference = []
+  for row in range(hash_size):
+    row_start = row * (hash_size + 1)
+    for col in range(hash_size):
+      left = pixels[row_start + col]
+      right = pixels[row_start + col + 1]
+      difference.append(pixels[row_start + col] > pixels[row_start + col + 1])
+
+  decimal_value = 0
+  for index, value in enumerate(difference):
+    if value:
+      decimal_value += 1 << index
+  return f"{decimal_value:016x}"
+
+
+class CardSaveSchema(BaseModel):
+  id: str
+  name: str
+  hash: str
+  rarity: int
+  preview: str = ""
+
 
 @app.post("/admin/scan-preview")
 async def scan_preview(file: UploadFile = File(...)):
-    try:
-        contents = await file.read()
-        pil_img = Image.open(io.BytesIO(contents)).convert('RGB')
-        db = load_db()
-        
-        # Запускаем поиск карточек через OpenCV
-        detected = scan_screenshot(pil_img)
-        
-        # Если OpenCV ничего не нашел (например, загружена 1 вырезанная карта), берем всё фото
-        if not detected:
-            detected = [{'crop': pil_img}]
-            
-        results = []
-        for item in detected:
-            crop_img = item.get('crop')
-            card_hash = process_and_hash(crop_img)
-            b64_img = image_to_base64(crop_img)
-            match_name = check_duplicate(card_hash, db)
-            
-            results.append({
-                "hash": card_hash,
-                "preview_b64": b64_img,
-                "existing_match": match_name
-            })
+  try:
+    image_bytes = await file.read()
+    from io import BytesIO
 
-        return {"status": "success", "count": len(results), "cards": results}
+    pil_img = Image.open(BytesIO(image_bytes)).convert("RGB")
+  except Exception:
+    raise HTTPException(
+        status_code=400, detail="Не удалось прочитать изображение"
+    )
 
-    except Exception as e:
-        print(f"Ошибка в /admin/scan-preview: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+  w, h = pil_img.size
+  aspect_ratio = w / float(h)
+  cards = []
+
+  if aspect_ratio > 1.35:
+    # Настройки сетки под нижний ряд карт инвентаря PUBG Mobile
+    grid_left = w * 0.130
+    grid_top = h * 0.330
+    grid_right = w * 0.795
+    grid_bottom = h * 0.850
+
+    grid_w = grid_right - grid_left
+    grid_h = grid_bottom - grid_top
+
+    cols = 4
+    rows = 1
+
+    cell_w = grid_w / cols
+    cell_h = grid_h / rows
+
+    for c in range(cols):
+      x1 = grid_left + c * cell_w
+      y1 = grid_top
+      x2 = x1 + cell_w
+      y2 = grid_top + cell_h
+
+      pad_x = cell_w * 0.08
+      pad_top = cell_h * 0.08
+      pad_bottom = cell_h * 0.05
+
+      art_x1 = int(x1 + pad_x)
+      art_y1 = int(y1 + pad_top)
+      art_x2 = int(x2 - pad_x)
+      art_y2 = int(y2 - pad_bottom)
+
+      card_crop = pil_img.crop((art_x1, art_y1, art_x2, art_y2))
+
+      # Сохраняем временную иконку на диск для проверки в админке
+      filename = f"card_{c}_{int(time.time())}.png"
+      filepath = os.path.join(TEMP_DIR, filename)
+      card_crop.save(filepath)
+
+      preview_url = f"/temp_images/{filename}"
+      card_hash = compute_dhash(card_crop)
+
+      cards.append({"preview": preview_url, "hash": card_hash})
+
+  return {"cards": cards}
+
+
+@get_cards := app.get("/cards")
+
+
+@app.get("/cards")
+async def get_cards_endpoint():
+  return load_db()
+
 
 @app.post("/admin/save-card")
-async def save_card(
-    card_id: str = Form(...),
-    name: str = Form(...),
-    rarity: int = Form(...),
-    card_hash: str = Form(...)
-):
-    try:
-        db = load_db()
-        db[card_id] = {
-            "name": name,
-            "hash": card_hash,
-            "rarity": int(rarity)
-        }
-        save_db(db)
-        return {"status": "success", "message": f"Карта '{name}' сохранена!"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def save_card(data: CardSaveSchema):
+  db = load_db()
+  db[data.id] = {
+      "name": data.name,
+      "hash": data.hash,
+      "rarity": data.rarity,
+      "image": data.preview,  # Сохраняем ссылку на превью или саму иконку
+  }
+  save_db(db)
+  return {"status": "ok"}
+
 
 @app.delete("/admin/delete-card/{card_id}")
 async def delete_card(card_id: str):
-    try:
-        db = load_db()
-        if card_id in db:
-            del db[card_id]
-            save_db(db)
-            return {"status": "success", "message": f"Карта '{card_id}' удалена!"}
-        return {"status": "error", "message": "Карта не найдена"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+  db = load_db()
+  if card_id in db:
+    del db[card_id]
+    save_db(db)
+    return {"status": "ok"}
+  raise HTTPException(status_code=404, detail="Карта не найдена")
