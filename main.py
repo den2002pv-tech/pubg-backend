@@ -1,38 +1,76 @@
 import io
 import json
 import base64
+import os
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
-# Импортируйте ваши функции сканера и работы с базой
-# from scanner import scan_screenshot, process_and_hash, load_db, save_db, hamming_distance
+# Импортируем ваши функции из модуля сканера (или замените имя файла на ваш модуль)
+try:
+    from scanner import scan_screenshot, process_and_hash, load_db, save_db, hamming_distance
+except ImportError:
+    # Если функции лежат в самом main.py или другом файле, убедитесь в правильности импорта
+    pass
 
 app = FastAPI()
 
+# Включаем CORS, чтобы Vercel мог свободно делать запросы к Render
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Заглушка для Health Check Render
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "PUBG Card Scanner API is running!"}
+
+@app.get("/cards")
+def get_cards():
+    return load_db()
+
 def image_to_base64(pil_img: Image.Image) -> str:
-    """Преобразует PIL картинку в Base64 строку для временного показа в админке"""
+    """Преобразует PIL картинку в Base64 для передачи на фронтенд"""
     buffered = io.BytesIO()
     pil_img.save(buffered, format="JPEG", quality=80)
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return f"data:image/jpeg;base64,{img_str}"
 
+def check_duplicate(new_hash: str, db: dict, threshold: int = 5):
+    """Проверка дубликатов по расстоянию Хэмминга"""
+    for card_id, card_data in db.items():
+        existing_hash = card_data.get("hash", "")
+        if existing_hash:
+            try:
+                # Если функция hamming_distance импортирована
+                diff = hamming_distance(new_hash, existing_hash)
+            except NameError:
+                # Резервный расчет расстояния Хэмминга для 16-ричных строк
+                diff = bin(int(new_hash, 16) ^ int(existing_hash, 16)).count('1')
+            
+            if diff <= threshold:
+                return f"{card_data.get('name', card_id)} (ID: {card_id})"
+    return None
 
 @app.post("/admin/scan-preview")
 async def scan_preview(file: UploadFile = File(...)):
-    """
-    1. Принимает скриншот.
-    2. Сканирует и вырезает карты.
-    3. Возвращает временный Base64 (для отрисовки в браузере) и хэш.
-    Никакие файлы НЕ сохраняются на диск.
-    """
     try:
         contents = await file.read()
         pil_img = Image.open(io.BytesIO(contents)).convert('RGB')
         
-        detected_cards = scan_screenshot(pil_img)
         db = load_db()
+        detected_cards = []
         
-        # Если сканер ничего не нашел, считаем что загружена 1 обрезаная карта
+        try:
+            detected_cards = scan_screenshot(pil_img)
+        except Exception as scan_err:
+            print(f"Ошибка автосканера: {scan_err}")
+
+        # Если сканер ничего не нашел (загружена 1 вырезанная карточка)
         if not detected_cards:
             w, h = pil_img.size
             crop_box = (int(w * 0.10), int(h * 0.15), int(w * 0.90), int(h * 0.70))
@@ -53,36 +91,22 @@ async def scan_preview(file: UploadFile = File(...)):
         results = []
         for card_data in detected_cards:
             crop_img = card_data.get('crop')
-            card_hash = card_data['hash']
+            card_hash = card_data.get('hash', '')
             
             b64_img = image_to_base64(crop_img) if crop_img else ""
-            
-            # Проверяем, есть ли уже похожая карта в базе
-            match_name = check_duplicate(card_hash, db)
+            match_name = check_duplicate(card_hash, db) if card_hash else None
             
             results.append({
                 "hash": card_hash,
                 "preview_b64": b64_img,
-                "existing_match": match_name  # Покажет имя, если карта уже занесена
+                "existing_match": match_name
             })
 
         return {"status": "success", "count": len(results), "cards": results}
 
     except Exception as e:
+        print(f"Ошибка в /admin/scan-preview: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-def check_duplicate(new_hash: str, db: dict, threshold: int = 5):
-    """Вспомогательная функция: проверяет, есть ли похожий хэш в базе"""
-    for card_id, card_data in db.items():
-        existing_hash = card_data.get("hash", "")
-        if existing_hash:
-            # Расстояние Хэмминга между хэшами
-            diff = hamming_distance(new_hash, existing_hash)
-            if diff <= threshold:
-                return f"{card_data['name']} (ID: {card_id})"
-    return None
-
 
 @app.post("/admin/save-card")
 async def save_card(
@@ -91,17 +115,27 @@ async def save_card(
     rarity: int = Form(...),
     card_hash: str = Form(...)
 ):
-    """Сохраняет в JSON только чистые данные (без картинок)"""
     try:
         db = load_db()
-        
         db[card_id] = {
             "name": name,
             "hash": card_hash,
             "rarity": int(rarity)
         }
-        
         save_db(db)
         return {"status": "success", "message": f"Карта '{name}' сохранена!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/admin/delete-card/{card_id}")
+async def delete_card(card_id: str):
+    try:
+        db = load_db()
+        if card_id in db:
+            del db[card_id]
+            save_db(db)
+            return {"status": "success", "message": f"Карта '{card_id}' удалена!"}
+        return {"status": "error", "message": "Карта не найдена"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+        
