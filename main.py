@@ -1,8 +1,10 @@
 import base64
+import json
 import os
 import time
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel
@@ -31,8 +33,6 @@ DB_FILE = "card_hashes.json"
 
 def load_db():
   if os.path.exists(DB_FILE):
-    import json
-
     with open(DB_FILE, "r", encoding="utf-8") as f:
       try:
         return json.load(f)
@@ -42,8 +42,6 @@ def load_db():
 
 
 def save_db(data):
-  import json
-
   with open(DB_FILE, "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -75,6 +73,22 @@ class CardSaveSchema(BaseModel):
   hash: str
   rarity: int
   preview: str = ""
+
+
+# --- Раздача статических HTML-страниц ---
+
+
+@app.get("/")
+async def serve_index():
+  return FileResponse("index.html")
+
+
+@app.get("/admin")
+async def serve_admin():
+  return FileResponse("admin.html")
+
+
+# --- API Эндпоинты ---
 
 
 @app.post("/admin/scan-preview")
@@ -137,9 +151,6 @@ async def scan_preview(file: UploadFile = File(...)):
       cards.append({"preview": preview_url, "hash": card_hash})
 
   return {"cards": cards}
-
-
-@get_cards := app.get("/cards")
 
 
 @app.get("/cards")
