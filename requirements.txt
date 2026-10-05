@@ -3,5 +3,5 @@ uvicorn
 pillow
 imagehash
 python-multipart
-aiogram
-asyncpg
+opencv-python-headless
+numpy
