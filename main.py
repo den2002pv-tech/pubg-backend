@@ -6,12 +6,17 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И РАБОТА С БАЗОЙ ДАННЫХ ---
+# Импортируем сканер из нашего файла
+try:
+    from scanner import scan_screenshot
+except ImportError:
+    # Заглушка на случай, если файл scanner.py не найдется
+    def scan_screenshot(pil_img):
+        return []
 
 DB_FILE = "card_hashes.json"
 
 def load_db() -> dict:
-    """Загружает базу данных из JSON-файла"""
     if not os.path.exists(DB_FILE):
         return {}
     try:
@@ -22,7 +27,6 @@ def load_db() -> dict:
         return {}
 
 def save_db(data: dict):
-    """Сохраняет базу данных в JSON-файл"""
     try:
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -30,7 +34,6 @@ def save_db(data: dict):
         print(f"Ошибка сохранения в {DB_FILE}: {e}")
 
 def dhash(image: Image.Image, hash_size: int = 8) -> str:
-    """Вычисляет dHash для PIL изображения"""
     image = image.convert('L').resize((hash_size + 1, hash_size), Image.Resampling.LANCZOS)
     pixels = list(image.getdata())
     
@@ -53,34 +56,39 @@ def dhash(image: Image.Image, hash_size: int = 8) -> str:
     return ''.join(hex_string)
 
 def process_and_hash(pil_img: Image.Image) -> str:
-    """Принимает PIL картинку арт-зоны и возвращает ее хэш"""
-    return dhash(pil_img)
+    w, h = pil_img.size
+    crop_box = (int(w * 0.10), int(h * 0.15), int(w * 0.90), int(h * 0.70))
+    cropped_art = pil_img.crop(crop_box)
+    return dhash(cropped_art)
 
 def hamming_distance(h1: str, h2: str) -> int:
-    """Расстояние Хэмминга между двумя 16-ричными хэшами"""
     return bin(int(h1, 16) ^ int(h2, 16)).count('1')
 
 def image_to_base64(pil_img: Image.Image) -> str:
-    """Преобразует PIL картинку в Base64 для передачи на фронтенд"""
     buffered = io.BytesIO()
     pil_img.save(buffered, format="JPEG", quality=80)
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return f"data:image/jpeg;base64,{img_str}"
 
 def check_duplicate(new_hash: str, db: dict, threshold: int = 5):
-    """Проверка дубликатов по расстоянию Хэмминга"""
     for card_id, card_data in db.items():
-        existing_hash = card_data.get("hash", "")
+        existing_hash = ""
+        card_name = card_id
+
+        if isinstance(card_data, dict):
+            existing_hash = card_data.get("hash", "")
+            card_name = card_data.get("name", card_id)
+        elif isinstance(card_data, str):
+            existing_hash = card_data
+
         if existing_hash:
             try:
                 diff = hamming_distance(new_hash, existing_hash)
                 if diff <= threshold:
-                    return f"{card_data.get('name', card_id)} (ID: {card_id})"
+                    return f"{card_name} (ID: {card_id})"
             except Exception:
                 continue
     return None
-
-# --- FASTAPI ПРИЛОЖЕНИЕ ---
 
 app = FastAPI()
 
@@ -105,26 +113,29 @@ async def scan_preview(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         pil_img = Image.open(io.BytesIO(contents)).convert('RGB')
-        
         db = load_db()
         
-        # Обрезаем арт-зону загруженной карточки (10%-90% по ширине, 15%-70% по высоте)
-        w, h = pil_img.size
-        crop_box = (int(w * 0.10), int(h * 0.15), int(w * 0.90), int(h * 0.70))
-        cropped_art = pil_img.crop(crop_box)
+        # Запускаем поиск карточек через OpenCV
+        detected = scan_screenshot(pil_img)
         
-        card_hash = process_and_hash(cropped_art)
-        b64_img = image_to_base64(pil_img)
-        
-        return {
-            "status": "success",
-            "count": 1,
-            "cards": [{
+        # Если OpenCV ничего не нашел (например, загружена 1 вырезанная карта), берем всё фото
+        if not detected:
+            detected = [{'crop': pil_img}]
+            
+        results = []
+        for item in detected:
+            crop_img = item.get('crop')
+            card_hash = process_and_hash(crop_img)
+            b64_img = image_to_base64(crop_img)
+            match_name = check_duplicate(card_hash, db)
+            
+            results.append({
                 "hash": card_hash,
                 "preview_b64": b64_img,
-                "existing_match": check_duplicate(card_hash, db)
-            }]
-        }
+                "existing_match": match_name
+            })
+
+        return {"status": "success", "count": len(results), "cards": results}
 
     except Exception as e:
         print(f"Ошибка в /admin/scan-preview: {e}")
@@ -156,4 +167,7 @@ async def delete_card(card_id: str):
         if card_id in db:
             del db[card_id]
             save_db(db)
-            return {"status": "success", "message
+            return {"status": "success", "message": f"Карта '{card_id}' удалена!"}
+        return {"status": "error", "message": "Карта не найдена"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
