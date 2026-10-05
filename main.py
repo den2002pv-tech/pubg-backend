@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel
 
+
 app = FastAPI()
 
 # Разрешаем CORS для связи с фронтендом на Vercel
