@@ -1,134 +1,74 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PUBG Card Admin</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 24px auto; padding: 0 16px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
-    input, button { padding: 10px; font-size: 14px; }
-    button { cursor: pointer; }
-    img { max-width: 100%; }
-    .debug { margin-top: 20px; }
-    .card { border: 1px solid #ccc; padding: 12px; margin: 12px 0; border-radius: 8px; }
-    .hashes { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
-    .muted { color: #666; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PUBG Card Admin</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:1200px;margin:24px auto;padding:0 16px}
+.card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+img{max-width:100%;border-radius:8px}
+input,button{padding:9px;margin:4px 0}
+pre{white-space:pre-wrap;word-break:break-word;font-size:12px}
+</style>
 </head>
 <body>
-  <h1>PUBG Card Admin</h1>
-
-  <div class="row">
-    <input id="file" type="file" accept="image/*">
-    <button onclick="scan()">Сканировать</button>
-  </div>
-
-  <div id="status" class="muted"></div>
-  <div id="debug"></div>
-  <div id="cards"></div>
-
+<h1>PUBG Card Admin</h1>
+<input id="file" type="file" accept="image/*">
+<button onclick="scan()">Сканировать</button>
+<div id="debug"></div>
+<div id="cards" class="grid"></div>
 <script>
 const API = location.origin;
+let scanData = null;
 
-let scanResult = null;
-
-async function scan() {
-  const input = document.getElementById("file");
-  if (!input.files.length) {
-    alert("Выбери скриншот");
-    return;
-  }
-
+async function scan(){
+  const file = document.getElementById('file').files[0];
+  if(!file) return alert('Выбери скриншот');
   const fd = new FormData();
-  fd.append("file", input.files[0]);
+  fd.append('file', file);
+  const r = await fetch(API + '/admin/scan-preview', {method:'POST',body:fd});
+  const data = await r.json();
+  if(!r.ok) return alert(JSON.stringify(data));
+  scanData = data;
 
-  document.getElementById("status").textContent = "Сканирование...";
+  document.getElementById('debug').innerHTML =
+    data.debug_image ? `<h3>Проверка детектора</h3><img src="${data.debug_image}">` : '';
 
-  const response = await fetch(`${API}/admin/scan-preview`, {
-    method: "POST",
-    body: fd
+  document.getElementById('cards').innerHTML = data.cards.map((c,i)=>`
+    <div class="card">
+      <img src="${c.preview}">
+      <div>row=${c.row}, col=${c.col}, box=${c.box.join(', ')}</div>
+      <input id="id_${i}" placeholder="ID" value="card_${i+1}">
+      <input id="name_${i}" placeholder="Название">
+      <input id="rarity_${i}" type="number" min="0" max="5" value="0">
+      <pre>${JSON.stringify(c.hashes,null,2)}</pre>
+      <button onclick="saveCard(${i})">Сохранить</button>
+    </div>
+  `).join('');
+}
+
+async function saveCard(i){
+  const c = scanData.cards[i];
+  const payload = {
+    id: document.getElementById('id_'+i).value.trim(),
+    name: document.getElementById('name_'+i).value.trim() || ('Карта '+(i+1)),
+    rarity: Number(document.getElementById('rarity_'+i).value || 0),
+    preview: c.preview,
+    hashes: c.hashes,
+    hash: c.hash
+  };
+  if(!payload.id) return alert('Укажи ID');
+
+  const r = await fetch(API + '/admin/save-card', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    document.getElementById("status").textContent = data.detail || "Ошибка";
-    return;
-  }
-
-  scanResult = data;
-  document.getElementById("status").textContent =
-    `Найдено карт: ${data.count}`;
-
-  document.getElementById("debug").innerHTML = data.debug
-    ? `<div class="debug"><h3>Debug</h3><img src="${data.debug}"></div>`
-    : "";
-
-  renderCards(data.cards || []);
-}
-
-function renderCards(cards) {
-  const root = document.getElementById("cards");
-
-  root.innerHTML = cards.map((card, index) => {
-    const hashes = JSON.stringify(card.hashes, null, 2);
-
-    return `
-      <div class="card">
-        <h3>Карта ${index + 1} — ряд ${card.row + 1}, колонка ${card.col + 1}</h3>
-        ${card.preview ? `<img src="${card.preview}" style="max-width:224px">` : ""}
-        <div class="row">
-          <input id="id-${index}" placeholder="ID">
-          <input id="name-${index}" placeholder="Название">
-          <input id="rarity-${index}" type="number" min="1" max="3" value="1" placeholder="Редкость">
-          <button onclick="saveCard(${index})">Сохранить</button>
-        </div>
-        <div class="hashes">${escapeHtml(hashes)}</div>
-      </div>
-    `;
-  }).join("");
-}
-
-async function saveCard(index) {
-  const card = scanResult.cards[index];
-
-  const id = document.getElementById(`id-${index}`).value.trim();
-  const name = document.getElementById(`name-${index}`).value.trim();
-  const rarity = Number(document.getElementById(`rarity-${index}`).value);
-
-  if (!id || !name) {
-    alert("Заполни ID и название");
-    return;
-  }
-
-  const response = await fetch(`${API}/admin/save-card`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      id,
-      name,
-      rarity,
-      preview: card.preview || "",
-      hashes: card.hashes
-    })
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    alert(data.detail || "Ошибка сохранения");
-    return;
-  }
-
-  alert("Карта сохранена");
-}
-
-function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+  const data = await r.json();
+  if(!r.ok) return alert(JSON.stringify(data));
+  alert('Сохранено: ' + payload.id);
 }
 </script>
 </body>

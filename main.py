@@ -2,74 +2,84 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from scanner import match_scan_results, scan_screenshot
+from scanner import TEMP_DIR, calculate_card_hashes, load_image, match_scan_results, scan_screenshot
 
+DB_PATH = Path("card_hashes.json")
 
 app = FastAPI(title="PUBG Card Scanner")
-
-TEMP_DIR = Path("temp_images")
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
-
-DB_FILE = Path("card_hashes.json")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.mount("/temp_images", StaticFiles(directory=TEMP_DIR), name="temp_images")
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/temp_images", StaticFiles(directory=str(TEMP_DIR)), name="temp_images")
 
 
-def load_db() -> dict:
-    if not DB_FILE.exists():
+def load_db() -> dict[str, Any]:
+    if not DB_PATH.exists():
         return {}
-
     try:
-        data = json.loads(DB_FILE.read_text(encoding="utf-8"))
+        data = json.loads(DB_PATH.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
-    except (json.JSONDecodeError, OSError):
+    except Exception:
         return {}
 
 
-def save_db(data: dict) -> None:
-    DB_FILE.parent.mkdir(parents=True, exist_ok=True)
+def save_db(data: dict[str, Any]) -> None:
+    tmp = DB_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, DB_PATH)
 
-    fd, tmp_name = tempfile.mkstemp(
-        prefix="card_hashes_",
-        suffix=".json",
-        dir=str(DB_FILE.parent),
-    )
 
+def clean_hashes(value: Any) -> dict[str, str]:
+    if isinstance(value, str):
+        value = {"full_dhash": value}
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for k, v in value.items():
+        if v is None:
+            continue
+        s = str(v).strip()
+        if not s or s.lower() in {"undefined", "null", "none"}:
+            continue
+        out[str(k)] = s
+    return out
+
+
+def hashes_from_local_preview(preview: str | None) -> dict[str, str]:
+    if not preview or not preview.startswith("/temp_images/"):
+        return {}
+    name = Path(preview).name
+    path = (TEMP_DIR / name).resolve()
+    if path.parent != TEMP_DIR.resolve() or not path.exists():
+        return {}
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-
-        os.replace(tmp_name, DB_FILE)
-    finally:
-        try:
-            os.unlink(tmp_name)
-        except FileNotFoundError:
-            pass
+        return calculate_card_hashes(load_image(path))
+    except Exception:
+        return {}
 
 
 class CardSaveSchema(BaseModel):
-    id: str = Field(min_length=1, max_length=100)
-    name: str = Field(min_length=1, max_length=200)
-    rarity: int = Field(ge=1, le=3)
-    preview: str = ""
+    id: str
+    name: str
+    rarity: int = 0
+    preview: str | None = None
     hashes: dict[str, str] | None = None
+    # Legacy field kept so an old admin page cannot silently break saving.
     hash: str | None = None
 
 
@@ -85,64 +95,54 @@ def get_cards():
 
 @app.post("/scan")
 async def scan(file: UploadFile = File(...)):
-    content = await file.read()
-
-    if not content:
-        raise HTTPException(status_code=400, detail="Empty image")
-
-    try:
-        result = scan_screenshot(content, save_previews=False, save_debug=False)
-        return match_scan_results(result, load_db())
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Scan failed: {exc}") from exc
+    data = await file.read()
+    scan_result = scan_screenshot(data, save_previews=True, save_debug=True)
+    db = load_db()
+    return {**scan_result, **match_scan_results(scan_result, db)}
 
 
 @app.post("/admin/scan-preview")
 async def admin_scan_preview(file: UploadFile = File(...)):
-    content = await file.read()
-
-    if not content:
-        raise HTTPException(status_code=400, detail="Empty image")
-
-    try:
-        return scan_screenshot(content, save_previews=True, save_debug=True)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Scan failed: {exc}") from exc
+    data = await file.read()
+    return scan_screenshot(data, save_previews=True, save_debug=True)
 
 
 @app.post("/admin/save-card")
-def save_card(data: CardSaveSchema):
-    database = load_db()
+def save_card(card: CardSaveSchema):
+    hashes = clean_hashes(card.hashes)
 
-    hashes = data.hashes or {}
-    if not hashes and data.hash:
-        hashes = {"full_dhash": data.hash}
+    # If the browser sends an old single "hash" field, preserve it.
+    if not hashes and card.hash:
+        hashes = clean_hashes(card.hash)
 
-    database[data.id] = {
-        "name": data.name,
+    # Server-side fallback: calculate hashes from the saved preview.
+    # This also fixes mixed/cached frontend/backend versions.
+    if not hashes:
+        hashes = hashes_from_local_preview(card.preview)
+
+    if not hashes:
+        raise HTTPException(
+            status_code=400,
+            detail="Не удалось получить хеши карточки. Пересканируй изображение."
+        )
+
+    data = load_db()
+    data[card.id] = {
+        "name": card.name,
         "hashes": hashes,
-        "hash": data.hash or hashes.get("full_dhash", ""),
-        "rarity": data.rarity,
-        "image": data.preview,
+        "hash": hashes.get("full_dhash", next(iter(hashes.values()))),
+        "rarity": int(card.rarity),
+        "image": card.preview,
     }
-
-    save_db(database)
-
-    return {
-        "ok": True,
-        "id": data.id,
-        "card": database[data.id],
-    }
+    save_db(data)
+    return {"ok": True, "card": data[card.id]}
 
 
 @app.delete("/admin/delete-card/{card_id}")
 def delete_card(card_id: str):
-    database = load_db()
-
-    if card_id not in database:
-        raise HTTPException(status_code=404, detail="Card not found")
-
-    del database[card_id]
-    save_db(database)
-
-    return {"ok": True, "id": card_id}
+    data = load_db()
+    if card_id not in data:
+        raise HTTPException(status_code=404, detail="Карточка не найдена")
+    del data[card_id]
+    save_db(data)
+    return {"ok": True}
