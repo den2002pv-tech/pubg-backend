@@ -45,7 +45,7 @@ def find_matching_card(crop_hash, card_db):
         diff = crop_h - db_h
         if diff < min_diff:
             min_diff = diff
-            best_match = data["name"]
+            best_match = data.get("name", card_id)
             
     return best_match
 
@@ -78,6 +78,19 @@ async def add_card(
         save_db(db)
         
         return {"status": "success", "message": f"Карта '{name}' добавлена!", "db": db}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# === ТОТ САМЫЙ НОВЫЙ ЭНДПОИНТ ДЛЯ УДАЛЕНИЯ ===
+@app.delete("/admin/delete-card/{card_id}")
+def delete_card(card_id: str):
+    try:
+        db = load_db()
+        if card_id in db:
+            del db[card_id]
+            save_db(db)
+            return {"status": "success", "message": f"Карта '{card_id}' удалена!", "db": db}
+        return {"status": "error", "message": "Карта не найдена"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
