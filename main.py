@@ -12,6 +12,36 @@ try:
 except ImportError:
     # Если функции лежат в самом main.py или другом файле, убедитесь в правильности импорта
     pass
+from PIL import Image
+
+def dhash(image: Image.Image, hash_size: int = 8) -> str:
+    """Вычисляет dHash для PIL изображения"""
+    # Приводим к оттенкам серого и размеру (hash_size + 1) x hash_size
+    image = image.convert('L').resize((hash_size + 1, hash_size), Image.Resampling.LANCZOS)
+    pixels = list(image.getdata())
+    
+    difference = []
+    for row in range(hash_size):
+        for col in range(hash_size):
+            pixel_left = pixels[row * (hash_size + 1) + col]
+            pixel_right = pixels[row * (hash_size + 1) + col + 1]
+            difference.append(pixel_left > pixel_right)
+            
+    decimal_value = 0
+    hex_string = []
+    for i, value in enumerate(difference):
+        if value:
+            decimal_value += 2 ** (i % 8)
+        if (i % 8) == 7:
+            hex_string.append(hex(decimal_value)[2:].zfill(2))
+            decimal_value = 0
+            
+    return ''.join(hex_string)
+
+def process_and_hash(pil_img: Image.Image) -> str:
+    """Принимает PIL картинку арт-зоны и возвращает ее хэш"""
+    return dhash(pil_img)
+    
 
 app = FastAPI()
 
