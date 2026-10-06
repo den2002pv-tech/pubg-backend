@@ -1,1 +1,50 @@
-{}
+{
+  "card_0_2": {
+    "name": "Наруто режим отшельника",
+    "hashes": {
+      "full_phash": "ea7c952b947848e5",
+      "full_dhash": "316517350d494be8",
+      "visual_phash": "ee8482379cd9ec2c",
+      "visual_dhash": "61e51733364d4931"
+    },
+    "hash": "316517350d494be8",
+    "rarity": 3,
+    "icon": "/static/cards/card_0_2.webp"
+  },
+  "card_0_3": {
+    "name": "Наруто Узумаки",
+    "hashes": {
+      "full_phash": "ea6c953bd06cc295",
+      "full_dhash": "3171672511556be8",
+      "visual_phash": "efcc811a6ec03d78",
+      "visual_dhash": "6171672735555157"
+    },
+    "hash": "3171672511556be8",
+    "rarity": 3,
+    "icon": "/static/cards/card_0_3.webp"
+  },
+  "card_0_1": {
+    "name": "Наруто режим Шести путей",
+    "hashes": {
+      "full_phash": "ea59932b94f0c2bc",
+      "full_dhash": "59517337236b4be8",
+      "visual_phash": "cf90339cf1c63cb0",
+      "visual_dhash": "59d9737232736349"
+    },
+    "hash": "59517337236b4be8",
+    "rarity": 3,
+    "icon": "/static/cards/card_0_1.webp"
+  },
+  "card_0_0": {
+    "name": "Наруто Ураганные хроники",
+    "hashes": {
+      "full_phash": "fe7d9527c8c10a91",
+      "full_dhash": "22263531356dcee8",
+      "visual_phash": "ff9927c9e1818923",
+      "visual_dhash": "5266573111744d4d"
+    },
+    "hash": "22263531356dcee8",
+    "rarity": 3,
+    "icon": "/static/cards/card_0_0.webp"
+  }
+}
