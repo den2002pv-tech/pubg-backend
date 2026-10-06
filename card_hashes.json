@@ -46,5 +46,41 @@
     "hash": "22263531356dcee8",
     "rarity": 3,
     "icon": "/static/cards/card_0_0.webp"
+  },
+  "card_1": {
+    "name": "Париж Франция",
+    "hashes": {
+      "full_phash": "e2fd1d6a902f26b0",
+      "full_dhash": "03908ecdc9c94be8",
+      "visual_phash": "e2bd1b922966298f",
+      "visual_dhash": "11a8868e8c8dcd41"
+    },
+    "hash": "03908ecdc9c94be8",
+    "rarity": 3,
+    "icon": "/static/cards/card_1.webp"
+  },
+  "card_2": {
+    "name": "Чемпион YG",
+    "hashes": {
+      "full_phash": "fb7b842a912962b5",
+      "full_dhash": "73711b1b196123e8",
+      "visual_phash": "db9d86984a6e1bc8",
+      "visual_dhash": "79b25b1b1b192165"
+    },
+    "hash": "73711b1b196123e8",
+    "rarity": 3,
+    "icon": "/static/cards/card_2.webp"
+  },
+  "card_3": {
+    "name": "Чемпион 4T",
+    "hashes": {
+      "full_phash": "eb3f9d0ac128e0b9",
+      "full_dhash": "7b69194d494923e8",
+      "visual_phash": "df1c0acb6afa3a80",
+      "visual_dhash": "696c3d0a4c5149a5"
+    },
+    "hash": "7b69194d494923e8",
+    "rarity": 3,
+    "icon": "/static/cards/card_3.webp"
   }
 }
