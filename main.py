@@ -244,6 +244,102 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     return best_id, best_score
 
 
+
+def _next_card_id(db: dict[str, Any]) -> str:
+    numbers = []
+
+    for card_id in db:
+        if not isinstance(card_id, str):
+            continue
+
+        if not card_id.startswith("card_"):
+            continue
+
+        suffix = card_id[5:]
+
+        if suffix.isdigit():
+            numbers.append(int(suffix))
+
+    next_number = max(numbers, default=0) + 1
+
+    while f"card_{next_number}" in db:
+        next_number += 1
+
+    return f"card_{next_number}"
+
+
+def _enrich_admin_scan(
+    cards: list[dict[str, Any]],
+    db: dict[str, Any],
+) -> list[dict[str, Any]]:
+    result = []
+
+    for card in cards:
+        item = dict(card)
+
+        best_id, best_distance = _match_card(
+            card.get("hashes", {}),
+            db,
+        )
+
+        matched = (
+            best_id is not None
+            and best_distance <= float(
+                os.getenv("CARD_MATCH_THRESHOLD", "18")
+            )
+        )
+
+        if matched:
+            info = db[best_id]
+
+            item.update({
+                "matched": True,
+                "id": best_id,
+                "name": info.get("name", best_id),
+                "rarity": info.get("rarity", 1),
+                "distance": round(best_distance, 2),
+                "icon": info.get("icon", ""),
+            })
+        else:
+            item.update({
+                "matched": False,
+                "id": None,
+                "name": "",
+                "rarity": None,
+                "distance": (
+                    round(best_distance, 2)
+                    if best_id is not None
+                    else None
+                ),
+                "icon": "",
+            })
+
+        result.append(item)
+
+    next_number = max(
+        (
+            int(card_id[5:])
+            for card_id in db
+            if (
+                isinstance(card_id, str)
+                and card_id.startswith("card_")
+                and card_id[5:].isdigit()
+            )
+        ),
+        default=0,
+    ) + 1
+
+    for item in result:
+        if not item["matched"]:
+            while f"card_{next_number}" in db:
+                next_number += 1
+
+            item["suggested_id"] = f"card_{next_number}"
+            next_number += 1
+
+    return result
+
+
 async def _read_image(file: UploadFile) -> Image.Image:
     try:
         data = await file.read()
@@ -353,7 +449,13 @@ async def scan_preview(
 ):
     require_admin(authorization)
     image = await _read_image(file)
-    return scan_screenshot(image, save_previews=True)
+    result = scan_screenshot(image, save_previews=True)
+    db = load_db()
+    result["cards"] = _enrich_admin_scan(
+        result.get("cards", []),
+        db,
+    )
+    return result
 
 
 @app.post("/scan")
@@ -415,7 +517,8 @@ async def save_card(
         raise HTTPException(status_code=400, detail="Не удалось получить валидные hashes")
 
     db = load_db()
-    old = db.get(data.id, {})
+    card_id = data.id.strip() if data.id else _next_card_id(db)
+    old = db.get(card_id, {})
     record = {
         "name": data.name,
         "hashes": hashes,
@@ -427,9 +530,13 @@ async def save_card(
     if old.get("icon"):
         record["icon"] = old["icon"]
 
-    db[data.id] = record
+    db[card_id] = record
     save_db(db)
-    return {"status": "ok", "card": db[data.id]}
+    return {
+        "status": "ok",
+        "card_id": card_id,
+        "card": record,
+    }
 
 
 @app.post("/admin/match-icon")
@@ -450,6 +557,7 @@ async def match_icon(
             "matched": False,
             "score": None,
             "hashes": hashes,
+        "icon": info.get("icon", ""),
             "message": "Не удалось найти подходящую карту",
         }
 

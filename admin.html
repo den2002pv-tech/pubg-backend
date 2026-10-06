@@ -126,6 +126,12 @@ function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
 function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
 function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 const API_BASE = 'https://pubg-backend-3rtc.onrender.com';
+function assetUrl(url){
+  if(!url)return '';
+  if(/^https?:\\/\\//i.test(url))return url;
+  return API_BASE + (url.startsWith('/') ? url : '/'+url);
+}
+
 const TOKEN_KEY = 'pubg_admin_token';
 
 function getToken(){
@@ -279,7 +285,7 @@ function renderCardList(){
     if(filter==='missing'&&has)continue;
     if(q&&!(`${id} ${info.name||''}`.toLowerCase().includes(q)))continue;
     const el=document.createElement('div');el.className='item';
-    const img=has?`<img class="icon" src="${esc(info.icon)}">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
+    const img=has?`<img class="icon" src="${esc(assetUrl(info.icon))}" onerror="this.style.display='none'">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
     el.innerHTML=`${img}
       <h3>${esc(info.name||id)}</h3>
       <div class="muted">${esc(id)} · редкость ${info.rarity||1}</div>
@@ -310,31 +316,152 @@ async function scan(){
 }
 function renderResults(cards){
   document.getElementById('resultsBox').style.display='block';
-  const root=document.getElementById('scanResults');root.innerHTML='';
+
+  const root=document.getElementById('scanResults');
+  root.innerHTML='';
+
   cards.forEach((c,i)=>{
-    const el=document.createElement('div');el.className='item';
-    const previewUrl = c.preview.startsWith('http') ? c.preview : API_BASE + c.preview;
-      el.innerHTML=`<img src="${esc(previewUrl)}">
-      <div class="muted">row ${c.row}, col ${c.col}</div>
-      <label>ID карты</label><input id="id_${i}" value="card_${c.row}_${c.col}">
-      <label>Название</label><input id="name_${i}" value="Карта ${i+1}">
-      <label>Редкость</label><select id="rarity_${i}"><option value="1">1 — Серая</option><option value="2">2 — Синяя</option><option value="3">3 — Золотая</option></select>
-      <button onclick="saveCard(${i})">Сохранить хеши</button>
-      <details><summary>Hashes</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes,null,2))}</pre></details>`;
+    const el=document.createElement('div');
+    el.className='item';
+
+    const previewUrl = assetUrl(c.preview);
+
+    if(c.matched){
+      const icon = c.icon
+        ? `<img class="icon" src="${esc(assetUrl(c.icon))}" onerror="this.style.display='none'">`
+        : `<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет постоянной иконки</div>`;
+
+      el.innerHTML=`
+        <img src="${esc(previewUrl)}">
+
+        <div class="muted">
+          row ${esc(c.row)}, col ${esc(c.col)}
+        </div>
+
+        <span class="badge has">✅ Уже есть в базе</span>
+
+        <h3>${esc(c.name || c.id)}</h3>
+
+        <div class="muted">
+          ID: <b>${esc(c.id)}</b>
+        </div>
+
+        <div class="muted">
+          Расстояние: <b>${esc(c.distance)}</b>
+        </div>
+
+        <div style="margin-top:10px">
+          ${icon}
+        </div>
+
+        <p class="muted">
+          Повторно сохранять эту карту не нужно.
+        </p>
+
+        <details>
+          <summary>Hashes</summary>
+          <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes||{},null,2))}</pre>
+        </details>
+      `;
+    }else{
+      el.innerHTML=`
+        <img src="${esc(previewUrl)}">
+
+        <div class="muted">
+          row ${esc(c.row)}, col ${esc(c.col)}
+        </div>
+
+        <span class="badge missing">🆕 Новая карта</span>
+
+        <div class="muted" style="margin-top:8px">
+          Новый ID:
+          <b>${esc(c.suggested_id || 'будет назначен backend')}</b>
+        </div>
+
+        <label>Название</label>
+        <input id="name_${i}" value="Карта ${i+1}">
+
+        <label>Редкость</label>
+        <select id="rarity_${i}">
+          <option value="1">1 — Серая</option>
+          <option value="2">2 — Синяя</option>
+          <option value="3">3 — Золотая</option>
+        </select>
+
+        <button onclick="saveCard(${i})">
+          Сохранить новую карту
+        </button>
+
+        <details>
+          <summary>Hashes</summary>
+          <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes||{},null,2))}</pre>
+        </details>
+      `;
+    }
+
     root.appendChild(el);
-  })
+  });
 }
+
 document.getElementById('scanBtn').onclick=scan;
 
 async function saveCard(i){
-  const el=document.querySelectorAll('#scanResults .item')[i],card=window.lastScan[i];
-  const id=el.querySelector('#id_'+i).value.trim(),name=el.querySelector('#name_'+i).value.trim(),rarity=Number(el.querySelector('#rarity_'+i).value);
-  if(!id||!name)return alert('Заполни ID и название');
+  const el=document.querySelectorAll('#scanResults .item')[i];
+  const card=window.lastScan[i];
+
+  if(!card){
+    return alert('Карточка не найдена');
+  }
+
+  // Дубликаты повторно не сохраняем.
+  if(card.matched){
+    return alert(
+      `Эта карта уже существует в базе:\n${card.id} · ${card.name||''}`
+    );
+  }
+
+  const nameInput=el.querySelector('#name_'+i);
+  const rarityInput=el.querySelector('#rarity_'+i);
+
+  const name=nameInput ? nameInput.value.trim() : '';
+  const rarity=rarityInput ? Number(rarityInput.value) : 1;
+
+  if(!name){
+    return alert('Заполни название');
+  }
+
   try{
-    const r=await api('/admin/save-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,rarity,preview:card.preview,hash:card.hash,hashes:card.hashes})});
-    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка');
-    alert('Хеши сохранены');await loadAll()
-  }catch(e){alert('Ошибка сохранения: '+e.message)}
+    const r=await api('/admin/save-card',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        name,
+        rarity,
+        preview:card.preview,
+        hash:card.hash,
+        hashes:card.hashes
+      })
+    });
+
+    const d=await r.json();
+
+    if(!r.ok){
+      throw new Error(d.detail||'Ошибка сохранения');
+    }
+
+    card.matched=true;
+    card.id=d.card_id||d.card?.id;
+    card.name=name;
+    card.rarity=rarity;
+
+    alert(`Карта сохранена: ${card.id}`);
+
+    await loadAll();
+    renderResults(window.lastScan);
+
+  }catch(e){
+    alert('Ошибка сохранения: '+e.message);
+  }
 }
 
 document.getElementById('matchIconBtn').onclick=async()=>{
