@@ -25,7 +25,7 @@ textarea{height:180px;font-family:monospace}.muted{color:#aaa}.ok{color:#65e06f}
 <div id="resultsBox" class="box" style="display:none"><h2>2. Найденные карточки</h2><div id="scanResults" class="preview-grid"></div></div>
 <div class="box"><h2>3. Текущая база</h2><textarea id="jsonOutput" readonly></textarea><div class="row"><button id="refreshBtn" class="btn-secondary">Обновить</button><button id="copyBtn">Скопировать JSON</button></div><div id="cardList" class="card-list" style="margin-top:15px"></div></div>
 <script>
-const API = window.location.origin;
+const API = 'https://pubg-backend-3rtc.onrender.com';
 const statusEl=document.getElementById('status');
 function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t;}
 async function loadCards(){
