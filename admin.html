@@ -251,7 +251,8 @@ async function loadAll(){await loadCards();await loadStatus();await loadTemp()}
 
 async function loadStatus(){
   const r=await api('/admin/status');
-  if(r.status===401){clearToken();location.reload();return}\n  if(!r.ok){throw new Error(await readError(r))}
+  if(r.status===401){clearToken();location.reload();return}
+  if(!r.ok){throw new Error(await readError(r))}
   const d=await r.json();
   document.getElementById('statCards').textContent=d.cards;
   document.getElementById('statIcons').textContent=d.icons;
