@@ -323,6 +323,8 @@ function renderResults(cards){
     root.appendChild(el);
   })
 }
+document.getElementById('scanBtn').onclick=scan;
+
 async function saveCard(i){
   const el=document.querySelectorAll('#scanResults .item')[i],card=window.lastScan[i];
   const id=el.querySelector('#id_'+i).value.trim(),name=el.querySelector('#name_'+i).value.trim(),rarity=Number(el.querySelector('#rarity_'+i).value);
