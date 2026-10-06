@@ -1,6 +1,6 @@
 {
   "card_0_3": {
-    "name": "Карта 4",
+    "name": "Четыре",
     "hashes": {
       "full_phash": "bb3a949c3a6148f5",
       "full_dhash": "3d7c130f1ffecee8",
@@ -12,7 +12,7 @@
     "image": "/temp_images/card_1791246883575_2111.jpg"
   },
   "card_0_0": {
-    "name": "Карта 1",
+    "name": "Один",
     "hashes": {
       "full_phash": "bb3a94b43a698ae4",
       "full_dhash": "3d7c19132ffe6ae8",
@@ -24,7 +24,7 @@
     "image": "/temp_images/card_1791246883378_1679.jpg"
   },
   "card_0_2": {
-    "name": "Карта 3",
+    "name": "Три",
     "hashes": {
       "full_phash": "bd3a938c8ce16ae4",
       "full_dhash": "3d3c0b1327376ae8",
@@ -32,11 +32,11 @@
       "visual_dhash": "7c3c9b1333273773"
     },
     "hash": "3d3c0b1327376ae8",
-    "rarity": 1,
+    "rarity": 3,
     "image": "/temp_images/card_1791246883483_6338.jpg"
   },
   "card_0_1": {
-    "name": "Карта 2",
+    "name": "Два",
     "hashes": {
       "full_phash": "bf3a919d2e6082f1",
       "full_dhash": "3d3c0d073ffe6ae8",
@@ -44,7 +44,7 @@
       "visual_dhash": "7c7c9d0d373fbffe"
     },
     "hash": "3d3c0d073ffe6ae8",
-    "rarity": 1,
+    "rarity": 2,
     "image": "/temp_images/card_1791246883473_5653.jpg"
   }
 }
