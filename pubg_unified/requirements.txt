@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-pillow
-imagehash
-python-multipart
-opencv-python-headless
-numpy

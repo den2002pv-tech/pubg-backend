@@ -1,75 +1,43 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PUBG Card Admin</title>
 <style>
-body{font-family:Arial,sans-serif;max-width:1200px;margin:24px auto;padding:0 16px}
-.card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:12px 0}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
-img{max-width:100%;border-radius:8px}
-input,button{padding:9px;margin:4px 0}
-pre{white-space:pre-wrap;word-break:break-word;font-size:12px}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#121212;color:#fff;padding:20px;max-width:1000px;margin:auto}
+.box{background:#1e1e1e;padding:16px;border-radius:10px;margin-bottom:20px}.row{display:flex;gap:10px;flex-wrap:wrap}
+input,select,button,textarea{width:100%;padding:10px;margin-top:6px;border-radius:6px;border:1px solid #444;box-sizing:border-box;background:#292929;color:#fff}
+button{background:#ff9900;color:#000;font-weight:700;cursor:pointer;border:0}.btn-secondary{background:#3498db;color:#fff}.btn-danger{background:#e74c3c;color:#fff}
+.preview-grid,.card-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}.item{background:#292929;border:1px solid #444;border-radius:8px;padding:12px}.item img{width:100%;height:180px;object-fit:contain;background:#000;border-radius:6px}
+textarea{height:180px;font-family:monospace}.muted{color:#aaa}.ok{color:#65e06f}.err{color:#ff7070}
 </style>
 </head>
 <body>
 <h1>PUBG Card Admin</h1>
-<input id="file" type="file" accept="image/*">
-<button onclick="scan()">Сканировать</button>
-<div id="debug"></div>
-<div id="cards" class="grid"></div>
+<div class="box">
+<h2>1. Сканирование</h2>
+<p class="muted">Загрузи скриншот коллекции. Backend сам определит ряды и карточки.</p>
+<input type="file" id="screenshotInput" accept="image/*">
+<button id="scanBtn">Сканировать</button>
+<div id="status"></div>
+</div>
+<div id="resultsBox" class="box" style="display:none"><h2>2. Найденные карточки</h2><div id="scanResults" class="preview-grid"></div></div>
+<div class="box"><h2>3. Текущая база</h2><textarea id="jsonOutput" readonly></textarea><div class="row"><button id="refreshBtn" class="btn-secondary">Обновить</button><button id="copyBtn">Скопировать JSON</button></div><div id="cardList" class="card-list" style="margin-top:15px"></div></div>
 <script>
-const API = location.origin;
-let scanData = null;
-
-async function scan(){
-  const file = document.getElementById('file').files[0];
-  if(!file) return alert('Выбери скриншот');
-  const fd = new FormData();
-  fd.append('file', file);
-  const r = await fetch(API + '/admin/scan-preview', {method:'POST',body:fd});
-  const data = await r.json();
-  if(!r.ok) return alert(JSON.stringify(data));
-  scanData = data;
-
-  document.getElementById('debug').innerHTML =
-    data.debug_image ? `<h3>Проверка детектора</h3><img src="${data.debug_image}">` : '';
-
-  document.getElementById('cards').innerHTML = data.cards.map((c,i)=>`
-    <div class="card">
-      <img src="${c.preview}">
-      <div>row=${c.row}, col=${c.col}, box=${c.box.join(', ')}</div>
-      <input id="id_${i}" placeholder="ID" value="card_${i+1}">
-      <input id="name_${i}" placeholder="Название">
-      <input id="rarity_${i}" type="number" min="0" max="5" value="0">
-      <pre>${JSON.stringify(c.hashes,null,2)}</pre>
-      <button onclick="saveCard(${i})">Сохранить</button>
-    </div>
-  `).join('');
-}
-
-async function saveCard(i){
-  const c = scanData.cards[i];
-  const payload = {
-    id: document.getElementById('id_'+i).value.trim(),
-    name: document.getElementById('name_'+i).value.trim() || ('Карта '+(i+1)),
-    rarity: Number(document.getElementById('rarity_'+i).value || 0),
-    preview: c.preview,
-    hashes: c.hashes,
-    hash: c.hash
-  };
-  if(!payload.id) return alert('Укажи ID');
-
-  const r = await fetch(API + '/admin/save-card', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(payload)
-  });
-  const data = await r.json();
-  if(!r.ok) return alert(JSON.stringify(data));
-  alert('Сохранено: ' + payload.id);
-}
+const API = window.location.origin;
+const statusEl=document.getElementById('status');
+function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t;}
+async function loadCards(){
+ try{const r=await fetch(API+'/cards');if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();document.getElementById('jsonOutput').value=JSON.stringify(d,null,2);const list=document.getElementById('cardList');list.innerHTML='';for(const [id,info] of Object.entries(d)){const el=document.createElement('div');el.className='item';const img=info.image?(info.image.startsWith('http')?info.image:API+info.image):'';el.innerHTML=`${img?`<img src="${img}">`:''}<b>${escapeHtml(info.name||id)}</b><div class="muted">ID: ${escapeHtml(id)}</div><div>Редкость: ${info.rarity||1}</div><button class="btn-danger" onclick="deleteCard('${encodeURIComponent(id)}')">Удалить</button>`;list.appendChild(el)}}catch(e){status('Не удалось загрузить базу: '+e.message,'err')}}
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+async function scan(){const f=document.getElementById('screenshotInput').files[0];if(!f){status('Сначала выбери изображение','err');return}const fd=new FormData();fd.append('file',f);const b=document.getElementById('scanBtn');b.disabled=true;b.textContent='Сканирование...';status('Отправка изображения...');try{const r=await fetch(API+'/admin/scan-preview',{method:'POST',body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сервера');renderResults(d.cards||[]);status(`Найдено карточек: ${d.count||0}`,'ok')}catch(e){status('Ошибка сканирования: '+e.message,'err')}finally{b.disabled=false;b.textContent='Сканировать'}}
+function renderResults(cards){document.getElementById('resultsBox').style.display='block';const root=document.getElementById('scanResults');root.innerHTML='';cards.forEach((c,i)=>{const el=document.createElement('div');el.className='item';const img=API+c.preview;el.innerHTML=`<img src="${img}"><div class="muted">row ${c.row}, col ${c.col}</div><label>ID карты</label><input id="id_${i}" value="card_${c.row}_${c.col}"><label>Название</label><input id="name_${i}" value="Карта ${i+1}"><label>Редкость</label><select id="rarity_${i}"><option value="1">1 — Серая</option><option value="2">2 — Синяя</option><option value="3">3 — Золотая</option></select><button onclick="saveCard(${i})">Сохранить</button><details><summary>Hashes</summary><pre style="white-space:pre-wrap;font-size:11px">${escapeHtml(JSON.stringify(c.hashes,null,2))}</pre></details>`;root.appendChild(el)})}
+let scanned=[];
+async function saveCard(i){const el=document.querySelectorAll('#scanResults .item')[i];const id=el.querySelector('#id_'+i).value.trim();const name=el.querySelector('#name_'+i).value.trim();const rarity=Number(el.querySelector('#rarity_'+i).value);const c=Array.from(document.querySelectorAll('#scanResults .item')).length;const card=window.lastScan[i];if(!id||!name)return alert('Заполни ID и название');try{const r=await fetch(API+'/admin/save-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,rarity,preview:card.preview,hash:card.hash,hashes:card.hashes})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка');alert('Карта сохранена');loadCards()}catch(e){alert('Ошибка сохранения: '+e.message)}}
+window.lastScan=[];
+const oldRender=renderResults;renderResults=function(cards){window.lastScan=cards;oldRender(cards)};
+async function deleteCard(id){if(!confirm('Удалить карту?'))return;try{const r=await fetch(API+'/admin/delete-card/'+id,{method:'DELETE'});if(!r.ok)throw new Error('HTTP '+r.status);loadCards()}catch(e){alert(e.message)}}
+document.getElementById('scanBtn').onclick=scan;document.getElementById('refreshBtn').onclick=loadCards;document.getElementById('copyBtn').onclick=()=>navigator.clipboard.writeText(document.getElementById('jsonOutput').value);loadCards();
 </script>
-</body>
-</html>
+</body></html>
