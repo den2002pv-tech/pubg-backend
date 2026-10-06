@@ -293,7 +293,7 @@ async def admin_login(data: LoginSchema, response: Response):
         max_age=SESSION_MAX_AGE,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
     )
     return {"status": "ok"}
 
