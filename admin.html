@@ -313,7 +313,8 @@ function renderResults(cards){
   const root=document.getElementById('scanResults');root.innerHTML='';
   cards.forEach((c,i)=>{
     const el=document.createElement('div');el.className='item';
-    el.innerHTML=`<img src="${esc(c.preview)}">
+    const previewUrl = c.preview.startsWith('http') ? c.preview : API_BASE + c.preview;
+      el.innerHTML=`<img src="${esc(previewUrl)}">
       <div class="muted">row ${c.row}, col ${c.col}</div>
       <label>ID карты</label><input id="id_${i}" value="card_${c.row}_${c.col}">
       <label>Название</label><input id="name_${i}" value="Карта ${i+1}">
@@ -385,7 +386,8 @@ async function loadTemp(){
   if(!files.length){root.innerHTML='<p class="muted">Временных файлов нет.</p>';return}
   files.forEach(f=>{
     const el=document.createElement('div');el.className='item';
-    el.innerHTML=`<img src="${esc(f.url)}"><div>${esc(f.name)}</div><div class="muted">${Math.round(f.size/1024)} KB</div>`;
+    const fileUrl = f.url.startsWith('http') ? f.url : API_BASE + f.url;
+    el.innerHTML=`<img src="${esc(fileUrl)}"><div>${esc(f.name)}</div><div class="muted">${Math.round(f.size/1024)} KB</div>`;
     root.appendChild(el)
   })
 }
