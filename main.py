@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from fastapi import Cookie, FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -46,8 +46,8 @@ app.mount("/temp_images", StaticFiles(directory=str(TEMP_DIR)), name="temp_image
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 DB_FILE = Path("card_hashes.json")
-ADMIN_COOKIE = "pubg_admin"
 SESSION_MAX_AGE = 12 * 60 * 60
+ADMIN_TOKEN_PREFIX = "pubg_admin_v1"
 
 
 def load_db() -> dict[str, Any]:
@@ -101,47 +101,86 @@ def local_preview_path(url: str) -> Path | None:
 def _session_secret() -> str:
     secret = os.getenv("ADMIN_SESSION_SECRET", "")
     if not secret:
-        # Works for a prototype, but set ADMIN_SESSION_SECRET on Render so
-        # sessions survive a restart.
-        secret = os.getenv("ADMIN_PASSWORD", "change-me")
+        secret = os.getenv("ADMIN_PASSWORD", "")
+    if not secret:
+        # The application will reject admin requests when ADMIN_PASSWORD
+        # is missing, so this value is only a defensive fallback.
+        return "invalid-admin-secret"
     return secret
 
 
 def _make_session() -> str:
-    ts = str(int(time.time()))
+    """
+    Create a signed bearer token.
+
+    Format:
+        pubg_admin_v1.<timestamp>.<random_nonce>.<hmac>
+
+    The token is self-contained, so Render does not need a session database.
+    """
+    ts_s = str(int(time.time()))
+    nonce = base64.urlsafe_b64encode(os.urandom(24)).decode("ascii").rstrip("=")
+    payload = f"{ADMIN_TOKEN_PREFIX}.{ts_s}.{nonce}"
     sig = hmac.new(
         _session_secret().encode("utf-8"),
-        ts.encode("utf-8"),
+        payload.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
-    return f"{ts}.{sig}"
+    return f"{payload}.{sig}"
 
 
 def _valid_session(value: str | None) -> bool:
-    if not value or "." not in value:
+    if not value:
         return False
-    ts_s, sig = value.split(".", 1)
+
+    parts = value.split(".")
+    if len(parts) != 4:
+        return False
+
+    prefix, ts_s, nonce, sig = parts
+    if prefix != ADMIN_TOKEN_PREFIX or not nonce or not sig:
+        return False
+
     try:
         ts = int(ts_s)
     except ValueError:
         return False
-    if time.time() - ts > SESSION_MAX_AGE or ts > time.time() + 60:
+
+    now = time.time()
+    if now - ts > SESSION_MAX_AGE or ts > now + 60:
         return False
+
+    payload = f"{prefix}.{ts_s}.{nonce}"
     expected = hmac.new(
         _session_secret().encode("utf-8"),
-        ts_s.encode("utf-8"),
+        payload.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
+
     return hmac.compare_digest(sig, expected)
 
 
-def require_admin(admin_cookie: str | None) -> None:
+def _authorization_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+
+    scheme, sep, token = authorization.partition(" ")
+    if not sep or scheme.lower() != "bearer":
+        return None
+
+    token = token.strip()
+    return token or None
+
+
+def require_admin(authorization: str | None) -> None:
     if not os.getenv("ADMIN_PASSWORD"):
         raise HTTPException(
             status_code=503,
             detail="На Render не задан ADMIN_PASSWORD",
         )
-    if not _valid_session(admin_cookie):
+
+    token = _authorization_token(authorization)
+    if not _valid_session(token):
         raise HTTPException(status_code=401, detail="Требуется вход в админку")
 
 
@@ -266,15 +305,18 @@ async def health():
 
 
 @app.get("/cards")
-async def get_cards_endpoint(admin_cookie: str | None = Cookie(default=None)):
-    require_admin(admin_cookie)
+async def get_cards_endpoint(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
     return load_db()
 
 
 @app.get("/admin/status")
-async def admin_status(admin_cookie: str | None = Cookie(default=None)):
+async def admin_status(authorization: str | None = Header(default=None)):
+    logged_in = bool(os.getenv("ADMIN_PASSWORD")) and _valid_session(
+        _authorization_token(authorization)
+    )
     return {
-        "logged_in": _valid_session(admin_cookie),
+        "logged_in": logged_in,
         "cards": len(load_db()),
         "icons": sum(1 for x in load_db().values() if x.get("icon")),
         "temporary_files": sum(1 for p in TEMP_DIR.iterdir() if p.is_file()),
@@ -282,36 +324,34 @@ async def admin_status(admin_cookie: str | None = Cookie(default=None)):
 
 
 @app.post("/admin/login")
-async def admin_login(data: LoginSchema, response: Response):
+async def admin_login(data: LoginSchema):
     password = os.getenv("ADMIN_PASSWORD")
     if not password:
         raise HTTPException(status_code=503, detail="ADMIN_PASSWORD не задан на Render")
+
     if not hmac.compare_digest(data.password, password):
         raise HTTPException(status_code=401, detail="Неверный пароль")
 
-    response.set_cookie(
-        ADMIN_COOKIE,
-        _make_session(),
-        max_age=SESSION_MAX_AGE,
-        httponly=True,
-        secure=True,
-        samesite="none",
-    )
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "token": _make_session(),
+        "expires_in": SESSION_MAX_AGE,
+    }
 
 
 @app.post("/admin/logout")
-async def admin_logout(response: Response):
-    response.delete_cookie(ADMIN_COOKIE)
+async def admin_logout():
+    # Bearer tokens are kept only by the browser. Logout removes the token
+    # on the client; the signed token naturally expires after SESSION_MAX_AGE.
     return {"status": "ok"}
 
 
 @app.post("/admin/scan-preview")
 async def scan_preview(
     file: UploadFile = File(...),
-    admin_cookie: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    require_admin(admin_cookie)
+    require_admin(authorization)
     image = await _read_image(file)
     return scan_screenshot(image, save_previews=True)
 
@@ -352,9 +392,9 @@ async def scan(file: UploadFile = File(...)):
 @app.post("/admin/save-card")
 async def save_card(
     data: CardSaveSchema,
-    admin_cookie: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    require_admin(admin_cookie)
+    require_admin(authorization)
 
     hashes = clean_hashes(data.hashes)
     legacy_hash = data.hash if valid_hash(data.hash) else None
@@ -395,9 +435,9 @@ async def save_card(
 @app.post("/admin/match-icon")
 async def match_icon(
     file: UploadFile = File(...),
-    admin_cookie: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    require_admin(admin_cookie)
+    require_admin(authorization)
 
     image = await _read_image(file)
     card_image = _extract_single_card(image)
@@ -428,9 +468,9 @@ async def match_icon(
 async def save_icon(
     card_id: str,
     file: UploadFile = File(...),
-    admin_cookie: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    require_admin(admin_cookie)
+    require_admin(authorization)
 
     db = load_db()
     if card_id not in db:
@@ -467,9 +507,9 @@ async def save_icon(
 @app.delete("/admin/delete-icon/{card_id}")
 async def delete_icon(
     card_id: str,
-    admin_cookie: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    require_admin(admin_cookie)
+    require_admin(authorization)
     db = load_db()
     if card_id not in db:
         raise HTTPException(status_code=404, detail="Карта не найдена")
@@ -486,9 +526,9 @@ async def delete_icon(
 @app.delete("/admin/delete-card/{card_id}")
 async def delete_card(
     card_id: str,
-    admin_cookie: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
 ):
-    require_admin(admin_cookie)
+    require_admin(authorization)
     db = load_db()
     if card_id not in db:
         raise HTTPException(status_code=404, detail="Карта не найдена")
@@ -503,8 +543,8 @@ async def delete_card(
 
 
 @app.get("/admin/temp-files")
-async def temp_files(admin_cookie: str | None = Cookie(default=None)):
-    require_admin(admin_cookie)
+async def temp_files(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
     files = []
     for p in sorted(TEMP_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
         if p.is_file():
@@ -517,8 +557,8 @@ async def temp_files(admin_cookie: str | None = Cookie(default=None)):
 
 
 @app.delete("/admin/temp-files")
-async def delete_temp_files(admin_cookie: str | None = Cookie(default=None)):
-    require_admin(admin_cookie)
+async def delete_temp_files(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
     count = 0
     for p in TEMP_DIR.iterdir():
         if p.is_file():
@@ -646,6 +686,6 @@ def _github_commit() -> dict[str, Any]:
 
 
 @app.post("/admin/github-commit")
-async def github_commit(admin_cookie: str | None = Cookie(default=None)):
-    require_admin(admin_cookie)
+async def github_commit(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
     return _github_commit()

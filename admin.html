@@ -125,37 +125,133 @@ let lastIconMatch=null;
 function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
 function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
 function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-function api(path, options={}) {
-  options.credentials = 'include';
-  return fetch('https://pubg-backend-3rtc.onrender.com' + path, options);
+const API_BASE = 'https://pubg-backend-3rtc.onrender.com';
+const TOKEN_KEY = 'pubg_admin_token';
+
+function getToken(){
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
+function clearToken(){
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+
+async function api(path, options={}){
+  const headers = new Headers(options.headers || {});
+  const token = getToken();
+
+  if(token){
+    headers.set('Authorization', 'Bearer ' + token);
+  }
+
+  options.headers = headers;
+  return fetch(API_BASE + path, options);
+}
+
+async function readError(response){
+  try{
+    const data = await response.json();
+    return data.detail || `Ошибка HTTP ${response.status}`;
+  }catch{
+    return `Ошибка HTTP ${response.status}`;
+  }
 }
 
 async function checkLogin(){
   try{
-    const r=await api('/admin/status');
-    const d=await r.json();
-    if(d.logged_in){showApp();await loadAll();return}
-  }catch(e){}
+    const r = await api('/admin/status');
+    const d = await r.json();
+
+    if(d.logged_in){
+      showApp();
+      await loadAll();
+      return;
+    }
+
+    clearToken();
+  }catch(e){
+    // The login screen remains visible and shows the real connection error.
+    const el=document.getElementById('loginStatus');
+    el.className='err';
+    el.textContent='Backend недоступен: '+e.message;
+  }
+
   document.getElementById('loginBox').style.display='block';
 }
-function showApp(){document.getElementById('loginBox').style.display='none';document.getElementById('app').style.display='block'}
+
+function showApp(){
+  document.getElementById('loginBox').style.display='none';
+  document.getElementById('app').style.display='block';
+}
 
 document.getElementById('loginBtn').onclick=async()=>{
   const password=document.getElementById('password').value;
   const el=document.getElementById('loginStatus');
+  const btn=document.getElementById('loginBtn');
+
+  if(!password){
+    el.className='err';
+    el.textContent='Введите пароль';
+    return;
+  }
+
+  btn.disabled=true;
+  btn.textContent='Вход...';
+  el.className='muted';
+  el.textContent='Проверяем пароль...';
+
   try{
-    const r=await api('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});
+    const r=await api('/admin/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password})
+    });
+
     const d=await r.json();
-    if(!r.ok)throw new Error(d.detail||'Ошибка входа');
-    showApp();await loadAll();
-  }catch(e){el.className='err';el.textContent=e.message}
+
+    if(!r.ok){
+      throw new Error(d.detail||'Ошибка входа');
+    }
+
+    if(!d.token){
+      throw new Error('Backend не вернул токен сессии');
+    }
+
+    sessionStorage.setItem(TOKEN_KEY,d.token);
+
+    // Verify the token immediately before opening the admin panel.
+    const statusResponse=await api('/admin/status');
+    const statusData=await statusResponse.json();
+
+    if(!statusResponse.ok || !statusData.logged_in){
+      clearToken();
+      throw new Error('Сессия не прошла проверку после входа');
+    }
+
+    el.className='ok';
+    el.textContent='Вход выполнен';
+
+    showApp();
+    await loadAll();
+  }catch(e){
+    clearToken();
+    el.className='err';
+    el.textContent=e.message;
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Войти';
+  }
 };
+
+document.getElementById('password').addEventListener('keydown',(e)=>{
+  if(e.key==='Enter') document.getElementById('loginBtn').click();
+});
 
 async function loadAll(){await loadCards();await loadStatus();await loadTemp()}
 
 async function loadStatus(){
   const r=await api('/admin/status');
-  if(!r.ok){location.reload();return}
+  if(r.status===401){clearToken();location.reload();return}\n  if(!r.ok){throw new Error(await readError(r))}
   const d=await r.json();
   document.getElementById('statCards').textContent=d.cards;
   document.getElementById('statIcons').textContent=d.icons;
@@ -166,7 +262,7 @@ async function loadStatus(){
 async function loadCards(){
   try{
     const r=await api('/cards');
-    if(r.status===401){location.reload();return}
+    if(r.status===401){clearToken();location.reload();return}
     const d=await r.json();db=d;
     document.getElementById('jsonOutput').value=JSON.stringify(d,null,2);
     renderCardList();
@@ -312,7 +408,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.getElementById(btn.dataset.tab).classList.add('active');
   if(btn.dataset.tab==='temp')loadTemp();
 });
-document.getElementById('logoutBtn').onclick=async()=>{await api('/admin/logout',{method:'POST'});location.reload()};
+document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 
 checkLogin();
 </script>
