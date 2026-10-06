@@ -125,7 +125,10 @@ let lastIconMatch=null;
 function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
 function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
 function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-function api(path, options={}){options.credentials='same-origin';return fetch(path,options)}
+function api(path, options={}) {
+  options.credentials = 'include';
+  return fetch('https://pubg-backend-3rtc.onrender.com' + path, options);
+}
 
 async function checkLogin(){
   try{
