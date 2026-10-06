@@ -128,7 +128,7 @@ function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&l
 const API_BASE = 'https://pubg-backend-3rtc.onrender.com';
 function assetUrl(url){
   if(!url)return '';
-  if(/^https?:\\/\\//i.test(url))return url;
+  if(/^https?:\/\//i.test(url))return url;
   return API_BASE + (url.startsWith('/') ? url : '/'+url);
 }
 
