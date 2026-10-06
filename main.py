@@ -27,7 +27,9 @@ app = FastAPI(title="PUBG Card Scanner")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://pubg-app-phi.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
