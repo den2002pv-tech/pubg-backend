@@ -5,39 +5,313 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>PUBG Card Admin</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#121212;color:#fff;padding:20px;max-width:1000px;margin:auto}
-.box{background:#1e1e1e;padding:16px;border-radius:10px;margin-bottom:20px}.row{display:flex;gap:10px;flex-wrap:wrap}
-input,select,button,textarea{width:100%;padding:10px;margin-top:6px;border-radius:6px;border:1px solid #444;box-sizing:border-box;background:#292929;color:#fff}
-button{background:#ff9900;color:#000;font-weight:700;cursor:pointer;border:0}.btn-secondary{background:#3498db;color:#fff}.btn-danger{background:#e74c3c;color:#fff}
-.preview-grid,.card-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}.item{background:#292929;border:1px solid #444;border-radius:8px;padding:12px}.item img{width:100%;height:180px;object-fit:contain;background:#000;border-radius:6px}
-textarea{height:180px;font-family:monospace}.muted{color:#aaa}.ok{color:#65e06f}.err{color:#ff7070}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#121212;color:#fff;padding:16px;max-width:1200px;margin:auto}
+.box{background:#1e1e1e;padding:16px;border-radius:12px;margin-bottom:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:180px}
+input,select,button,textarea{width:100%;padding:10px;margin-top:6px;border-radius:7px;border:1px solid #444;background:#292929;color:#fff}
+button{background:#ff9900;color:#000;font-weight:700;cursor:pointer;border:0}
+button:disabled{opacity:.5;cursor:not-allowed}
+.btn-secondary{background:#3498db;color:#fff}.btn-danger{background:#e74c3c;color:#fff}.btn-green{background:#2ecc71;color:#071b0c}
+.muted{color:#aaa}.ok{color:#65e06f}.err{color:#ff7070}
+.tabs{display:flex;gap:8px;overflow:auto;margin-bottom:16px}.tab{white-space:nowrap;background:#292929;color:#fff}.tab.active{background:#ff9900;color:#000}
+.panel{display:none}.panel.active{display:block}
+.card-grid,.temp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.item{background:#292929;border:1px solid #444;border-radius:10px;padding:12px}
+.item img{width:100%;height:240px;object-fit:contain;background:#000;border-radius:7px}
+.icon{width:120px!important;height:180px!important;display:block;margin:auto}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#444;font-size:12px;margin-top:5px}
+.has{background:#1e6b3a}.missing{background:#704d18}
+textarea{height:260px;font-family:monospace}
+.stat{font-size:18px;font-weight:700}.stat small{display:block;font-size:12px;color:#aaa;font-weight:400}
+hr{border:0;border-top:1px solid #444;margin:16px 0}
+#loginBox{max-width:500px;margin:60px auto}
 </style>
 </head>
 <body>
-<h1>PUBG Card Admin</h1>
-<div class="box">
-<h2>1. Сканирование</h2>
-<p class="muted">Загрузи скриншот коллекции. Backend сам определит ряды и карточки.</p>
-<input type="file" id="screenshotInput" accept="image/*">
-<button id="scanBtn">Сканировать</button>
-<div id="status"></div>
+
+<div id="loginBox" class="box">
+  <h1>🔐 Админка</h1>
+  <p class="muted">Вход нужен для создания хешей, изменения карт, загрузки иконок и GitHub commit.</p>
+  <input id="password" type="password" placeholder="Пароль администратора">
+  <button id="loginBtn">Войти</button>
+  <div id="loginStatus" class="muted"></div>
 </div>
-<div id="resultsBox" class="box" style="display:none"><h2>2. Найденные карточки</h2><div id="scanResults" class="preview-grid"></div></div>
-<div class="box"><h2>3. Текущая база</h2><textarea id="jsonOutput" readonly></textarea><div class="row"><button id="refreshBtn" class="btn-secondary">Обновить</button><button id="copyBtn">Скопировать JSON</button></div><div id="cardList" class="card-list" style="margin-top:15px"></div></div>
+
+<div id="app" style="display:none">
+  <div class="box">
+    <div class="row">
+      <div class="stat"><span id="statCards">0</span><small>Карт</small></div>
+      <div class="stat"><span id="statIcons">0</span><small>Сохранённых иконок</small></div>
+      <div class="stat"><span id="statMissing">0</span><small>Без иконки</small></div>
+      <div class="stat"><span id="statTemp">0</span><small>Временных файлов</small></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="scan">🧪 Хеши</button>
+    <button class="tab" data-tab="icons">🖼️ Иконки</button>
+    <button class="tab" data-tab="cards">🃏 Карты</button>
+    <button class="tab" data-tab="temp">🗑️ Временные</button>
+  </div>
+
+  <section id="scan" class="panel active">
+    <div class="box">
+      <h2>Создание хешей</h2>
+      <p class="muted">Текущий процесс оставлен: загрузи скриншот коллекции, проверь найденные карточки и сохрани их в card_hashes.json.</p>
+      <input type="file" id="screenshotInput" accept="image/*">
+      <button id="scanBtn">Сканировать</button>
+      <div id="status"></div>
+    </div>
+    <div id="resultsBox" class="box" style="display:none">
+      <h2>Найденные карточки</h2>
+      <div id="scanResults" class="card-grid"></div>
+    </div>
+  </section>
+
+  <section id="icons" class="panel">
+    <div class="box">
+      <h2>Добавление постоянной иконки</h2>
+      <p class="muted">Загрузи одну полную карту в хорошем качестве. Backend попробует вырезать её, посчитает 4 хеша и найдёт существующий card_id.</p>
+      <input type="file" id="iconInput" accept="image/*">
+      <button id="matchIconBtn">Определить карту</button>
+      <div id="iconStatus"></div>
+      <div id="iconMatch"></div>
+    </div>
+  </section>
+
+  <section id="cards" class="panel">
+    <div class="box">
+      <h2>База карт</h2>
+      <div class="row">
+        <input id="search" placeholder="Поиск по ID или названию">
+        <select id="filter">
+          <option value="all">Все карты</option>
+          <option value="icon">С иконкой</option>
+          <option value="missing">Без иконки</option>
+        </select>
+      </div>
+      <div class="row">
+        <button id="refreshBtn" class="btn-secondary">Обновить</button>
+        <button id="copyBtn">Скопировать JSON</button>
+        <button id="commitBtn" class="btn-green">💾 Сохранить изменения в GitHub</button>
+      </div>
+      <div id="commitStatus" class="muted"></div>
+      <textarea id="jsonOutput" readonly></textarea>
+      <div id="cardList" class="card-grid" style="margin-top:15px"></div>
+    </div>
+  </section>
+
+  <section id="temp" class="panel">
+    <div class="box">
+      <h2>Временные изображения</h2>
+      <p class="muted">Это файлы, которые создаются при создании хешей. Они не используются как постоянные иконки.</p>
+      <button id="deleteTempBtn" class="btn-danger">Удалить все временные файлы</button>
+      <div id="tempList" class="temp-grid" style="margin-top:15px"></div>
+    </div>
+  </section>
+
+  <div class="box">
+    <button id="logoutBtn" class="btn-secondary">Выйти из админки</button>
+  </div>
+</div>
+
 <script>
-const API = 'https://pubg-backend-3rtc.onrender.com';
 const statusEl=document.getElementById('status');
-function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t;}
+let db={};
+let lastIconFile=null;
+let lastIconMatch=null;
+
+function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
+function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
+function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function api(path, options={}){options.credentials='same-origin';return fetch(path,options)}
+
+async function checkLogin(){
+  try{
+    const r=await api('/admin/status');
+    const d=await r.json();
+    if(d.logged_in){showApp();await loadAll();return}
+  }catch(e){}
+  document.getElementById('loginBox').style.display='block';
+}
+function showApp(){document.getElementById('loginBox').style.display='none';document.getElementById('app').style.display='block'}
+
+document.getElementById('loginBtn').onclick=async()=>{
+  const password=document.getElementById('password').value;
+  const el=document.getElementById('loginStatus');
+  try{
+    const r=await api('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка входа');
+    showApp();await loadAll();
+  }catch(e){el.className='err';el.textContent=e.message}
+};
+
+async function loadAll(){await loadCards();await loadStatus();await loadTemp()}
+
+async function loadStatus(){
+  const r=await api('/admin/status');
+  if(!r.ok){location.reload();return}
+  const d=await r.json();
+  document.getElementById('statCards').textContent=d.cards;
+  document.getElementById('statIcons').textContent=d.icons;
+  document.getElementById('statMissing').textContent=d.cards-d.icons;
+  document.getElementById('statTemp').textContent=d.temporary_files;
+}
+
 async function loadCards(){
- try{const r=await fetch(API+'/cards');if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();document.getElementById('jsonOutput').value=JSON.stringify(d,null,2);const list=document.getElementById('cardList');list.innerHTML='';for(const [id,info] of Object.entries(d)){const el=document.createElement('div');el.className='item';const img=info.image?(info.image.startsWith('http')?info.image:API+info.image):'';el.innerHTML=`${img?`<img src="${img}">`:''}<b>${escapeHtml(info.name||id)}</b><div class="muted">ID: ${escapeHtml(id)}</div><div>Редкость: ${info.rarity||1}</div><button class="btn-danger" onclick="deleteCard('${encodeURIComponent(id)}')">Удалить</button>`;list.appendChild(el)}}catch(e){status('Не удалось загрузить базу: '+e.message,'err')}}
-function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-async function scan(){const f=document.getElementById('screenshotInput').files[0];if(!f){status('Сначала выбери изображение','err');return}const fd=new FormData();fd.append('file',f);const b=document.getElementById('scanBtn');b.disabled=true;b.textContent='Сканирование...';status('Отправка изображения...');try{const r=await fetch(API+'/admin/scan-preview',{method:'POST',body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сервера');renderResults(d.cards||[]);status(`Найдено карточек: ${d.count||0}`,'ok')}catch(e){status('Ошибка сканирования: '+e.message,'err')}finally{b.disabled=false;b.textContent='Сканировать'}}
-function renderResults(cards){document.getElementById('resultsBox').style.display='block';const root=document.getElementById('scanResults');root.innerHTML='';cards.forEach((c,i)=>{const el=document.createElement('div');el.className='item';const img=API+c.preview;el.innerHTML=`<img src="${img}"><div class="muted">row ${c.row}, col ${c.col}</div><label>ID карты</label><input id="id_${i}" value="card_${c.row}_${c.col}"><label>Название</label><input id="name_${i}" value="Карта ${i+1}"><label>Редкость</label><select id="rarity_${i}"><option value="1">1 — Серая</option><option value="2">2 — Синяя</option><option value="3">3 — Золотая</option></select><button onclick="saveCard(${i})">Сохранить</button><details><summary>Hashes</summary><pre style="white-space:pre-wrap;font-size:11px">${escapeHtml(JSON.stringify(c.hashes,null,2))}</pre></details>`;root.appendChild(el)})}
-let scanned=[];
-async function saveCard(i){const el=document.querySelectorAll('#scanResults .item')[i];const id=el.querySelector('#id_'+i).value.trim();const name=el.querySelector('#name_'+i).value.trim();const rarity=Number(el.querySelector('#rarity_'+i).value);const c=Array.from(document.querySelectorAll('#scanResults .item')).length;const card=window.lastScan[i];if(!id||!name)return alert('Заполни ID и название');try{const r=await fetch(API+'/admin/save-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,rarity,preview:card.preview,hash:card.hash,hashes:card.hashes})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка');alert('Карта сохранена');loadCards()}catch(e){alert('Ошибка сохранения: '+e.message)}}
-window.lastScan=[];
-const oldRender=renderResults;renderResults=function(cards){window.lastScan=cards;oldRender(cards)};
-async function deleteCard(id){if(!confirm('Удалить карту?'))return;try{const r=await fetch(API+'/admin/delete-card/'+id,{method:'DELETE'});if(!r.ok)throw new Error('HTTP '+r.status);loadCards()}catch(e){alert(e.message)}}
-document.getElementById('scanBtn').onclick=scan;document.getElementById('refreshBtn').onclick=loadCards;document.getElementById('copyBtn').onclick=()=>navigator.clipboard.writeText(document.getElementById('jsonOutput').value);loadCards();
+  try{
+    const r=await api('/cards');
+    if(r.status===401){location.reload();return}
+    const d=await r.json();db=d;
+    document.getElementById('jsonOutput').value=JSON.stringify(d,null,2);
+    renderCardList();
+  }catch(e){status('Не удалось загрузить базу: '+e.message,'err')}
+}
+function renderCardList(){
+  const q=document.getElementById('search').value.trim().toLowerCase();
+  const filter=document.getElementById('filter').value;
+  const list=document.getElementById('cardList');list.innerHTML='';
+  for(const [id,info] of Object.entries(db)){
+    const has=!!info.icon;
+    if(filter==='icon'&&!has)continue;
+    if(filter==='missing'&&has)continue;
+    if(q&&!(`${id} ${info.name||''}`.toLowerCase().includes(q)))continue;
+    const el=document.createElement('div');el.className='item';
+    const img=has?`<img class="icon" src="${esc(info.icon)}">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
+    el.innerHTML=`${img}
+      <h3>${esc(info.name||id)}</h3>
+      <div class="muted">${esc(id)} · редкость ${info.rarity||1}</div>
+      <span class="badge ${has?'has':'missing'}">${has?'Иконка сохранена':'Иконки нет'}</span>
+      <details style="margin-top:8px"><summary>Hashes</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(info.hashes||{},null,2))}</pre></details>
+      <div class="row" style="margin-top:8px">
+        ${has?`<button class="btn-secondary" onclick="replaceIcon('${encodeURIComponent(id)}')">Заменить иконку</button>`:`<button class="btn-secondary" onclick="chooseIconFor('${encodeURIComponent(id)}')">Загрузить иконку</button>`}
+        ${has?`<button class="btn-danger" onclick="deleteIcon('${encodeURIComponent(id)}')">Удалить иконку</button>`:''}
+        <button class="btn-danger" onclick="deleteCard('${encodeURIComponent(id)}')">Удалить карту</button>
+      </div>`;
+    list.appendChild(el);
+  }
+}
+document.getElementById('search').oninput=renderCardList;
+document.getElementById('filter').onchange=renderCardList;
+
+async function scan(){
+  const f=document.getElementById('screenshotInput').files[0];
+  if(!f){status('Сначала выбери изображение','err');return}
+  const fd=new FormData();fd.append('file',f);
+  const b=document.getElementById('scanBtn');b.disabled=true;b.textContent='Сканирование...';status('Отправка изображения...');
+  try{
+    const r=await api('/admin/scan-preview',{method:'POST',body:fd});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
+    window.lastScan=d.cards||[];renderResults(window.lastScan);status(`Найдено карточек: ${d.count||0}`,'ok');await loadStatus()
+  }catch(e){status('Ошибка сканирования: '+e.message,'err')}
+  finally{b.disabled=false;b.textContent='Сканировать'}
+}
+function renderResults(cards){
+  document.getElementById('resultsBox').style.display='block';
+  const root=document.getElementById('scanResults');root.innerHTML='';
+  cards.forEach((c,i)=>{
+    const el=document.createElement('div');el.className='item';
+    el.innerHTML=`<img src="${esc(c.preview)}">
+      <div class="muted">row ${c.row}, col ${c.col}</div>
+      <label>ID карты</label><input id="id_${i}" value="card_${c.row}_${c.col}">
+      <label>Название</label><input id="name_${i}" value="Карта ${i+1}">
+      <label>Редкость</label><select id="rarity_${i}"><option value="1">1 — Серая</option><option value="2">2 — Синяя</option><option value="3">3 — Золотая</option></select>
+      <button onclick="saveCard(${i})">Сохранить хеши</button>
+      <details><summary>Hashes</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes,null,2))}</pre></details>`;
+    root.appendChild(el);
+  })
+}
+async function saveCard(i){
+  const el=document.querySelectorAll('#scanResults .item')[i],card=window.lastScan[i];
+  const id=el.querySelector('#id_'+i).value.trim(),name=el.querySelector('#name_'+i).value.trim(),rarity=Number(el.querySelector('#rarity_'+i).value);
+  if(!id||!name)return alert('Заполни ID и название');
+  try{
+    const r=await api('/admin/save-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,rarity,preview:card.preview,hash:card.hash,hashes:card.hashes})});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка');
+    alert('Хеши сохранены');await loadAll()
+  }catch(e){alert('Ошибка сохранения: '+e.message)}
+}
+
+document.getElementById('matchIconBtn').onclick=async()=>{
+  const f=document.getElementById('iconInput').files[0];
+  if(!f){iconStatus('Сначала выбери изображение','err');return}
+  lastIconFile=f;lastIconMatch=null;
+  const fd=new FormData();fd.append('file',f);
+  const b=document.getElementById('matchIconBtn');b.disabled=true;b.textContent='Сравнение...';iconStatus('Вырезаем карту и сравниваем 4 хеша...');
+  try{
+    const r=await api('/admin/match-icon',{method:'POST',body:fd});const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка');
+    if(!d.matched){iconStatus(d.message||'Совпадение не найдено','err');document.getElementById('iconMatch').innerHTML='';return}
+    lastIconMatch=d;
+    const threshold=18;
+    const good=d.score<=threshold;
+    document.getElementById('iconMatch').innerHTML=`<div class="item" style="margin-top:12px">
+      <h3>${good?'✅':'⚠️'} ${esc(d.name)}</h3>
+      <div>ID: ${esc(d.card_id)}</div><div>Среднее расстояние: <b>${d.score}</b> (порог ${threshold})</div>
+      <p class="muted">${good?'Совпадение достаточно хорошее. Можно сохранить постоянную иконку.':'Совпадение слабое. Не сохраняем автоматически.'}</p>
+      ${good?'<button id="saveIconBtn" class="btn-green">Сохранить постоянную иконку</button>':''}
+    </div>`;
+    iconStatus(good?'Карта подтверждена':'Нужно проверить изображение',good?'ok':'err');
+    document.getElementById('saveIconBtn')?.addEventListener('click',saveIcon)
+  }catch(e){iconStatus('Ошибка: '+e.message,'err')}
+  finally{b.disabled=false;b.textContent='Определить карту'}
+};
+async function saveIcon(){
+  if(!lastIconFile||!lastIconMatch)return;
+  const fd=new FormData();fd.append('file',lastIconFile);
+  const r=await api('/admin/save-icon/'+encodeURIComponent(lastIconMatch.card_id),{method:'POST',body:fd});
+  const d=await r.json();if(!r.ok){alert(d.detail||'Не удалось сохранить');return}
+  iconStatus('Иконка сохранена: '+d.icon,'ok');
+  document.getElementById('iconMatch').innerHTML='';
+  await loadAll();
+}
+function chooseIconFor(id){document.getElementById('iconInput').click();document.getElementById('icons').scrollIntoView();document.getElementById('matchIconBtn').focus()}
+function replaceIcon(id){chooseIconFor(id)}
+async function deleteIcon(id){
+  id=decodeURIComponent(id);if(!confirm('Удалить постоянную иконку карты?'))return;
+  const r=await api('/admin/delete-icon/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok){alert(d.detail||'Ошибка');return}await loadAll()
+}
+async function deleteCard(id){
+  id=decodeURIComponent(id);if(!confirm('Удалить карту и её постоянную иконку?'))return;
+  const r=await api('/admin/delete-card/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok){alert(d.detail||'Ошибка');return}await loadAll()
+}
+async function loadTemp(){
+  const r=await api('/admin/temp-files');if(!r.ok)return;
+  const files=await r.json(),root=document.getElementById('tempList');root.innerHTML='';
+  if(!files.length){root.innerHTML='<p class="muted">Временных файлов нет.</p>';return}
+  files.forEach(f=>{
+    const el=document.createElement('div');el.className='item';
+    el.innerHTML=`<img src="${esc(f.url)}"><div>${esc(f.name)}</div><div class="muted">${Math.round(f.size/1024)} KB</div>`;
+    root.appendChild(el)
+  })
+}
+document.getElementById('deleteTempBtn').onclick=async()=>{
+  if(!confirm('Удалить все временные изображения?'))return;
+  const r=await api('/admin/temp-files',{method:'DELETE'});const d=await r.json();if(!r.ok){alert(d.detail||'Ошибка');return}await loadAll()
+};
+document.getElementById('refreshBtn').onclick=loadAll;
+document.getElementById('copyBtn').onclick=()=>navigator.clipboard.writeText(document.getElementById('jsonOutput').value);
+document.getElementById('commitBtn').onclick=async()=>{
+  if(!confirm('Сохранить card_hashes.json и все постоянные иконки в GitHub одним commit?'))return;
+  const b=document.getElementById('commitBtn');b.disabled=true;b.textContent='Сохраняем...';
+  try{
+    const r=await api('/admin/github-commit',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка GitHub');
+    document.getElementById('commitStatus').innerHTML=`<span class="ok">✅ Commit создан: ${esc(d.commit.slice(0,10))}</span>`;
+  }catch(e){document.getElementById('commitStatus').innerHTML=`<span class="err">❌ ${esc(e.message)}</span>`}
+  finally{b.disabled=false;b.textContent='💾 Сохранить изменения в GitHub'}
+};
+
+document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  document.getElementById(btn.dataset.tab).classList.add('active');
+  if(btn.dataset.tab==='temp')loadTemp();
+});
+document.getElementById('logoutBtn').onclick=async()=>{await api('/admin/logout',{method:'POST'});location.reload()};
+
+checkLogin();
 </script>
-</body></html>
+</body>
+</html>
