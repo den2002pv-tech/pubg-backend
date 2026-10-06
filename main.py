@@ -189,7 +189,7 @@ class LoginSchema(BaseModel):
 
 
 class CardSaveSchema(BaseModel):
-    id: str
+    id: str = ""
     name: str
     rarity: int = 1
     preview: str = ""
@@ -557,7 +557,7 @@ async def match_icon(
             "matched": False,
             "score": None,
             "hashes": hashes,
-        "icon": info.get("icon", ""),
+            "icon": "",
             "message": "Не удалось найти подходящую карту",
         }
 
@@ -569,6 +569,7 @@ async def match_icon(
         "rarity": info.get("rarity", 1),
         "score": round(score, 2),
         "hashes": hashes,
+        "icon": info.get("icon", ""),
     }
 
 
