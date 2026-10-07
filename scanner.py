@@ -46,6 +46,64 @@ def _candidate_rectangles(img: np.ndarray) -> list[tuple[int, int, int, int]]:
     return out
 
 
+def _card_geometry_similar(
+    rect: tuple[int, int, int, int],
+    med_w: float,
+    med_h: float,
+    tolerance: float = 0.18,
+) -> bool:
+    _, _, w, h = rect
+    return (
+        abs(w - med_w) <= med_w * tolerance
+        and abs(h - med_h) <= med_h * tolerance
+    )
+
+
+def _regular_card_runs(
+    row: list[tuple[int, int, int, int]],
+) -> list[list[tuple[int, int, int, int]]]:
+    """Keep regular card runs and reject unrelated same-row UI panels.
+
+    The detector must not assume a fixed number of cards or a fixed screen
+    resolution. Real cards normally form a run with nearly identical
+    dimensions and a repeatable center-to-center pitch. A right-side menu,
+    popup, or other UI block usually breaks that geometry.
+    """
+    if len(row) < 2:
+        return []
+
+    widths = np.array([r[2] for r in row], dtype=float)
+    heights = np.array([r[3] for r in row], dtype=float)
+    med_w = float(np.median(widths))
+    med_h = float(np.median(heights))
+    ordered = sorted(row, key=lambda r: r[0])
+
+    runs: list[list[tuple[int, int, int, int]]] = []
+    current = [ordered[0]]
+
+    for rect in ordered[1:]:
+        prev = current[-1]
+        prev_cx = prev[0] + prev[2] / 2
+        cx = rect[0] + rect[2] / 2
+        center_gap = cx - prev_cx
+
+        compatible = (
+            _card_geometry_similar(rect, med_w, med_h)
+            and 0.82 * med_w <= center_gap <= 1.70 * med_w
+        )
+        if compatible:
+            current.append(rect)
+        else:
+            if len(current) >= 2:
+                runs.append(current)
+            current = [rect]
+
+    if len(current) >= 2:
+        runs.append(current)
+
+    return runs
+
+
 def _cluster_rows(rects: list[tuple[int, int, int, int]], image_h: int) -> list[list[tuple[int, int, int, int]]]:
     rows: list[list[tuple[int, int, int, int]]] = []
     for rect in sorted(rects, key=lambda r: r[1] + r[3] / 2):
@@ -59,7 +117,12 @@ def _cluster_rows(rects: list[tuple[int, int, int, int]], image_h: int) -> list[
                 break
         if not placed:
             rows.append([rect])
-    return [sorted(row, key=lambda r: r[0]) for row in rows if len(row) >= 2]
+
+    result: list[list[tuple[int, int, int, int]]] = []
+    for row in rows:
+        for run in _regular_card_runs(row):
+            result.append(sorted(run, key=lambda r: r[0]))
+    return result
 
 
 def _edge_score(gray_edges: np.ndarray, rect: tuple[int, int, int, int]) -> float:
@@ -124,12 +187,10 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     rows = _cluster_rows(candidates, img.shape[0])
     if rows:
         rows = [_complete_row(row, img) for row in rows]
-        # Keep only the dominant card family. This naturally drops right-side panels.
-        family_rows = []
-        for row in rows:
-            if len(row) >= 2:
-                family_rows.append(row)
-        return sorted(family_rows, key=lambda row: np.mean([r[1] for r in row]))
+        # Rows have already been reduced to regular card families.
+        # Do not use a fixed left/right cutoff: users can have different
+        # resolutions, aspect ratios, and different numbers of cards.
+        return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
     # Last-resort adaptive grid for screenshots where contours are too weak.
     h, w = img.shape[:2]
