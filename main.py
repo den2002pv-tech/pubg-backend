@@ -571,7 +571,7 @@ async def save_my_collection(
 async def scan(file: UploadFile = File(...), init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
     auth = _validate_telegram_init_data(init_data) if init_data else None
     image = await _read_image(file)
-    result = scan_screenshot(image, save_previews=False)
+    result = scan_screenshot(image, save_previews=True)
     db = load_db()
 
     matches = []
@@ -592,6 +592,7 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
                 "rarity": info.get("rarity", 1),
                 "distance": round(best_distance, 2),
                 "icon": info.get("icon", ""),
+                "preview": card.get("preview", ""),
                 "quantity": int(card.get("quantity", 1) or 1),
                 "duplicates": int(card.get("duplicates", 0) or 0),
                 "row": card["row"],
@@ -604,6 +605,7 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
                 "rarity": None,
                 "distance": None,
                 "icon": "",
+                "preview": card.get("preview", ""),
                 "quantity": int(card.get("quantity", 1) or 1),
                 "duplicates": int(card.get("duplicates", 0) or 0),
                 "row": card["row"],
