@@ -864,11 +864,15 @@ async def save_icon(
     db[card_id]["icon"] = f"/static/cards/{path.name}"
     save_db(db)
 
+    # Manual confirmation may intentionally have no automatic match.
+    # Never return infinity to Starlette/JSON: JSON does not allow NaN/Infinity.
+    safe_score = round(score, 2) if math.isfinite(score) else None
+
     return {
         "status": "ok",
         "card_id": card_id,
         "icon": db[card_id]["icon"],
-        "score": round(score, 2),
+        "score": safe_score,
     }
 
 
