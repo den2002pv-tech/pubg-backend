@@ -91,6 +91,24 @@ def set_user_card_quantity(telegram_id: int, card_id: str, quantity: int) -> Non
         conn.commit()
 
 
+def clear_user_cards(telegram_id: int) -> int:
+    """Remove all inventory rows belonging to one Telegram user."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM user_cards
+                USING users
+                WHERE user_cards.user_id = users.id
+                  AND users.telegram_id = %s
+                """,
+                (telegram_id,),
+            )
+            deleted = cur.rowcount
+        conn.commit()
+    return deleted
+
+
 def get_user_cards(telegram_id: int) -> list[dict]:
     with get_connection() as conn:
         with conn.cursor() as cur:
