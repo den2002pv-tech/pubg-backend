@@ -26,6 +26,9 @@ textarea{height:260px;font-family:monospace}
 .stat{font-size:18px;font-weight:700}.stat small{display:block;font-size:12px;color:#aaa;font-weight:400}
 hr{border:0;border-top:1px solid #444;margin:16px 0}
 #loginBox{max-width:500px;margin:60px auto}
+.progress-wrap{margin-top:12px;background:#111;border-radius:8px;overflow:hidden;height:24px}
+.progress-bar{height:100%;width:0;background:#2ecc71;transition:width .2s}
+.progress-text{margin-top:8px}
 </style>
 </head>
 <body>
@@ -93,9 +96,15 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
       </div>
       <div class="row">
         <button id="refreshBtn" class="btn-secondary">Обновить</button>
+        <button id="regenHashesBtn" class="btn-secondary">🔄 Перегенерировать хеши из сохранённых иконок</button>
         <button id="copyBtn">Скопировать JSON</button>
         <button id="commitBtn" class="btn-green">💾 Сохранить изменения в GitHub</button>
       </div>
+      <div id="regenStatus" class="muted"></div>
+      <div class="progress-wrap" id="regenProgressWrap" style="display:none">
+        <div class="progress-bar" id="regenProgressBar"></div>
+      </div>
+      <div id="regenProgressText" class="progress-text muted"></div>
       <div id="commitStatus" class="muted"></div>
       <textarea id="jsonOutput" readonly></textarea>
       <div id="cardList" class="card-grid" style="margin-top:15px"></div>
@@ -528,6 +537,85 @@ document.getElementById('deleteTempBtn').onclick=async()=>{
 };
 document.getElementById('refreshBtn').onclick=loadAll;
 document.getElementById('copyBtn').onclick=()=>navigator.clipboard.writeText(document.getElementById('jsonOutput').value);
+
+let regenPollTimer=null;
+
+function renderHashRegenProgress(d){
+  const wrap=document.getElementById('regenProgressWrap');
+  const bar=document.getElementById('regenProgressBar');
+  const text=document.getElementById('regenProgressText');
+  const status=document.getElementById('regenStatus');
+
+  wrap.style.display='block';
+
+  const total=Number(d.total||0);
+  const current=Number(d.current||0);
+  const percent=total ? Math.min(100, Math.round(current*100/total)) : (d.status==='completed'?100:0);
+
+  bar.style.width=percent+'%';
+  text.textContent=total
+    ? `Прогресс: ${current}/${total} (${percent}%)${d.card_id ? ' · '+d.card_id : ''}`
+    : 'Сохранённых иконок для обработки нет.';
+
+  if(d.status==='completed'){
+    status.className='ok';
+    status.textContent='✅ Хеши всех сохранённых иконок обновлены. Теперь можно сохранить JSON в GitHub.';
+    clearInterval(regenPollTimer);
+    regenPollTimer=null;
+    loadCards();
+    return;
+  }
+
+  if(d.status==='error'){
+    status.className='err';
+    status.textContent='❌ Ошибка генерации: '+(d.error||'неизвестная ошибка');
+    clearInterval(regenPollTimer);
+    regenPollTimer=null;
+    return;
+  }
+
+  status.className='muted';
+  status.textContent='Генерируем новые хеши из сохранённых иконок...';
+}
+
+async function pollHashRegen(){
+  try{
+    const r=await api('/admin/regenerate-hashes/progress');
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||'Ошибка');
+    renderHashRegenProgress(d);
+  }catch(e){
+    document.getElementById('regenStatus').className='err';
+    document.getElementById('regenStatus').textContent='Ошибка проверки прогресса: '+e.message;
+    clearInterval(regenPollTimer);
+    regenPollTimer=null;
+  }
+}
+
+document.getElementById('regenHashesBtn').onclick=async()=>{
+  const b=document.getElementById('regenHashesBtn');
+  if(!confirm('Пересчитать хеши всех сохранённых карт по их постоянным иконкам? Текущие хеши будут заменены.'))return;
+
+  b.disabled=true;
+  document.getElementById('regenStatus').className='muted';
+  document.getElementById('regenStatus').textContent='Запускаем генерацию...';
+
+  try{
+    const r=await api('/admin/regenerate-hashes',{method:'POST'});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||'Ошибка запуска');
+
+    renderHashRegenProgress(d);
+    clearInterval(regenPollTimer);
+    regenPollTimer=setInterval(pollHashRegen,400);
+  }catch(e){
+    document.getElementById('regenStatus').className='err';
+    document.getElementById('regenStatus').textContent='❌ '+e.message;
+  }finally{
+    b.disabled=false;
+  }
+};
+
 document.getElementById('commitBtn').onclick=async()=>{
   if(!confirm('Сохранить card_hashes.json и все постоянные иконки в GitHub одним commit?'))return;
   const b=document.getElementById('commitBtn');b.disabled=true;b.textContent='Сохраняем...';
