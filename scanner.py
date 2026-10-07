@@ -324,6 +324,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
         clean_crop, quantity, quantity_confidence = _detect_counter(crop)
+        raw_hashes = calculate_card_hashes(crop)
         hashes = calculate_card_hashes(clean_crop)
         entry = {
             "row": item["row"],
@@ -332,6 +333,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
             "width": w,
             "height": h,
             "hashes": hashes,
+            "raw_hashes": raw_hashes,
             "hash": hashes["full_dhash"],
             "quantity": quantity,
             "duplicates": max(0, quantity - 1),
