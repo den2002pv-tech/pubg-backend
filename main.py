@@ -239,10 +239,12 @@ def _hamming(a: str, b: str) -> int | None:
         return None
 
 
-ICON_MATCH_THRESHOLD = float(os.getenv("ICON_MATCH_THRESHOLD", "18"))
-CARD_MATCH_HASH_MAX_DISTANCE = float(os.getenv("CARD_MATCH_HASH_MAX_DISTANCE", "18"))
-CARD_MATCH_MIN_CLOSE_DISTANCE = float(os.getenv("CARD_MATCH_MIN_CLOSE_DISTANCE", "12"))
-CARD_MATCH_COLOR_MAX_RATIO = float(os.getenv("CARD_MATCH_COLOR_MAX_RATIO", "0.25"))
+ICON_MATCH_THRESHOLD = float(os.getenv("ICON_MATCH_THRESHOLD", "10"))
+CARD_MATCH_STRONG_DISTANCE = int(os.getenv("CARD_MATCH_STRONG_DISTANCE", "5"))
+CARD_MATCH_ACCEPTABLE_DISTANCE = int(os.getenv("CARD_MATCH_ACCEPTABLE_DISTANCE", "10"))
+CARD_MATCH_MIN_STRONG_HASHES = int(os.getenv("CARD_MATCH_MIN_STRONG_HASHES", "2"))
+CARD_MATCH_MIN_ACCEPTABLE_HASHES = int(os.getenv("CARD_MATCH_MIN_ACCEPTABLE_HASHES", "3"))
+CARD_MATCH_COLOR_MAX_RATIO = float(os.getenv("CARD_MATCH_COLOR_MAX_RATIO", "0.20"))
 
 
 def _migrate_frame_color_hashes() -> None:
@@ -283,73 +285,91 @@ def _migrate_frame_color_hashes() -> None:
 
 def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | None, float]:
     """
-    Compare corresponding hashes. Lower is better.
+    Match by hash voting instead of a global average.
 
-    A mean distance alone is not enough: two unrelated cards can have a low
-    average while one or more visual hashes are clearly different. Require
-    every available corresponding hash to stay within the per-hash ceiling,
-    then use the mean only to choose the best candidate among valid matches.
+    A card is accepted only when:
+      - at least 2 of the 4 grayscale hashes are <= 5 bits apart;
+      - at least 3 of the 4 grayscale hashes are <= 10 bits apart;
+      - no available grayscale hash is above 10;
+      - when a frame color hash exists, it must also be compatible.
+
+    The returned score is the average of the two strongest grayscale hashes.
+    This keeps the displayed distance intuitive while preventing several
+    mediocre 10-18 distances from producing a false match.
     """
     best_id: str | None = None
     best_score = float("inf")
-    max_hash_distance = CARD_MATCH_HASH_MAX_DISTANCE
+
+    standard_keys = (
+        "full_phash",
+        "full_dhash",
+        "visual_phash",
+        "visual_dhash",
+    )
 
     for card_id, info in db.items():
         stored = clean_hashes(info.get("hashes"))
         distances: list[int] = []
-        color_distances: list[int] = []
 
-        for key, value in card_hashes.items():
+        for key in standard_keys:
+            value = card_hashes.get(key)
             other = stored.get(key)
+            if not value or not other:
+                continue
 
-            # A scan with the new frame color hash must only match a card
-            # that also has that hash. Missing color data is NOT a match:
-            # otherwise an old grayscale-only card could bypass the rarity
-            # check and still win on the four legacy hashes.
-            if key == "frame_colorhash" and not other:
-                distances = []
-                color_distances = []
-                break
-
-            if other:
-                d = _hamming(value, other)
-                if d is not None:
-                    distances.append(d)
-                    if key == "frame_colorhash":
-                        color_distances.append(d)
-
-        if not distances:
-            legacy = info.get("hash")
-            d = _hamming(card_hashes.get("full_dhash", ""), str(legacy)) if legacy else None
+            d = _hamming(value, other)
             if d is not None:
                 distances.append(d)
 
-        if distances:
-            # Do not let several good hashes hide one clearly different hash.
-            if any(d > max_hash_distance for d in distances):
+        # Legacy records may only have the old single "hash" field.
+        if not distances:
+            legacy = info.get("hash")
+            value = card_hashes.get("full_dhash", "")
+            d = _hamming(value, str(legacy)) if legacy else None
+            if d is not None:
+                distances.append(d)
+
+        if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            continue
+
+        distances.sort()
+
+        strong_count = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
+        acceptable_count = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
+
+        if strong_count < CARD_MATCH_MIN_STRONG_HASHES:
+            continue
+
+        if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            continue
+
+        # No individual grayscale hash may be a loose 10-18 match.
+        if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE:
+            continue
+
+        scan_color = card_hashes.get("frame_colorhash")
+        stored_color = stored.get("frame_colorhash")
+
+        # If the scanner has a color frame hash, a stored card without one
+        # cannot be considered an identity match.
+        if scan_color and not stored_color:
+            continue
+
+        if scan_color and stored_color:
+            color_distance = _hamming(scan_color, stored_color)
+            if color_distance is None:
                 continue
 
-            # A real match should have at least one strong low-distance hash.
-            # This rejects borderline false positives where every hash is only
-            # moderately similar (for example 14/15/18/18).
-            if min(distances) > CARD_MATCH_MIN_CLOSE_DISTANCE:
+            color_bits = max(1, len(scan_color) * 4)
+            if (color_distance / color_bits) > CARD_MATCH_COLOR_MAX_RATIO:
                 continue
 
-            # The frame color is a separate discriminator for rarity variants.
-            # Compare it as a ratio so this stays stable if the colorhash
-            # length changes with the library implementation.
-            if color_distances:
-                color_bits = max(1, len(card_hashes["frame_colorhash"]) * 4)
-                if any((d / color_bits) > CARD_MATCH_COLOR_MAX_RATIO for d in color_distances):
-                    continue
-
-            score = sum(distances) / len(distances)
-            if score < best_score:
-                best_score = score
-                best_id = card_id
+        score = (distances[0] + distances[1]) / 2
+        if score < best_score:
+            best_score = score
+            best_id = card_id
 
     return best_id, best_score
-
 
 def _next_card_id(db: dict[str, Any]) -> str:
     numbers = []
