@@ -533,6 +533,24 @@ def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
 
 
+def is_gray_locked_card(card: Image.Image) -> bool:
+    """Return True for inventory cards rendered grayscale because they are locked."""
+    arr = np.asarray(card.convert("RGB"))
+    if arr.size == 0:
+        return False
+    hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+    h, w = hsv.shape[:2]
+    border = np.concatenate([
+        hsv[:max(1, int(h * 0.12)), :, 1].ravel(),
+        hsv[max(0, int(h * 0.88)):, :, 1].ravel(),
+        hsv[:, :max(1, int(w * 0.10)), 1].ravel(),
+        hsv[:, max(0, int(w * 0.90)):, 1].ravel(),
+    ])
+    if border.size == 0:
+        return False
+    return float(np.mean(border)) < 20.0 and float(np.percentile(border, 90)) < 48.0
+
+
 def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
     full = normalize_card(card)
     visual = normalize_card(extract_visual_area(card))
@@ -566,6 +584,10 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
     for item in detected:
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
+        # Cards rendered fully grayscale are locked/unowned in the inventory.
+        # Do not let them enter matching or the user's inventory.
+        if is_gray_locked_card(crop):
+            continue
         clean_crop, quantity, quantity_confidence = _detect_counter(crop)
         raw_hashes = calculate_card_hashes(crop)
         hashes = calculate_card_hashes(clean_crop)
