@@ -187,7 +187,7 @@ def _validate_telegram_init_data(init_data: str) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=401, detail="Некорректный Telegram auth_date") from exc
 
-    data_check_string = "\\n".join(f"{key}={pairs[key]}" for key in sorted(pairs))
+    data_check_string = "\n".join(f"{key}={pairs[key]}" for key in sorted(pairs))
     secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
     expected_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(received_hash, expected_hash):
