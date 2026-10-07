@@ -373,10 +373,34 @@ def extract_visual_area(card: Image.Image) -> Image.Image:
 
 
 def extract_frame_area(card: Image.Image) -> Image.Image:
-    """Build a compact image containing only the card's outer frame."""
-    card = card.convert("RGB")
-    w, h = card.size
+    """Build a compact image containing only the card's outer frame.
 
+    Saved admin icons are fitted into a black 256x384 canvas. Remove only
+    contiguous near-black padding first, otherwise that padding becomes part
+    of frame_colorhash and the saved icon gets a different color signature
+    from the same card cropped directly from an inventory screenshot.
+    """
+    card = card.convert("RGB")
+
+    arr = np.asarray(card)
+    luminance = arr.mean(axis=2)
+    active = luminance > 8.0
+
+    if active.any():
+        ys, xs = np.where(active)
+        x1, x2 = int(xs.min()), int(xs.max()) + 1
+        y1, y2 = int(ys.min()), int(ys.max()) + 1
+
+        # Only crop when the image actually has substantial black padding.
+        if (
+            x1 > card.width * 0.02
+            or y1 > card.height * 0.02
+            or x2 < card.width * 0.98
+            or y2 < card.height * 0.98
+        ):
+            card = card.crop((x1, y1, x2, y2))
+
+    w, h = card.size
     top_h = max(2, int(h * 0.10))
     bottom_h = max(2, int(h * 0.10))
     side_w = max(2, int(w * 0.10))
