@@ -22,8 +22,15 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
+from database import get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
 
 app = FastAPI(title="PUBG Card Scanner")
+
+
+@app.on_event("startup")
+def startup_database() -> None:
+    init_db()
+    sync_cards(load_db())
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,15 +42,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-TEMP_DIR = Path("temp_images")
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
-
 STATIC_DIR = Path("static")
 CARDS_DIR = STATIC_DIR / "cards"
 CARDS_DIR.mkdir(parents=True, exist_ok=True)
 
-app.mount("/temp_images", StaticFiles(directory=str(TEMP_DIR)), name="temp_images")
+# Admin workflow previews are temporary. Render's free filesystem is ephemeral.
+TEMP_DIR = Path("temp_images")
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
 
 DB_FILE = Path("card_hashes.json")
 SESSION_MAX_AGE = 12 * 60 * 60
@@ -83,19 +91,6 @@ def clean_hashes(value: Any) -> dict[str, str]:
 def valid_hash(value: Any) -> bool:
     s = str(value or "").strip().lower()
     return bool(s) and s not in {"undefined", "null", "none"}
-
-
-def local_preview_path(url: str) -> Path | None:
-    if not url:
-        return None
-    prefix = "/temp_images/"
-    if not url.startswith(prefix):
-        return None
-    name = Path(url[len(prefix):]).name
-    path = (TEMP_DIR / name).resolve()
-    if path.parent != TEMP_DIR.resolve() or not path.exists():
-        return None
-    return path
 
 
 def _session_secret() -> str:
@@ -160,6 +155,41 @@ def _valid_session(value: str | None) -> bool:
     return hmac.compare_digest(sig, expected)
 
 
+def _validate_telegram_init_data(init_data: str) -> dict[str, Any]:
+    """Validate Telegram Mini App initData and return the Telegram user."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на Render")
+
+    from urllib.parse import parse_qsl
+
+    pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+    received_hash = pairs.pop("hash", "")
+    if not received_hash:
+        raise HTTPException(status_code=401, detail="Отсутствует Telegram hash")
+
+    auth_date = pairs.get("auth_date", "")
+    try:
+        if time.time() - int(auth_date) > 86400:
+            raise HTTPException(status_code=401, detail="Telegram initData устарел")
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Некорректный Telegram auth_date") from exc
+
+    data_check_string = "\n".join(f"{key}={pairs[key]}" for key in sorted(pairs))
+    secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
+    expected_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(received_hash, expected_hash):
+        raise HTTPException(status_code=401, detail="Недействительные данные Telegram")
+
+    try:
+        user = json.loads(pairs.get("user", "{}"))
+        telegram_id = int(user["id"])
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=401, detail="Не удалось определить пользователя Telegram") from exc
+
+    return {"id": telegram_id, "user": user}
+
+
 def _authorization_token(authorization: str | None) -> str | None:
     if not authorization:
         return None
@@ -186,6 +216,10 @@ def require_admin(authorization: str | None) -> None:
 
 class LoginSchema(BaseModel):
     password: str
+
+
+class TelegramAuthSchema(BaseModel):
+    init_data: str
 
 
 class CardSaveSchema(BaseModel):
@@ -281,6 +315,12 @@ def _enrich_admin_scan(
             card.get("hashes", {}),
             db,
         )
+        raw_id, raw_distance = _match_card(
+            card.get("raw_hashes", {}),
+            db,
+        )
+        if raw_id is not None and raw_distance < best_distance:
+            best_id, best_distance = raw_id, raw_distance
 
         matched = (
             best_id is not None
@@ -369,6 +409,21 @@ def _prepare_icon(image: Image.Image) -> Image.Image:
     return canvas
 
 
+def _save_admin_preview(data_url: str, index: int) -> str:
+    """Persist one temporary admin card preview on Render."""
+    if not data_url.startswith("data:image/") or "," not in data_url:
+        return data_url
+    try:
+        encoded = data_url.split(",", 1)[1]
+        payload = base64.b64decode(encoded)
+        filename = f"scan-{int(time.time() * 1000)}-{index}.jpg"
+        path = TEMP_DIR / filename
+        path.write_bytes(payload)
+        return f"/temp-images/{filename}"
+    except Exception:
+        return data_url
+
+
 def _extract_single_card(image: Image.Image) -> Image.Image:
     """
     For the icon tab the user normally uploads one whole card image.
@@ -450,6 +505,9 @@ async def scan_preview(
     require_admin(authorization)
     image = await _read_image(file)
     result = scan_screenshot(image, save_previews=True)
+    for index, card in enumerate(result.get("cards", [])):
+        if card.get("preview"):
+            card["preview"] = _save_admin_preview(card["preview"], index)
     db = load_db()
     result["cards"] = _enrich_admin_scan(
         result.get("cards", []),
@@ -458,16 +516,109 @@ async def scan_preview(
     return result
 
 
+@app.get("/admin/temp-files")
+async def list_temp_files(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    files = []
+    for path in sorted(TEMP_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
+        if path.is_file():
+            files.append({
+                "name": path.name,
+                "url": f"/temp-images/{path.name}",
+                "size": path.stat().st_size,
+            })
+    return files
+
+
+@app.delete("/admin/temp-files")
+async def delete_temp_files(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    deleted = 0
+    for path in TEMP_DIR.glob("*"):
+        if path.is_file():
+            try:
+                path.unlink()
+                deleted += 1
+            except OSError:
+                pass
+    return {"status": "ok", "deleted": deleted}
+
+
+@app.get("/me/cards")
+async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    auth = _validate_telegram_init_data(init_data)
+    get_or_create_user(auth["id"])
+    user = auth["user"]
+    return {
+        "registered": True,
+        "telegram_id": auth["id"],
+        "user": {
+            "first_name": user.get("first_name", ""),
+            "last_name": user.get("last_name", ""),
+            "username": user.get("username", ""),
+        },
+        "cards": get_user_cards(auth["id"]),
+    }
+
+
+@app.post("/me/collection/confirm")
+async def confirm_my_collection(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    cards = data.get("cards", [])
+    if not isinstance(cards, list):
+        raise HTTPException(status_code=400, detail="cards должен быть массивом")
+    get_or_create_user(auth["id"])
+    saved = 0
+    for item in cards:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        quantity = max(0, int(item.get("quantity", 0) or 0))
+        set_user_card_quantity(auth["id"], str(item["id"]), quantity)
+        saved += 1
+    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"])}
+
+
+@app.post("/me/collection")
+async def save_my_collection(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    cards = data.get("cards", [])
+    if not isinstance(cards, list):
+        raise HTTPException(status_code=400, detail="cards должен быть массивом")
+    get_or_create_user(auth["id"])
+    saved = 0
+    for item in cards:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        quantity = max(0, int(item.get("quantity", 0) or 0))
+        set_user_card_quantity(auth["id"], str(item["id"]), quantity)
+        saved += 1
+    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"]) }
+
+
 @app.post("/scan")
-async def scan(file: UploadFile = File(...)):
+async def scan(file: UploadFile = File(...), init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    auth = _validate_telegram_init_data(init_data) if init_data else None
     image = await _read_image(file)
-    result = scan_screenshot(image, save_previews=False)
+    result = scan_screenshot(image, save_previews=True)
     db = load_db()
 
     matches = []
     for card in result["cards"]:
         best_id, best_distance = _match_card(card["hashes"], db)
-        if best_id is not None:
+        raw_id, raw_distance = _match_card(card.get("raw_hashes", {}), db)
+        if raw_id is not None and raw_distance < best_distance:
+            best_id, best_distance = raw_id, raw_distance
+        matched = (
+            best_id is not None
+            and best_distance <= float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
+        )
+        if matched:
             info = db[best_id]
             matches.append({
                 "id": best_id,
@@ -475,6 +626,9 @@ async def scan(file: UploadFile = File(...)):
                 "rarity": info.get("rarity", 1),
                 "distance": round(best_distance, 2),
                 "icon": info.get("icon", ""),
+                "preview": card.get("preview", ""),
+                "quantity": int(card.get("quantity", 1) or 1),
+                "duplicates": int(card.get("duplicates", 0) or 0),
                 "row": card["row"],
                 "col": card["col"],
             })
@@ -485,10 +639,16 @@ async def scan(file: UploadFile = File(...)):
                 "rarity": None,
                 "distance": None,
                 "icon": "",
+                "preview": card.get("preview", ""),
+                "quantity": int(card.get("quantity", 1) or 1),
+                "duplicates": int(card.get("duplicates", 0) or 0),
                 "row": card["row"],
                 "col": card["col"],
             })
-    return {"cards": matches, "count": len(matches)}
+    if auth:
+        get_or_create_user(auth["id"])
+
+    return {"cards": matches, "count": len(matches), "authenticated": bool(auth)}
 
 
 @app.post("/admin/save-card")
@@ -500,15 +660,6 @@ async def save_card(
 
     hashes = clean_hashes(data.hashes)
     legacy_hash = data.hash if valid_hash(data.hash) else None
-
-    if not hashes:
-        path = local_preview_path(data.preview)
-        if path:
-            try:
-                with Image.open(path) as img:
-                    hashes = calculate_card_hashes(img.convert("RGB"))
-            except Exception:
-                hashes = {}
 
     if not hashes and legacy_hash:
         hashes = {"full_dhash": legacy_hash}
@@ -649,31 +800,6 @@ async def delete_card(
     del db[card_id]
     save_db(db)
     return {"status": "ok"}
-
-
-@app.get("/admin/temp-files")
-async def temp_files(authorization: str | None = Header(default=None)):
-    require_admin(authorization)
-    files = []
-    for p in sorted(TEMP_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if p.is_file():
-            files.append({
-                "name": p.name,
-                "url": f"/temp_images/{p.name}",
-                "size": p.stat().st_size,
-            })
-    return files
-
-
-@app.delete("/admin/temp-files")
-async def delete_temp_files(authorization: str | None = Header(default=None)):
-    require_admin(authorization)
-    count = 0
-    for p in TEMP_DIR.iterdir():
-        if p.is_file():
-            p.unlink()
-            count += 1
-    return {"status": "ok", "deleted": count}
 
 
 def _github_request(method: str, url: str, token: str, payload: dict[str, Any] | None = None) -> Any:

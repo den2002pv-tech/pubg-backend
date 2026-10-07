@@ -1,2 +1,166 @@
 <!DOCTYPE html>
-<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>PUBG Card Exchange</title><script src="https://telegram.org/js/telegram-web-app.js"></script><style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#121212;color:#fff;margin:0;padding:16px;text-align:center}.card{background:#1e1e1e;border-radius:12px;padding:20px;margin-top:20px;border:1px solid #333}.btn{background:#0088cc;color:#fff;border:0;padding:12px 24px;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;width:100%;margin-top:10px}input[type=file]{display:none}.upload-label{display:block;padding:16px;border:2px dashed #0088cc;border-radius:8px;background:rgba(0,136,204,.1);cursor:pointer}.muted{color:#aaa}.match{padding:10px;border-bottom:1px solid #333;text-align:left}</style></head><body><h2>Обмен карт PUBG Mobile</h2><p class="muted">Загрузите скриншот вашей коллекции карт</p><div class="card"><label class="upload-label" for="fileInput"><span id="statusText">📷 Выбрать скриншот</span><input type="file" id="fileInput" accept="image/*"></label></div><div id="results" class="card" style="display:none"><h3>Найденные карты:</h3><div id="cardsList"></div><button class="btn" onclick="requestTrade()">Искать 3-сторонний обмен</button></div><script>const tg=window.Telegram?.WebApp;tg?.expand();const API = 'https://pubg-backend-3rtc.onrender.com';document.getElementById('fileInput').addEventListener('change',uploadImage);async function uploadImage(){const input=document.getElementById('fileInput'),status=document.getElementById('statusText');if(!input.files[0])return;status.textContent='⏳ Сканирование скриншота...';const fd=new FormData();fd.append('file',input.files[0]);try{const r=await fetch(API+'/scan',{method:'POST',body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сервера');status.textContent=`✅ Найдено карточек: ${d.count||0}`;showResults(d.cards||[])}catch(e){status.textContent='❌ Ошибка сканирования: '+e.message}}function showResults(cards){const list=document.getElementById('cardsList');list.innerHTML=cards.map(c=>`<div class="match">${c.name}${c.distance!=null?` <span class="muted">(d=${c.distance})</span>`:''}</div>`).join('');document.getElementById('results').style.display='block'}function requestTrade(){if(tg?.showAlert)tg.showAlert('Запрос на обмен отправлен!');else alert('Запрос на обмен отправлен!')}</script></body></html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PUBG Card Exchange</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#101214;color:#fff;margin:0;padding:16px}
+h2{margin:4px 0 6px;text-align:center}.subtitle{color:#9aa0a6;text-align:center;margin:0 0 16px}
+.panel{background:#191c20;border:1px solid #30343a;border-radius:16px;padding:14px;margin-top:14px}
+.upload{display:block;padding:16px;border:2px dashed #3d83a8;border-radius:12px;text-align:center;cursor:pointer}
+input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:center;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{position:relative;background:#20242a;border:1px solid #353a42;border-radius:14px;padding:8px;overflow:hidden}
+.icon-wrap{position:relative;aspect-ratio:2/3;background:#111;border-radius:9px;overflow:hidden}
+.icon{width:100%;height:100%;object-fit:contain;display:block}
+.qty{position:absolute;right:6px;top:6px;background:#70757b;color:#fff;border-radius:7px;padding:3px 7px;font-weight:800;font-size:13px}
+.name{font-weight:750;margin:8px 2px 2px;line-height:1.2}.meta{color:#aeb4bb;font-size:12px;margin:3px 2px}
+.trade{width:100%;border:0;border-radius:9px;padding:8px;margin-top:7px;font-weight:750;background:#2d7d4f;color:#fff;cursor:pointer}
+.trade:disabled{background:#3a3f45;color:#8e949b;cursor:default}.tech{margin-top:6px;color:#737a83;font-size:11px}
+.empty{color:#9aa0a6;text-align:center;padding:18px 4px}
+.compare-details{margin-top:7px;border-top:1px solid #343941;padding-top:6px}
+.compare-details summary{color:#aeb4bb;font-size:11px;cursor:pointer}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.compare-box{min-width:0}.compare-label{color:#8e949b;font-size:9px;text-align:center;margin-bottom:3px}.compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#111;border-radius:6px;display:block}
+@media(max-width:380px){.compare{gap:4px}}
+@media(min-width:700px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<h2>Обмен карт PUBG Mobile</h2>
+<p class="subtitle">Загрузите скриншот коллекции — карты определятся автоматически.</p>
+<div id="account" class="panel">🔄 Проверка аккаунта Telegram...</div>
+<div class="panel">
+<label class="upload" for="fileInput"><span id="statusText">📷 Выбрать скриншот</span><input type="file" id="fileInput" accept="image/*"></label>
+<div id="status" class="status"></div>
+</div>
+<div id="results" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Результат сканирования</h3><div id="cardsList" class="grid"></div><button id="confirmBtn" class="trade" style="display:none" onclick="confirmCollection()">✅ Добавить распознанные карты</button></div>
+<div id="inventory" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Мой инвентарь</h3><div id="inventoryList" class="grid"></div></div>
+<script>
+const tg=window.Telegram?.WebApp;
+tg?.expand();
+const API='https://pubg-backend-3rtc.onrender.com';
+const telegramInitData=tg?.initData||'';
+const telegramHeaders=()=>telegramInitData?{'X-Telegram-Init-Data':telegramInitData}:{};
+const input=document.getElementById('fileInput');
+const statusText=document.getElementById('statusText');
+const status=document.getElementById('status');
+const account=document.getElementById('account');
+const confirmBtn=document.getElementById('confirmBtn');
+let pendingCards=[];
+input.addEventListener('change',uploadImage);
+
+function assetUrl(path){if(!path)return '';return path.startsWith('http')||path.startsWith('data:')?path:API+path;}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
+async function uploadImage(){
+ const file=input.files[0]; if(!file)return;
+ statusText.textContent='⏳ Сканирование...'; status.textContent='';
+ const fd=new FormData(); fd.append('file',file);
+ try{
+  const r=await fetch(API+'/scan',{method:'POST',body:fd,headers:telegramHeaders()}); const d=await r.json();
+  if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
+  statusText.textContent='📷 Выбрать другой скриншот';
+  status.textContent='Найдено карточек: '+(d.count||0);
+  pendingCards=(d.cards||[]).filter(c=>c.id);
+  showResults(d.cards||[]);
+ }catch(e){statusText.textContent='📷 Выбрать скриншот';status.textContent='❌ '+e.message;}
+}
+
+function showResults(cards){
+ const root=document.getElementById('cardsList'); root.innerHTML='';
+ if(!cards.length){
+  root.innerHTML='<div class="empty">Карты не найдены.</div>';
+  document.getElementById('results').style.display='block';
+  confirmBtn.style.display='none';
+  return;
+ }
+ cards.forEach(c=>{
+  const quantity=Math.max(1,Number(c.quantity||1));
+  const duplicates=Math.max(0,Number(c.duplicates??quantity-1));
+  const recognized=!!c.id;
+  const mainImage=recognized&&c.icon
+   ? '<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">'
+   : c.preview
+    ? '<img class="icon" src="'+esc(assetUrl(c.preview))+'" alt="">'
+    : '<div class="empty">Изображение отсутствует</div>';
+  const compare=c.preview
+   ? '<details class="compare-details"><summary>Сравнить скан с эталоном</summary><div class="compare">'+
+      '<div class="compare-box"><div class="compare-label">Скан</div><img src="'+esc(assetUrl(c.preview))+'" alt=""></div>'+
+      (c.icon
+       ? '<div class="compare-box"><div class="compare-label">Эталон</div><img src="'+esc(assetUrl(c.icon))+'" alt=""></div>'
+       : '<div class="compare-box"><div class="compare-label">Эталон</div><div class="empty">Нет</div></div>')+
+      '</div></details>'
+   : '';
+  const qty=quantity>1?'<span class="qty">×'+quantity+'</span>':'';
+  const exchange=duplicates>0
+   ? '<button class="trade" onclick="requestTrade(\''+esc(c.id||'')+'\')">Обменять</button>'
+   : '<button class="trade" disabled>Нет дубликатов</button>';
+  const el=document.createElement('div');
+  el.className='card';
+  el.innerHTML='<div class="icon-wrap">'+mainImage+qty+'</div>'+
+   '<div class="name">'+esc(c.name||'Неизвестная карта')+'</div>'+
+   '<div class="meta">'+(recognized?'Распознана':'Не распознана')+
+   (recognized&&duplicates>0?' · дубликатов: '+duplicates:'')+'</div>'+
+   compare+
+   (recognized?exchange:'<div class="tech">Карта не добавляется в инвентарь</div>')+
+   '<div class="tech">'+(c.distance!=null?'Совпадение: d='+esc(c.distance):'Совпадение не определено')+'</div>';
+  root.appendChild(el);
+ });
+ document.getElementById('results').style.display='block';
+ confirmBtn.style.display=pendingCards.length?'block':'none';
+}
+
+
+async function loadMyCollection(){
+ if(!telegramInitData){account.textContent='❌ Откройте приложение через Telegram';return;}
+ try{
+  const r=await fetch(API+'/me/cards',{headers:telegramHeaders()});
+  if(!r.ok){account.textContent='❌ Telegram не удалось подтвердить';return;}
+  const d=await r.json();
+  const u=d.user||{};
+  const fullName=[u.first_name,u.last_name].filter(Boolean).join(' ');
+  const username=u.username?' @'+u.username:'';
+  const who=fullName||u.username||('ID '+d.telegram_id);
+  account.innerHTML='✅ Telegram подключён<br>👤 Подключился: <b>'+esc(who)+'</b>'+esc(username)+'<br>💾 Инвентарь сохранён';
+  if((d.cards||[]).length)showInventory(d.cards);
+  else {
+   document.getElementById('inventory').style.display='block';
+   document.getElementById('inventoryList').innerHTML='<div class="empty">Инвентарь пока пуст.</div>';
+  }
+ }catch(e){account.textContent='❌ Ошибка подключения к аккаунту';console.warn(e);}
+}
+function showInventory(cards){
+ const root=document.getElementById('inventoryList');root.innerHTML='';
+ cards.forEach(c=>{
+  const qty=Number(c.quantity||0), dup=Math.max(0,qty-1);
+  const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Нет иконки</div>';
+  const el=document.createElement('div');el.className='card';
+  el.innerHTML='<div class="icon-wrap">'+icon+'<span class="qty">×'+qty+'</span></div>'+
+   '<div class="name">'+esc(c.name)+'</div><div class="meta">Дубликатов: '+dup+'</div>';
+  root.appendChild(el);
+ });
+ document.getElementById('inventory').style.display='block';
+}
+async function confirmCollection(){
+ if(!pendingCards.length)return;
+ confirmBtn.disabled=true;confirmBtn.textContent='⏳ Сохранение...';
+ try{
+  const r=await fetch(API+'/me/collection/confirm',{method:'POST',headers:{...telegramHeaders(),'Content-Type':'application/json'},body:JSON.stringify({cards:pendingCards})});
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
+  pendingCards=[];confirmBtn.style.display='none';showInventory(d.cards||[]);
+  status.textContent='✅ Карты добавлены в инвентарь';
+ }catch(e){status.textContent='❌ '+e.message;confirmBtn.disabled=false;confirmBtn.textContent='✅ Добавить выбранные карты в инвентарь';}
+}
+loadMyCollection();
+
+function requestTrade(cardId){
+ const text='Функция обмена будет подключена следующим этапом.';
+ if(tg?.showAlert)tg.showAlert(text);else alert(text);
+}
+</script>
+</body>
+</html>
