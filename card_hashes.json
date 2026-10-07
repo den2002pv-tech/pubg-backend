@@ -84,27 +84,15 @@
     "icon": "/static/cards/card_3.webp"
   },
   "card_4": {
-    "name": "Техника Воскрешения",
+    "name": "Керамбит",
     "hashes": {
-      "full_phash": "9b3b952ad0a66ae8",
-      "full_dhash": "7b5a496931516be8",
-      "visual_phash": "db830b9c26786e87",
-      "visual_dhash": "5859490c68315151"
+      "full_phash": "ba3a85c9b9e4c691",
+      "full_dhash": "337d2d3d3b61717b",
+      "visual_phash": "9e3649f966a428c7",
+      "visual_dhash": "317d6c3c3d397160"
     },
-    "hash": "7b5a496931516be8",
+    "hash": "337d2d3d3b61717b",
     "rarity": 3,
     "icon": "/static/cards/card_4.webp"
-  },
-  "card_5": {
-    "name": "Гамабунта",
-    "hashes": {
-      "full_phash": "ee3f972880e89ad8",
-      "full_dhash": "474f3127331733e8",
-      "visual_phash": "fe0723a8679d1e28",
-      "visual_dhash": "4f4d31262733370f"
-    },
-    "hash": "474f3127331733e8",
-    "rarity": 3,
-    "icon": "/static/cards/card_5.webp"
   }
 }
