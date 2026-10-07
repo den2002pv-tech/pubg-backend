@@ -281,6 +281,12 @@ def _enrich_admin_scan(
             card.get("hashes", {}),
             db,
         )
+        raw_id, raw_distance = _match_card(
+            card.get("raw_hashes", {}),
+            db,
+        )
+        if raw_id is not None and raw_distance < best_distance:
+            best_id, best_distance = raw_id, raw_distance
 
         matched = (
             best_id is not None
@@ -467,6 +473,9 @@ async def scan(file: UploadFile = File(...)):
     matches = []
     for card in result["cards"]:
         best_id, best_distance = _match_card(card["hashes"], db)
+        raw_id, raw_distance = _match_card(card.get("raw_hashes", {}), db)
+        if raw_id is not None and raw_distance < best_distance:
+            best_id, best_distance = raw_id, raw_distance
         if best_id is not None:
             info = db[best_id]
             matches.append({
@@ -475,6 +484,8 @@ async def scan(file: UploadFile = File(...)):
                 "rarity": info.get("rarity", 1),
                 "distance": round(best_distance, 2),
                 "icon": info.get("icon", ""),
+                "quantity": int(card.get("quantity", 1) or 1),
+                "duplicates": int(card.get("duplicates", 0) or 0),
                 "row": card["row"],
                 "col": card["col"],
             })
@@ -485,6 +496,8 @@ async def scan(file: UploadFile = File(...)):
                 "rarity": None,
                 "distance": None,
                 "icon": "",
+                "quantity": int(card.get("quantity", 1) or 1),
+                "duplicates": int(card.get("duplicates", 0) or 0),
                 "row": card["row"],
                 "col": card["col"],
             })
