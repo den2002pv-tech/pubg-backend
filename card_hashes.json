@@ -854,7 +854,8 @@
       "frame_colorhash": "09c00008000"
     },
     "hash": "0b71b0b0dc9d3396",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_66.webp"
   },
   "card_67": {
     "name": "Шар Хвостатого Зверя",
@@ -866,7 +867,8 @@
       "frame_colorhash": "01e00008000"
     },
     "hash": "6f6133b4eb863396",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_67.webp"
   },
   "card_68": {
     "name": "Сайтама и Генос",
@@ -890,6 +892,7 @@
       "frame_colorhash": "06e40000000"
     },
     "hash": "67659c90323e2b2b",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_69.webp"
   }
 }
