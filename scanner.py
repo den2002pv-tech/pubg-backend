@@ -191,32 +191,12 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
         # resolutions, aspect ratios, and different numbers of cards.
         return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
-    # Last-resort adaptive grid for screenshots where contours are too weak.
-    h, w = img.shape[:2]
-    if w / float(h) > 1.35:
-        return _fallback_wide_grid(img)
+    # Never fabricate card rectangles from screen dimensions alone.
+    # A generic/admin page can have strong edges in the same places as the
+    # old fallback grid and would then be returned as fake inventory cards.
+    # If CV cannot find at least one regular card run, report no cards.
     return []
 
-
-def _fallback_wide_grid(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
-    h, w = img.shape[:2]
-    # Estimate a tall-card family from common PUBG inventory proportions.
-    card_h = int(h * 0.49)
-    card_w = int(card_h * 0.68)
-    y = int(h * 0.35)
-    x_start = int(w * 0.13)
-    step = int(w * 0.168)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 45, 140)
-    row = []
-    for i in range(6):
-        x = x_start + i * step
-        rect = (x, y, card_w, card_h)
-        if x + card_w > w * 0.9:
-            break
-        if _edge_score(edges, rect) >= 28.0:
-            row.append(rect)
-    return [row] if row else []
 
 
 def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
