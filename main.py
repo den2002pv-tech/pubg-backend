@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -57,6 +57,18 @@ app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-image
 DB_FILE = Path("card_hashes.json")
 SESSION_MAX_AGE = 12 * 60 * 60
 ADMIN_TOKEN_PREFIX = "pubg_admin_v1"
+
+HASH_REGEN_PROGRESS: dict[str, Any] = {
+    "running": False,
+    "current": 0,
+    "total": 0,
+    "card_id": "",
+    "status": "idle",
+    "updated": 0,
+    "error": "",
+}
+
+
 
 
 def load_db() -> dict[str, Any]:
@@ -1010,6 +1022,94 @@ def _github_commit() -> dict[str, Any]:
         "cards": len(load_db()),
         "icons": len(local_icons),
     }
+
+
+
+def _regenerate_hashes_from_icons() -> None:
+    """Rebuild all card hashes from the saved card icons."""
+    global HASH_REGEN_PROGRESS
+
+    db = load_db()
+    items = [
+        (card_id, info)
+        for card_id, info in db.items()
+        if isinstance(info, dict) and (CARDS_DIR / f"{card_id}.webp").is_file()
+    ]
+
+    HASH_REGEN_PROGRESS = {
+        "running": True,
+        "current": 0,
+        "total": len(items),
+        "card_id": "",
+        "status": "running",
+        "updated": int(time.time()),
+        "error": "",
+    }
+
+    try:
+        for index, (card_id, info) in enumerate(items, start=1):
+            icon_path = CARDS_DIR / f"{card_id}.webp"
+
+            with Image.open(icon_path) as icon:
+                hashes = calculate_card_hashes(icon.convert("RGB"))
+
+            info["hashes"] = hashes
+            info["hash"] = hashes.get("full_dhash", info.get("hash", ""))
+
+            HASH_REGEN_PROGRESS.update({
+                "current": index,
+                "total": len(items),
+                "card_id": card_id,
+                "status": "running" if index < len(items) else "completed",
+                "updated": int(time.time()),
+            })
+
+        save_db(db)
+
+    except Exception as exc:
+        HASH_REGEN_PROGRESS.update({
+            "status": "error",
+            "error": str(exc),
+            "updated": int(time.time()),
+        })
+    finally:
+        HASH_REGEN_PROGRESS["running"] = False
+
+
+@app.post("/admin/regenerate-hashes")
+async def regenerate_hashes(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+
+    if HASH_REGEN_PROGRESS.get("running"):
+        return HASH_REGEN_PROGRESS
+
+    # Start in a background thread so the admin page can poll progress.
+    import threading
+    thread = threading.Thread(
+        target=_regenerate_hashes_from_icons,
+        name="hash-regeneration",
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "running": True,
+        "current": 0,
+        "total": sum(
+            1 for card_id, info in load_db().items()
+            if isinstance(info, dict) and (CARDS_DIR / f"{card_id}.webp").is_file()
+        ),
+        "card_id": "",
+        "status": "starting",
+        "updated": int(time.time()),
+        "error": "",
+    }
+
+
+@app.get("/admin/regenerate-hashes/progress")
+async def regenerate_hashes_progress(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    return HASH_REGEN_PROGRESS
 
 
 @app.post("/admin/github-commit")
