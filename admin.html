@@ -74,12 +74,25 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
 
   <section id="icons" class="panel">
     <div class="box">
-      <h2>Добавление постоянной иконки</h2>
-      <p class="muted">Загрузи одну полную карту в хорошем качестве. Backend попробует вырезать её, посчитает 4 хеша и найдёт существующий card_id.</p>
-      <input type="file" id="iconInput" accept="image/*">
-      <button id="matchIconBtn">Определить карту</button>
+      <h2>Иконки карт</h2>
+      <p class="muted">Можно загрузить несколько изображений. Каждая иконка сначала определяется, а сохранить или заменить её можно только после ручного подтверждения.</p>
+
+      <div class="row">
+        <input type="file" id="iconInput" accept="image/*" multiple>
+        <button id="matchIconBtn">🔎 Определить выбранные</button>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <select id="iconFilter">
+          <option value="all">Все карты</option>
+          <option value="missing">Только без иконки</option>
+          <option value="icon">Только с иконкой</option>
+        </select>
+        <input id="iconSearch" placeholder="Поиск карты по ID или названию">
+      </div>
+
       <div id="iconStatus"></div>
-      <div id="iconMatch"></div>
+      <div id="iconQueue" class="card-grid" style="margin-top:15px"></div>
     </div>
   </section>
 
@@ -128,8 +141,8 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
 <script>
 const statusEl=document.getElementById('status');
 let db={};
-let lastIconFile=null;
-let lastIconMatch=null;
+let iconQueue=[];
+let iconFilterMode='all';
 
 function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
 function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
@@ -477,49 +490,224 @@ async function saveCard(i){
   }
 }
 
-document.getElementById('matchIconBtn').onclick=async()=>{
-  const f=document.getElementById('iconInput').files[0];
-  if(!f){iconStatus('Сначала выбери изображение','err');return}
-  lastIconFile=f;lastIconMatch=null;
-  const fd=new FormData();fd.append('file',f);
-  const b=document.getElementById('matchIconBtn');b.disabled=true;b.textContent='Сравнение...';iconStatus('Вырезаем карту и сравниваем 4 хеша...');
+function filteredIconCards(){
+  const q=(document.getElementById('iconSearch').value||'').trim().toLowerCase();
+  const mode=document.getElementById('iconFilter').value;
+  return Object.entries(db).filter(([id,info])=>{
+    const has=!!info.icon;
+    if(mode==='missing'&&has)return false;
+    if(mode==='icon'&&!has)return false;
+    return !q || `${id} ${info.name||''}`.toLowerCase().includes(q);
+  });
+}
+
+function renderIconQueue(){
+  const root=document.getElementById('iconQueue');
+  root.innerHTML='';
+
+  if(!iconQueue.length){
+    root.innerHTML='<p class="muted">Выберите одну или несколько иконок.</p>';
+    return;
+  }
+
+  iconQueue.forEach((item,index)=>{
+    const el=document.createElement('div');
+    el.className='item';
+
+    const preview=item.previewUrl
+      ? `<img src="${esc(item.previewUrl)}" style="max-height:380px;object-fit:contain">`
+      : '<div class="muted">Нет предпросмотра</div>';
+
+    let action='';
+
+    if(item.status==='saved'){
+      action=`<div class="ok">✅ Иконка сохранена для ${esc(item.cardId)}</div>`;
+    }else if(item.status==='processing'){
+      action='<div class="muted">🔎 Определяем карту...</div>';
+    }else if(item.status==='error'){
+      action=`<div class="err">❌ ${esc(item.error||'Ошибка')}</div>
+        <button class="btn-secondary" onclick="retryIcon(${index})">Повторить</button>`;
+    }else if(item.matched && item.cardId){
+      const info=db[item.cardId]||{};
+      const replacing=!!info.icon;
+      action=`
+        <div class="ok">Найдена карта: <b>${esc(info.name||item.cardId)}</b></div>
+        <div class="muted">ID: ${esc(item.cardId)} · расстояние: <b>${esc(item.score)}</b></div>
+        <div class="muted" style="margin-top:6px">${replacing?'⚠️ Это заменит существующую иконку.':'🆕 У этой карты пока нет иконки.'}</div>
+        <button class="btn-green" onclick="confirmIcon(${index})">
+          ${replacing?'Подтвердить замену':'Подтвердить и сохранить'}
+        </button>`;
+    }else{
+      const options=filteredIconCards()
+        .map(([id,info])=>`<option value="${esc(id)}" ${item.selectedCardId===id?'selected':''}>${esc(id)} — ${esc(info.name||id)}${info.icon?' (есть иконка)':' (без иконки)'}</option>`)
+        .join('');
+
+      action=`
+        <div class="badge missing">⚠️ Автоматически карта не найдена</div>
+        <p class="muted">Можно вручную выбрать карту из фильтра ниже.</p>
+        <select id="manualCard_${index}" onchange="setManualIconCard(${index},this.value)">
+          <option value="">Выберите карту...</option>
+          ${options}
+        </select>
+        <div id="manualHint_${index}" class="muted" style="margin-top:6px"></div>
+        <button class="btn-green" onclick="confirmIcon(${index})" ${item.selectedCardId?'':'disabled'}>
+          Подтвердить выбранную карту
+        </button>`;
+    }
+
+    el.innerHTML=`
+      <div class="muted" style="margin-bottom:6px">Файл: <b>${esc(item.file.name)}</b></div>
+      ${preview}
+      <div style="margin-top:10px">${action}</div>
+      <details style="margin-top:8px">
+        <summary>Hashes</summary>
+        <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(item.hashes||{},null,2))}</pre>
+      </details>`;
+    root.appendChild(el);
+  });
+}
+
+function setManualIconCard(index,id){
+  iconQueue[index].selectedCardId=id||'';
+  const item=iconQueue[index];
+  const info=db[item.selectedCardId]||{};
+  const hint=document.getElementById('manualHint_'+index);
+  if(hint){
+    hint.textContent=item.selectedCardId
+      ? (info.icon ? '⚠️ Будет заменена существующая иконка.' : '🆕 Иконка будет добавлена.')
+      : '';
+  }
+  renderIconQueue();
+}
+
+async function processIcon(index){
+  const item=iconQueue[index];
+  if(!item||item.status==='saved')return;
+
+  item.status='processing';
+  item.error='';
+  renderIconQueue();
+
   try{
-    const r=await api('/admin/match-icon',{method:'POST',body:fd});const d=await r.json();
-    if(!r.ok)throw new Error(d.detail||'Ошибка');
-    if(!d.matched){iconStatus(d.message||'Совпадение не найдено','err');document.getElementById('iconMatch').innerHTML='';return}
-    lastIconMatch=d;
-    const threshold=18;
-    const good=d.score<=threshold;
-    document.getElementById('iconMatch').innerHTML=`<div class="item" style="margin-top:12px">
-      <h3>${good?'✅':'⚠️'} ${esc(d.name)}</h3>
-      <div>ID: ${esc(d.card_id)}</div><div>Среднее расстояние: <b>${d.score}</b> (порог ${threshold})</div>
-      <p class="muted">${good?'Совпадение достаточно хорошее. Можно сохранить постоянную иконку.':'Совпадение слабое. Не сохраняем автоматически.'}</p>
-      ${good?'<button id="saveIconBtn" class="btn-green">Сохранить постоянную иконку</button>':''}
-    </div>`;
-    iconStatus(good?'Карта подтверждена':'Нужно проверить изображение',good?'ok':'err');
-    document.getElementById('saveIconBtn')?.addEventListener('click',saveIcon)
-  }catch(e){iconStatus('Ошибка: '+e.message,'err')}
-  finally{b.disabled=false;b.textContent='Определить карту'}
+    const fd=new FormData();
+    fd.append('file',item.file);
+
+    const r=await api('/admin/match-icon',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка определения карты');
+
+    item.status='ready';
+    item.matched=!!d.matched;
+    item.cardId=d.matched?d.card_id:'';
+    item.score=d.score;
+    item.hashes=d.hashes||{};
+    item.serverIcon=d.icon||'';
+
+    if(!item.matched)iconStatus('Некоторые иконки не определились автоматически — выберите карту вручную.','err');
+  }catch(e){
+    item.status='error';
+    item.error=e.message;
+  }
+
+  renderIconQueue();
+}
+
+async function confirmIcon(index){
+  const item=iconQueue[index];
+  if(!item||item.status==='saved')return;
+
+  const cardId=item.matched ? item.cardId : item.selectedCardId;
+  if(!cardId){
+    alert('Сначала выберите карту.');
+    return;
+  }
+
+  const info=db[cardId]||{};
+  const replacing=!!info.icon;
+  const message=replacing
+    ? `Заменить постоянную иконку карты "${info.name||cardId}"?`
+    : `Добавить иконку для карты "${info.name||cardId}"?`;
+
+  if(!confirm(message))return;
+
+  item.status='processing';
+  renderIconQueue();
+
+  try{
+    const fd=new FormData();
+    fd.append('file',item.file);
+
+    const r=await api('/admin/save-icon/'+encodeURIComponent(cardId),{
+      method:'POST',
+      body:fd
+    });
+    const d=await r.json();
+
+    if(!r.ok)throw new Error(d.detail||'Иконка не прошла проверку');
+
+    item.status='saved';
+    item.cardId=cardId;
+    item.score=d.score;
+    item.error='';
+
+    await loadAll();
+    renderIconQueue();
+    iconStatus(`✅ ${cardId}: иконка подтверждена и сохранена.`,'ok');
+  }catch(e){
+    item.status='ready';
+    item.error=e.message;
+    renderIconQueue();
+    iconStatus('Иконка не сохранена: '+e.message,'err');
+  }
+}
+
+async function retryIcon(index){
+  await processIcon(index);
+}
+
+document.getElementById('matchIconBtn').onclick=async()=>{
+  const files=Array.from(document.getElementById('iconInput').files||[]);
+  if(!files.length){
+    iconStatus('Сначала выберите одну или несколько иконок','err');
+    return;
+  }
+
+  iconQueue=files.map(file=>({
+    file,
+    previewUrl:URL.createObjectURL(file),
+    status:'queued',
+    matched:false,
+    cardId:'',
+    selectedCardId:'',
+    score:null,
+    hashes:{},
+    error:''
+  }));
+
+  renderIconQueue();
+  const b=document.getElementById('matchIconBtn');
+  b.disabled=true;
+  b.textContent='Определяем...';
+
+  try{
+    for(let i=0;i<iconQueue.length;i++){
+      await processIcon(i);
+    }
+    iconStatus(`Готово: обработано ${iconQueue.length} иконок. Теперь подтвердите каждую отдельно.`,'ok');
+  }finally{
+    b.disabled=false;
+    b.textContent='🔎 Определить выбранные';
+  }
 };
-async function saveIcon(){
-  if(!lastIconFile||!lastIconMatch)return;
-  const fd=new FormData();fd.append('file',lastIconFile);
-  const r=await api('/admin/save-icon/'+encodeURIComponent(lastIconMatch.card_id),{method:'POST',body:fd});
-  const d=await r.json();if(!r.ok){alert(d.detail||'Не удалось сохранить');return}
-  iconStatus('Иконка сохранена: '+d.icon,'ok');
-  document.getElementById('iconMatch').innerHTML='';
-  await loadAll();
-}
-function chooseIconFor(id){document.getElementById('iconInput').click();document.getElementById('icons').scrollIntoView();document.getElementById('matchIconBtn').focus()}
-function replaceIcon(id){chooseIconFor(id)}
-async function deleteIcon(id){
-  id=decodeURIComponent(id);if(!confirm('Удалить постоянную иконку карты?'))return;
-  const r=await api('/admin/delete-icon/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok){alert(d.detail||'Ошибка');return}await loadAll()
-}
-async function deleteCard(id){
-  id=decodeURIComponent(id);if(!confirm('Удалить карту и её постоянную иконку?'))return;
-  const r=await api('/admin/delete-card/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok){alert(d.detail||'Ошибка');return}await loadAll()
-}
+
+document.getElementById('iconFilter').onchange=()=>{
+  renderIconQueue();
+};
+
+document.getElementById('iconSearch').oninput=()=>{
+  renderIconQueue();
+};
+
 async function loadTemp(){
   const r=await api('/admin/temp-files');if(!r.ok)return;
   const files=await r.json(),root=document.getElementById('tempList');root.innerHTML='';
