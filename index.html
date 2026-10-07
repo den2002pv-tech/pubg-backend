@@ -117,6 +117,8 @@ function showResults(cards){
   root.appendChild(el);
  });
  document.getElementById('results').style.display='block';
+ confirmBtn.disabled=false;
+ confirmBtn.textContent='✅ Добавить распознанные карты';
  confirmBtn.style.display=pendingCards.length?'block':'none';
 }
 
