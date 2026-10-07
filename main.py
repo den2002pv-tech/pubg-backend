@@ -239,16 +239,21 @@ def _hamming(a: str, b: str) -> int | None:
 
 
 ICON_MATCH_THRESHOLD = float(os.getenv("ICON_MATCH_THRESHOLD", "18"))
+CARD_MATCH_HASH_MAX_DISTANCE = float(os.getenv("CARD_MATCH_HASH_MAX_DISTANCE", "18"))
 
 
 def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | None, float]:
     """
     Compare corresponding hashes. Lower is better.
-    Each available hash contributes equally; this avoids comparing a dHash
-    against a pHash just because both are hex strings.
+
+    A mean distance alone is not enough: two unrelated cards can have a low
+    average while one or more visual hashes are clearly different. Require
+    every available corresponding hash to stay within the per-hash ceiling,
+    then use the mean only to choose the best candidate among valid matches.
     """
     best_id: str | None = None
     best_score = float("inf")
+    max_hash_distance = CARD_MATCH_HASH_MAX_DISTANCE
 
     for card_id, info in db.items():
         stored = clean_hashes(info.get("hashes"))
@@ -268,15 +273,16 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
                 distances.append(d)
 
         if distances:
-            # Mean of the corresponding hashes. Four hashes make recognition
-            # more stable than relying on only one.
+            # Do not let several good hashes hide one clearly different hash.
+            if any(d > max_hash_distance for d in distances):
+                continue
+
             score = sum(distances) / len(distances)
             if score < best_score:
                 best_score = score
                 best_id = card_id
 
     return best_id, best_score
-
 
 
 def _next_card_id(db: dict[str, Any]) -> str:
