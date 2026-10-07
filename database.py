@@ -59,6 +59,55 @@ def init_db() -> None:
         conn.commit()
 
 
+def get_or_create_user(telegram_id: int) -> dict:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO users (telegram_id)
+                VALUES (%s)
+                ON CONFLICT (telegram_id) DO UPDATE SET telegram_id = EXCLUDED.telegram_id
+                RETURNING id, telegram_id, created_at
+                """,
+                (telegram_id,),
+            )
+            user = cur.fetchone()
+        conn.commit()
+    return dict(user)
+
+
+def set_user_card_quantity(telegram_id: int, card_id: str, quantity: int) -> None:
+    quantity = max(0, int(quantity))
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_cards (user_id, card_id, quantity)
+                SELECT id, %s, %s FROM users WHERE telegram_id = %s
+                ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
+                """,
+                (card_id, quantity, telegram_id),
+            )
+        conn.commit()
+
+
+def get_user_cards(telegram_id: int) -> list[dict]:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.id, c.name, c.rarity, c.icon, uc.quantity
+                FROM user_cards uc
+                JOIN users u ON u.id = uc.user_id
+                JOIN cards c ON c.id = uc.card_id
+                WHERE u.telegram_id = %s AND uc.quantity > 0
+                ORDER BY c.id
+                """,
+                (telegram_id,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
 def sync_cards(cards: dict) -> int:
     """Copy card metadata from card_hashes.json into PostgreSQL."""
     count = 0
