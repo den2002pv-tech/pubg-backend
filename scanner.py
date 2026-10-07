@@ -291,6 +291,20 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
             and ch >= h * 0.55
             and abs(center_x - w / 2.0) <= w * 0.10
         ):
+            # Brightness separation alone is not enough: a modal/menu
+            # can also be a bright centered rectangle. Require frame evidence
+            # on at least three sides before accepting it as a card.
+            bw = max(2, int(cw * 0.035))
+            bh = max(2, int(ch * 0.035))
+            strips = (
+                edges[y1:y2, x1:x1 + bw],
+                edges[y1:y2, max(x1, x2 - bw):x2],
+                edges[y1:y1 + bh, x1:x2],
+                edges[max(y1, y2 - bh):y2, x1:x2],
+            )
+            side_scores = [float(s.mean()) / 255.0 if s.size else 0.0 for s in strips]
+            if sum(v >= 0.035 for v in side_scores) < 3:
+                return None
             pad_x = max(2, int(cw * 0.012))
             pad_y = max(2, int(ch * 0.012))
             x1 = max(0, x1 - pad_x)
