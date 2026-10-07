@@ -832,6 +832,7 @@ async def match_icon(
 async def save_icon(
     card_id: str,
     file: UploadFile = File(...),
+    manual: bool = False,
     authorization: str | None = Header(default=None),
 ):
     require_admin(authorization)
@@ -843,11 +844,14 @@ async def save_icon(
     image = await _read_image(file)
     card_image = _extract_single_card(image)
 
-    # Recalculate hashes from the actual card and require a reasonably close
-    # match before permanently attaching the icon.
+    # Always calculate hashes from the actual extracted card. Automatic
+    # matching remains strict, but a manual admin confirmation is an explicit
+    # identity decision and must also support high-quality viewer screenshots
+    # whose pixels differ from the inventory screenshot.
     hashes = calculate_card_hashes(card_image)
     matched_id, score = _match_card(hashes, db)
-    if matched_id != card_id or score > ICON_MATCH_THRESHOLD:
+
+    if not manual and (matched_id != card_id or score > ICON_MATCH_THRESHOLD):
         raise HTTPException(
             status_code=400,
             detail=f"Изображение не подтверждено для {card_id} (найдено: {matched_id}, distance={score:.2f}, порог={ICON_MATCH_THRESHOLD:g})",
