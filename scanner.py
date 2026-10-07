@@ -219,11 +219,68 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
         score = (edge / 100.0) + (area / (w * h)) - center_penalty * 0.55
         candidates.append((score, (x, y, cw, ch)))
 
-    if not candidates:
-        return None
+    if candidates:
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
 
-    candidates.sort(key=lambda item: item[0], reverse=True)
-    return candidates[0][1]
+    # Full-screen card viewer fallback.
+    # Some PUBG screenshots show one enlarged card in the exact center while
+    # the inventory behind it is dark/blurred. The decorative frame is not
+    # necessarily one closed contour, so contour detection can return nothing.
+    # Search a small family of centered card-shaped rectangles instead of
+    # hashing the whole blurred screen.
+    gray_f = gray.astype(np.float32)
+    best: tuple[float, tuple[int, int, int, int]] | None = None
+
+    for hf in np.linspace(0.70, 0.98, 8):
+        for wf in np.linspace(0.24, 0.40, 9):
+            cw = int(round(w * wf))
+            ch = int(round(h * hf))
+            if cw <= 0 or ch <= 0:
+                continue
+
+            ratio = cw / float(ch)
+            if not 0.45 <= ratio <= 0.90:
+                continue
+
+            x = (w - cw) // 2
+            y = (h - ch) // 2
+            inner = gray_f[y:y + ch, x:x + cw]
+            if inner.size == 0:
+                continue
+
+            side_left = gray_f[:, max(0, x - cw // 2):x]
+            side_right = gray_f[:, min(w, x + cw):min(w, x + cw + cw // 2)]
+            outside = np.concatenate([side_left, side_right], axis=1)
+            if outside.size == 0:
+                continue
+
+            contrast = float(inner.mean() - outside.mean())
+
+            bw = max(2, int(cw * 0.035))
+            bh = max(2, int(ch * 0.035))
+            strips = [
+                inner[:, :bw],
+                inner[:, -bw:],
+                inner[:bh, :],
+                inner[-bh:, :],
+            ]
+            edge = float(np.mean([
+                np.mean(np.abs(np.diff(s, axis=1))) if s.shape[1] > 1 else 0.0
+                for s in strips[:2]
+            ] + [
+                np.mean(np.abs(np.diff(s, axis=0))) if s.shape[0] > 1 else 0.0
+                for s in strips[2:]
+            ]))
+
+            score = contrast + edge * 0.30
+            if best is None or score > best[0]:
+                best = (score, (x, y, cw, ch))
+
+    if best is not None and best[0] >= 38.0:
+        return best[1]
+
+    return None
 
 
 
