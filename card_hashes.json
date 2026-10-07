@@ -358,5 +358,29 @@
     "hash": "40c6b8323233718e",
     "rarity": 3,
     "icon": "/static/cards/card_30.webp"
+  },
+  "card_31": {
+    "name": "Исаги Йоичи",
+    "hashes": {
+      "full_phash": "eb7a852f75781091",
+      "full_dhash": "1361991d096b6b8e",
+      "visual_phash": "fb848c607dd9b192",
+      "visual_dhash": "53e55919154d6951"
+    },
+    "hash": "1361991d096b6b8e",
+    "rarity": 3,
+    "icon": "/static/cards/card_31.webp"
+  },
+  "card_32": {
+    "name": "Наги Сейширо",
+    "hashes": {
+      "full_phash": "ed58813ff47b6280",
+      "full_dhash": "31718133164b4b8e",
+      "visual_phash": "ffc8819c58e32da4",
+      "visual_dhash": "31f0570933574b4b"
+    },
+    "hash": "31718133164b4b8e",
+    "rarity": 3,
+    "icon": "/static/cards/card_32.webp"
   }
 }
