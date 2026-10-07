@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import time
-from pathlib import Path
+from io import BytesIO
+import base64
 from typing import Any
 
 import cv2
@@ -9,7 +9,6 @@ import imagehash
 import numpy as np
 from PIL import Image
 
-TEMP_DIR = Path("temp_images")
 NORMALIZED_SIZE = (224, 320)
 
 
@@ -308,12 +307,14 @@ def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
     }
 
 
-def save_preview(card: Image.Image, prefix: str = "card") -> str:
-    TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{prefix}_{int(time.time() * 1000)}_{np.random.randint(1000, 9999)}.jpg"
-    path = TEMP_DIR / filename
-    card.save(path, "JPEG", quality=92)
-    return f"/temp_images/{filename}"
+def encode_preview(card: Image.Image) -> str:
+    """Encode a small preview in memory; never persist scan previews on Render."""
+    image = card.convert("RGB")
+    image.thumbnail((256, 384), Image.Resampling.LANCZOS)
+    buffer = BytesIO()
+    image.save(buffer, "JPEG", quality=82, optimize=True)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
 
 
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
@@ -340,6 +341,6 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
             "quantity_confidence": round(quantity_confidence, 3),
         }
         if save_previews:
-            entry["preview"] = save_preview(clean_crop)
+            entry["preview"] = encode_preview(clean_crop)
         cards.append(entry)
     return {"cards": cards, "count": len(cards), "image_size": list(image.size)}
