@@ -21,6 +21,9 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 .trade{width:100%;border:0;border-radius:9px;padding:9px;margin-top:8px;font-weight:750;background:#2d7d4f;color:#fff;cursor:pointer}
 .trade:disabled{background:#3a3f45;color:#8e949b;cursor:default}.tech{margin-top:8px;color:#737a83;font-size:11px}
 .empty{color:#9aa0a6;text-align:center;padding:18px 4px}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.compare-box{min-width:0}.compare-label{color:#8e949b;font-size:10px;text-align:center;margin-bottom:3px}.compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#111;border-radius:7px;display:block}
+@media(max-width:380px){.compare{gap:4px}.compare-label{font-size:9px}}
 @media(min-width:700px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 </style>
 </head>
@@ -72,12 +75,16 @@ function showResults(cards){
   const quantity=Math.max(1,Number(c.quantity||1));
   const duplicates=Math.max(0,Number(c.duplicates??quantity-1));
   const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Иконка отсутствует</div>';
+  const tempIcon=c.preview?'<img src="'+esc(assetUrl(c.preview))+'" alt="">':'';
+  const compare=c.preview?'<div class="compare"><div class="compare-box"><div class="compare-label">Скриншот</div><img src="'+esc(assetUrl(c.preview))+'" alt=""></div>'+
+    (c.icon?'<div class="compare-box"><div class="compare-label">Постоянная иконка</div><img src="'+esc(assetUrl(c.icon))+'" alt=""></div>':'<div class="compare-box"><div class="compare-label">Эталон не найден</div><div class="empty">Нет постоянной иконки</div></div>')+
+    '</div>':'';
   const qty=quantity>1?'<span class="qty">×'+quantity+'</span>':'';
   const exchange=duplicates>0
    ?'<button class="trade" onclick="requestTrade(\''+esc(c.id||'')+'\')">Обменять</button>'
    :'<button class="trade" disabled>Нет дубликатов</button>';
   const el=document.createElement('div');el.className='card';
-  el.innerHTML='<div class="icon-wrap">'+icon+qty+'</div>'+
+  el.innerHTML='<div class="icon-wrap">'+icon+qty+'</div>'+compare+
    '<div class="name">'+esc(c.name||'Неизвестная карта')+'</div>'+
    '<div class="meta">'+(c.id?'Карта распознана':'Карта не распознана')+'</div>'+
    (c.id?'<div class="meta">'+(duplicates>0?'Дубликатов: '+duplicates:'Дубликатов нет')+'</div>':'')+
