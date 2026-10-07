@@ -27,11 +27,13 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 <body>
 <h2>Обмен карт PUBG Mobile</h2>
 <p class="subtitle">Загрузите скриншот коллекции — карты определятся автоматически.</p>
+<div id="account" class="panel">🔄 Проверка аккаунта Telegram...</div>
 <div class="panel">
 <label class="upload" for="fileInput"><span id="statusText">📷 Выбрать скриншот</span><input type="file" id="fileInput" accept="image/*"></label>
 <div id="status" class="status"></div>
 </div>
-<div id="results" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Ваши карты</h3><div id="cardsList" class="grid"></div></div>
+<div id="results" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Проверка найденных карт</h3><div id="cardsList" class="grid"></div><button id="confirmBtn" class="trade" style="display:none" onclick="confirmCollection()">✅ Добавить выбранные карты в инвентарь</button></div>
+<div id="inventory" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Мой инвентарь</h3><div id="inventoryList" class="grid"></div></div>
 <script>
 const tg=window.Telegram?.WebApp;
 tg?.expand();
@@ -41,6 +43,9 @@ const telegramHeaders=()=>telegramInitData?{'X-Telegram-Init-Data':telegramInitD
 const input=document.getElementById('fileInput');
 const statusText=document.getElementById('statusText');
 const status=document.getElementById('status');
+const account=document.getElementById('account');
+const confirmBtn=document.getElementById('confirmBtn');
+let pendingCards=[];
 input.addEventListener('change',uploadImage);
 
 function assetUrl(path){if(!path)return '';return path.startsWith('http')?path:API+path;}
@@ -54,17 +59,19 @@ async function uploadImage(){
   const r=await fetch(API+'/scan',{method:'POST',body:fd,headers:telegramHeaders()}); const d=await r.json();
   if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
   statusText.textContent='📷 Выбрать другой скриншот';
-  status.textContent='Найдено карточек: '+(d.count||0); showResults(d.cards||[]);
+  status.textContent='Найдено карточек: '+(d.count||0);
+  pendingCards=(d.cards||[]).filter(c=>c.id);
+  showResults(d.cards||[]);
  }catch(e){statusText.textContent='📷 Выбрать скриншот';status.textContent='❌ '+e.message;}
 }
 
 function showResults(cards){
  const root=document.getElementById('cardsList'); root.innerHTML='';
- if(!cards.length){root.innerHTML='<div class="empty">Карты не найдены.</div>';document.getElementById('results').style.display='block';return;}
+ if(!cards.length){root.innerHTML='<div class="empty">Карты не найдены.</div>';document.getElementById('results').style.display='block';confirmBtn.style.display='none';return;}
  cards.forEach(c=>{
   const quantity=Math.max(1,Number(c.quantity||1));
   const duplicates=Math.max(0,Number(c.duplicates??quantity-1));
-  const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Нет иконки</div>';
+  const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Иконка отсутствует</div>';
   const qty=quantity>1?'<span class="qty">×'+quantity+'</span>':'';
   const exchange=duplicates>0
    ?'<button class="trade" onclick="requestTrade(\''+esc(c.id||'')+'\')">Обменять</button>'
@@ -72,22 +79,48 @@ function showResults(cards){
   const el=document.createElement('div');el.className='card';
   el.innerHTML='<div class="icon-wrap">'+icon+qty+'</div>'+
    '<div class="name">'+esc(c.name||'Неизвестная карта')+'</div>'+
-   '<div class="meta">'+(duplicates>0?'Дубликатов: '+duplicates:'Дубликатов нет')+'</div>'+
-   exchange+
-   '<div class="tech">Совпадение: '+(c.distance!=null?'d='+esc(c.distance):'не определено')+'</div>';
+   '<div class="meta">'+(c.id?'Карта распознана':'Карта не распознана')+'</div>'+
+   (c.id?'<div class="meta">'+(duplicates>0?'Дубликатов: '+duplicates:'Дубликатов нет')+'</div>':'')+
+   (c.id?exchange:'<button class="trade" disabled>Нельзя добавить</button>')+
+   '<div class="tech">'+(c.distance!=null?'Совпадение: d='+esc(c.distance):'Не удалось определить карту')+'</div>';
   root.appendChild(el);
  });
  document.getElementById('results').style.display='block';
+ confirmBtn.style.display=pendingCards.length?'block':'none';
 }
 
 async function loadMyCollection(){
- if(!telegramInitData)return;
+ if(!telegramInitData){account.textContent='❌ Откройте приложение через Telegram';return;}
  try{
   const r=await fetch(API+'/me/cards',{headers:telegramHeaders()});
-  if(!r.ok)return;
+  if(!r.ok){account.textContent='❌ Telegram не удалось подтвердить';return;}
   const d=await r.json();
-  if((d.cards||[]).length)showResults(d.cards.map(c=>({...c,duplicates:Math.max(0,Number(c.quantity||0)-1)})));
- }catch(e){console.warn('Не удалось загрузить коллекцию',e);}
+  account.textContent='✅ Telegram подключён — инвентарь сохранён';
+  if((d.cards||[]).length)showInventory(d.cards);
+  else document.getElementById('inventory').style.display='block';
+ }catch(e){account.textContent='❌ Ошибка подключения к аккаунту';console.warn(e);}
+}
+function showInventory(cards){
+ const root=document.getElementById('inventoryList');root.innerHTML='';
+ cards.forEach(c=>{
+  const qty=Number(c.quantity||0), dup=Math.max(0,qty-1);
+  const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Нет иконки</div>';
+  const el=document.createElement('div');el.className='card';
+  el.innerHTML='<div class="icon-wrap">'+icon+'<span class="qty">×'+qty+'</span></div>'+
+   '<div class="name">'+esc(c.name)+'</div><div class="meta">Дубликатов: '+dup+'</div>';
+  root.appendChild(el);
+ });
+ document.getElementById('inventory').style.display='block';
+}
+async function confirmCollection(){
+ if(!pendingCards.length)return;
+ confirmBtn.disabled=true;confirmBtn.textContent='⏳ Сохранение...';
+ try{
+  const r=await fetch(API+'/me/collection/confirm',{method:'POST',headers:{...telegramHeaders(),'Content-Type':'application/json'},body:JSON.stringify({cards:pendingCards})});
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
+  pendingCards=[];confirmBtn.style.display='none';showInventory(d.cards||[]);
+  status.textContent='✅ Карты добавлены в инвентарь';
+ }catch(e){status.textContent='❌ '+e.message;confirmBtn.disabled=false;confirmBtn.textContent='✅ Добавить выбранные карты в инвентарь';}
 }
 loadMyCollection();
 
