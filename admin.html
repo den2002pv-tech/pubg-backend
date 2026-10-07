@@ -647,7 +647,7 @@ async function confirmIcon(index){
     const fd=new FormData();
     fd.append('file',item.file);
 
-    const r=await api('/admin/save-icon/'+encodeURIComponent(cardId),{
+    const r=await api('/admin/save-icon/'+encodeURIComponent(cardId)+'?manual=true',{
       method:'POST',
       body:fd
     });
