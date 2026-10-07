@@ -13,17 +13,19 @@ h2{margin:4px 0 6px;text-align:center}.subtitle{color:#9aa0a6;text-align:center;
 .upload{display:block;padding:16px;border:2px dashed #3d83a8;border-radius:12px;text-align:center;cursor:pointer}
 input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:center;font-size:14px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.card{position:relative;background:#20242a;border:1px solid #353a42;border-radius:14px;padding:10px;overflow:hidden}
-.icon-wrap{position:relative;aspect-ratio:2/3;background:#111;border-radius:10px;overflow:hidden}
+.card{position:relative;background:#20242a;border:1px solid #353a42;border-radius:14px;padding:8px;overflow:hidden}
+.icon-wrap{position:relative;aspect-ratio:2/3;background:#111;border-radius:9px;overflow:hidden}
 .icon{width:100%;height:100%;object-fit:contain;display:block}
-.qty{position:absolute;right:7px;top:7px;background:#70757b;color:#fff;border-radius:7px;padding:3px 7px;font-weight:800;font-size:14px}
-.name{font-weight:750;margin:9px 2px 2px;line-height:1.2}.meta{color:#aeb4bb;font-size:13px;margin:3px 2px}
-.trade{width:100%;border:0;border-radius:9px;padding:9px;margin-top:8px;font-weight:750;background:#2d7d4f;color:#fff;cursor:pointer}
-.trade:disabled{background:#3a3f45;color:#8e949b;cursor:default}.tech{margin-top:8px;color:#737a83;font-size:11px}
+.qty{position:absolute;right:6px;top:6px;background:#70757b;color:#fff;border-radius:7px;padding:3px 7px;font-weight:800;font-size:13px}
+.name{font-weight:750;margin:8px 2px 2px;line-height:1.2}.meta{color:#aeb4bb;font-size:12px;margin:3px 2px}
+.trade{width:100%;border:0;border-radius:9px;padding:8px;margin-top:7px;font-weight:750;background:#2d7d4f;color:#fff;cursor:pointer}
+.trade:disabled{background:#3a3f45;color:#8e949b;cursor:default}.tech{margin-top:6px;color:#737a83;font-size:11px}
 .empty{color:#9aa0a6;text-align:center;padding:18px 4px}
-.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
-.compare-box{min-width:0}.compare-label{color:#8e949b;font-size:10px;text-align:center;margin-bottom:3px}.compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#111;border-radius:7px;display:block}
-@media(max-width:380px){.compare{gap:4px}.compare-label{font-size:9px}}
+.compare-details{margin-top:7px;border-top:1px solid #343941;padding-top:6px}
+.compare-details summary{color:#aeb4bb;font-size:11px;cursor:pointer}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.compare-box{min-width:0}.compare-label{color:#8e949b;font-size:9px;text-align:center;margin-bottom:3px}.compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#111;border-radius:6px;display:block}
+@media(max-width:380px){.compare{gap:4px}}
 @media(min-width:700px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 </style>
 </head>
@@ -35,7 +37,7 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 <label class="upload" for="fileInput"><span id="statusText">📷 Выбрать скриншот</span><input type="file" id="fileInput" accept="image/*"></label>
 <div id="status" class="status"></div>
 </div>
-<div id="results" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Проверка найденных карт</h3><div id="cardsList" class="grid"></div><button id="confirmBtn" class="trade" style="display:none" onclick="confirmCollection()">✅ Добавить выбранные карты в инвентарь</button></div>
+<div id="results" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Результат сканирования</h3><div id="cardsList" class="grid"></div><button id="confirmBtn" class="trade" style="display:none" onclick="confirmCollection()">✅ Добавить распознанные карты</button></div>
 <div id="inventory" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Мой инвентарь</h3><div id="inventoryList" class="grid"></div></div>
 <script>
 const tg=window.Telegram?.WebApp;
@@ -70,31 +72,48 @@ async function uploadImage(){
 
 function showResults(cards){
  const root=document.getElementById('cardsList'); root.innerHTML='';
- if(!cards.length){root.innerHTML='<div class="empty">Карты не найдены.</div>';document.getElementById('results').style.display='block';confirmBtn.style.display='none';return;}
+ if(!cards.length){
+  root.innerHTML='<div class="empty">Карты не найдены.</div>';
+  document.getElementById('results').style.display='block';
+  confirmBtn.style.display='none';
+  return;
+ }
  cards.forEach(c=>{
   const quantity=Math.max(1,Number(c.quantity||1));
   const duplicates=Math.max(0,Number(c.duplicates??quantity-1));
-  const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Иконка отсутствует</div>';
-  const tempIcon=c.preview?'<img src="'+esc(assetUrl(c.preview))+'" alt="">':'';
-  const compare=c.preview?'<div class="compare"><div class="compare-box"><div class="compare-label">Скриншот</div><img src="'+esc(assetUrl(c.preview))+'" alt=""></div>'+
-    (c.icon?'<div class="compare-box"><div class="compare-label">Постоянная иконка</div><img src="'+esc(assetUrl(c.icon))+'" alt=""></div>':'<div class="compare-box"><div class="compare-label">Эталон не найден</div><div class="empty">Нет постоянной иконки</div></div>')+
-    '</div>':'';
+  const recognized=!!c.id;
+  const mainImage=recognized&&c.icon
+   ? '<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">'
+   : c.preview
+    ? '<img class="icon" src="'+esc(assetUrl(c.preview))+'" alt="">'
+    : '<div class="empty">Изображение отсутствует</div>';
+  const compare=c.preview
+   ? '<details class="compare-details"><summary>Сравнить скан с эталоном</summary><div class="compare">'+
+      '<div class="compare-box"><div class="compare-label">Скан</div><img src="'+esc(assetUrl(c.preview))+'" alt=""></div>'+
+      (c.icon
+       ? '<div class="compare-box"><div class="compare-label">Эталон</div><img src="'+esc(assetUrl(c.icon))+'" alt=""></div>'
+       : '<div class="compare-box"><div class="compare-label">Эталон</div><div class="empty">Нет</div></div>')+
+      '</div></details>'
+   : '';
   const qty=quantity>1?'<span class="qty">×'+quantity+'</span>':'';
   const exchange=duplicates>0
-   ?'<button class="trade" onclick="requestTrade(\''+esc(c.id||'')+'\')">Обменять</button>'
-   :'<button class="trade" disabled>Нет дубликатов</button>';
-  const el=document.createElement('div');el.className='card';
-  el.innerHTML='<div class="icon-wrap">'+icon+qty+'</div>'+compare+
+   ? '<button class="trade" onclick="requestTrade(\''+esc(c.id||'')+'\')">Обменять</button>'
+   : '<button class="trade" disabled>Нет дубликатов</button>';
+  const el=document.createElement('div');
+  el.className='card';
+  el.innerHTML='<div class="icon-wrap">'+mainImage+qty+'</div>'+
    '<div class="name">'+esc(c.name||'Неизвестная карта')+'</div>'+
-   '<div class="meta">'+(c.id?'Карта распознана':'Карта не распознана')+'</div>'+
-   (c.id?'<div class="meta">'+(duplicates>0?'Дубликатов: '+duplicates:'Дубликатов нет')+'</div>':'')+
-   (c.id?exchange:'<button class="trade" disabled>Нельзя добавить</button>')+
-   '<div class="tech">'+(c.distance!=null?'Совпадение: d='+esc(c.distance):'Не удалось определить карту')+'</div>';
+   '<div class="meta">'+(recognized?'Распознана':'Не распознана')+
+   (recognized&&duplicates>0?' · дубликатов: '+duplicates:'')+'</div>'+
+   compare+
+   (recognized?exchange:'<div class="tech">Карта не добавляется в инвентарь</div>')+
+   '<div class="tech">'+(c.distance!=null?'Совпадение: d='+esc(c.distance):'Совпадение не определено')+'</div>';
   root.appendChild(el);
  });
  document.getElementById('results').style.display='block';
  confirmBtn.style.display=pendingCards.length?'block':'none';
 }
+
 
 async function loadMyCollection(){
  if(!telegramInitData){account.textContent='❌ Откройте приложение через Telegram';return;}
