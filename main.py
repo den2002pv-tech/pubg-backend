@@ -22,7 +22,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
+from database import clear_user_cards, get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
 
 app = FastAPI(title="PUBG Card Scanner")
 
@@ -663,6 +663,16 @@ async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Ini
         },
         "cards": get_user_cards(auth["id"]),
     }
+
+
+@app.delete("/me/collection")
+async def clear_my_collection(
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    get_or_create_user(auth["id"])
+    deleted = clear_user_cards(auth["id"])
+    return {"status": "ok", "deleted": deleted, "cards": []}
 
 
 @app.post("/me/collection/confirm")
