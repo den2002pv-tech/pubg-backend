@@ -269,6 +269,35 @@ def extract_visual_area(card: Image.Image) -> Image.Image:
     return card.crop((int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.78)))
 
 
+def extract_frame_area(card: Image.Image) -> Image.Image:
+    """Build a compact image containing only the card's outer frame."""
+    card = card.convert("RGB")
+    w, h = card.size
+
+    top_h = max(2, int(h * 0.10))
+    bottom_h = max(2, int(h * 0.10))
+    side_w = max(2, int(w * 0.10))
+
+    top = card.crop((0, 0, w, top_h))
+    bottom = card.crop((0, h - bottom_h, w, h - 1))
+    left = card.crop((0, top_h, side_w, max(top_h + 1, h - bottom_h)))
+    right = card.crop((w - side_w, top_h, w, max(top_h + 1, h - bottom_h)))
+
+    target_w = w
+    target_h = max(1, int(target_w * 0.18))
+    parts = [
+        top.resize((target_w, target_h), Image.Resampling.BILINEAR),
+        bottom.resize((target_w, target_h), Image.Resampling.BILINEAR),
+        left.resize((target_w, target_h), Image.Resampling.BILINEAR),
+        right.resize((target_w, target_h), Image.Resampling.BILINEAR),
+    ]
+
+    canvas = Image.new("RGB", (target_w, target_h * len(parts)))
+    for index, part in enumerate(parts):
+        canvas.paste(part, (0, index * target_h))
+    return canvas
+
+
 
 # Counter templates are normalized 9x20 binary glyphs. They are based on the
 # PUBG counter font visible in the supplied screenshots and cover quantities 2-9.
@@ -393,11 +422,16 @@ def normalize_card(card: Image.Image) -> Image.Image:
 def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
     full = normalize_card(card)
     visual = normalize_card(extract_visual_area(card))
+    frame = extract_frame_area(card)
     return {
         "full_phash": str(imagehash.phash(full)),
         "full_dhash": str(imagehash.dhash(full)),
         "visual_phash": str(imagehash.phash(visual)),
         "visual_dhash": str(imagehash.dhash(visual)),
+        # pHash/dHash are grayscale and therefore can treat a blue and a
+        # gold rarity frame as nearly identical. colorhash keeps the hue
+        # information from the outer frame.
+        "frame_colorhash": str(imagehash.colorhash(frame)),
     }
 
 
