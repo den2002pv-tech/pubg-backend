@@ -30,6 +30,7 @@ app = FastAPI(title="PUBG Card Scanner")
 @app.on_event("startup")
 def startup_database() -> None:
     init_db()
+    _migrate_frame_color_hashes()
     sync_cards(load_db())
 
 app.add_middleware(
@@ -302,10 +303,13 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             other = stored.get(key)
 
             # A scan with the new frame color hash must only match a card
-            # that also has that hash. This prevents old grayscale-only
-            # entries from bypassing the rarity/color check.
+            # that also has that hash. Missing color data is NOT a match:
+            # otherwise an old grayscale-only card could bypass the rarity
+            # check and still win on the four legacy hashes.
             if key == "frame_colorhash" and not other:
-                continue
+                distances = []
+                color_distances = []
+                break
 
             if other:
                 d = _hamming(value, other)
