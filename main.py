@@ -300,9 +300,9 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     Match by hash voting instead of a global average.
 
     A card is accepted only when:
-      - at least 2 of the 4 grayscale hashes are <= 5 bits apart;
-      - at least 3 of the 4 grayscale hashes are <= 10 bits apart;
-      - no available grayscale hash is above 10;
+      - at least 2 of the 4 grayscale hashes are <= CARD_MATCH_STRONG_DISTANCE;
+      - at least 3 of the 4 grayscale hashes are <= CARD_MATCH_ACCEPTABLE_DISTANCE;
+      - no available grayscale hash is above CARD_MATCH_ACCEPTABLE_DISTANCE;
       - when a frame color hash exists, it must also be compatible.
 
     The returned score is the average of the two strongest grayscale hashes.
@@ -355,7 +355,7 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
         if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
             continue
 
-        # No individual grayscale hash may be a loose 10-18 match.
+        # No individual grayscale hash may exceed the configured acceptable distance.
         if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE:
             continue
 
