@@ -22,8 +22,15 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
+from database import init_db, sync_cards
 
 app = FastAPI(title="PUBG Card Scanner")
+
+
+@app.on_event("startup")
+def startup_database() -> None:
+    init_db()
+    sync_cards(load_db())
 
 app.add_middleware(
     CORSMiddleware,
