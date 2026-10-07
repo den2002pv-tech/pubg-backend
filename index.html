@@ -19,7 +19,9 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 .qty{position:absolute;right:6px;top:6px;background:#70757b;color:#fff;border-radius:7px;padding:3px 7px;font-weight:800;font-size:13px}
 .name{font-weight:750;margin:8px 2px 2px;line-height:1.2}.meta{color:#aeb4bb;font-size:12px;margin:3px 2px}
 .trade{width:100%;border:0;border-radius:9px;padding:8px;margin-top:7px;font-weight:750;background:#2d7d4f;color:#fff;cursor:pointer}
-.trade:disabled{background:#3a3f45;color:#8e949b;cursor:default}.tech{margin-top:6px;color:#737a83;font-size:11px}
+.trade:disabled{background:#3a3f45;color:#8e949b;cursor:default}
+.danger{width:100%;border:1px solid #8b3d3d;border-radius:9px;padding:9px;margin-top:12px;font-weight:750;background:#4a2525;color:#fff;cursor:pointer}
+.danger:disabled{opacity:.65;cursor:default}.tech{margin-top:6px;color:#737a83;font-size:11px}
 .empty{color:#9aa0a6;text-align:center;padding:18px 4px}
 .compare-details{margin-top:7px;border-top:1px solid #343941;padding-top:6px}
 .compare-details summary{color:#aeb4bb;font-size:11px;cursor:pointer}
@@ -38,7 +40,11 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 <div id="status" class="status"></div>
 </div>
 <div id="results" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Результат сканирования</h3><div id="cardsList" class="grid"></div><button id="confirmBtn" class="trade" style="display:none" onclick="confirmCollection()">✅ Добавить распознанные карты</button></div>
-<div id="inventory" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Мой инвентарь</h3><div id="inventoryList" class="grid"></div></div>
+<div id="inventory" class="panel" style="display:none">
+<h3 style="margin:2px 0 12px">Мой инвентарь</h3>
+<div id="inventoryList" class="grid"></div>
+<button id="clearInventoryBtn" class="danger" onclick="clearMyInventory()">🗑️ Удалить весь инвентарь</button>
+</div>
 <script>
 const tg=window.Telegram?.WebApp;
 tg?.expand();
@@ -145,6 +151,31 @@ function showInventory(cards){
  });
  document.getElementById('inventory').style.display='block';
 }
+async function clearMyInventory(){
+ if(!telegramInitData)return;
+ const ok=tg?.showConfirm
+   ? await new Promise(resolve=>tg.showConfirm('Удалить весь ваш инвентарь? Это действие нельзя отменить.',resolve))
+   : window.confirm('Удалить весь ваш инвентарь? Это действие нельзя отменить.');
+ if(!ok)return;
+
+ const btn=document.getElementById('clearInventoryBtn');
+ btn.disabled=true;
+ btn.textContent='⏳ Удаление...';
+ try{
+  const r=await fetch(API+'/me/collection',{method:'DELETE',headers:telegramHeaders()});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.detail||'Ошибка удаления');
+  showInventory([]);
+  status.textContent='✅ Весь инвентарь удалён';
+  btn.textContent='🗑️ Удалить весь инвентарь';
+ }catch(e){
+  status.textContent='❌ '+e.message;
+  btn.disabled=false;
+  btn.textContent='🗑️ Удалить весь инвентарь';
+ }
+}
+
+
 async function confirmCollection(){
  if(!pendingCards.length)return;
  confirmBtn.disabled=true;confirmBtn.textContent='⏳ Сохранение...';
