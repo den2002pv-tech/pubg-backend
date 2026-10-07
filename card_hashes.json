@@ -425,7 +425,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "474d31263317338e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_33.webp"
   },
   "card_34": {
     "name": "Сборная Португалии",
@@ -437,7 +438,8 @@
       "frame_colorhash": "02e00000000"
     },
     "hash": "1353333517296b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_34.webp"
   },
   "card_35": {
     "name": "Техника Воскрешения",
@@ -449,7 +451,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "785a886831516b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_35.webp"
   },
   "card_36": {
     "name": "Harley-Davidson",
@@ -461,7 +464,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "0080981b23254b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_36.webp"
   },
   "card_37": {
     "name": "Ford F-15 pp Raptor",
@@ -473,7 +477,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "84e0c6862565798e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_37.webp"
   },
   "card_38": {
     "name": "Ford Mustang GTD",
@@ -485,7 +490,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "c6c098480305698e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_38.webp"
   },
   "card_39": {
     "name": "Блестящий удар",
@@ -497,7 +503,8 @@
       "frame_colorhash": "06c00000000"
     },
     "hash": "0c8e8eb898b16a8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_39.webp"
   },
   "card_40": {
     "name": "Кубок победителя PMGO",
@@ -509,7 +516,8 @@
       "frame_colorhash": "03c00008000"
     },
     "hash": "13cbcc6a5a5f658e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_40.webp"
   },
   "card_41": {
     "name": "Какаши",
@@ -521,7 +529,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "316565312727138e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_41.webp"
   },
   "card_42": {
     "name": "Сакура Харуно",
@@ -533,7 +542,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "31714504060d6b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_42.webp"
   },
   "card_43": {
     "name": "Саске Учиха",
@@ -545,7 +555,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "0d5961f091236b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_43.webp"
   },
   "card_44": {
     "name": "Наруто Узумаки",
@@ -557,7 +568,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "3171a72711556b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_44.webp"
   },
   "card_45": {
     "name": "Наруто Режим отшельника",
@@ -569,7 +581,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "316597370f49598e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_45.webp"
   },
   "card_46": {
     "name": "Наруто Режим Шести Путей",
@@ -581,7 +594,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "1959f336236b4b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_46.webp"
   },
   "card_47": {
     "name": "Наруто Ураганные хроники",
@@ -593,7 +607,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "2226b630346dcc8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_47.webp"
   },
   "card_48": {
     "name": "Памятная карточка автора",
@@ -605,7 +620,8 @@
       "frame_colorhash": "06c00000000"
     },
     "hash": "3218d85232075b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_48.webp"
   },
   "card_49": {
     "name": "FMVP — ULF-KECTH",
@@ -617,7 +633,8 @@
       "frame_colorhash": "02e00000000"
     },
     "hash": "39513d346261698e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_49.webp"
   },
   "card_50": {
     "name": "Чемпион 4T",
@@ -629,7 +646,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "796919484949238e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_50.webp"
   },
   "card_51": {
     "name": "Чемпион YG",
@@ -641,7 +659,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "71311b1b1b612b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_51.webp"
   },
   "card_52": {
     "name": "Париж, Франция",
@@ -653,7 +672,8 @@
       "frame_colorhash": "03e01000040"
     },
     "hash": "01908eccc8c94b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_52.webp"
   },
   "card_53": {
     "name": "Керамбит",
@@ -665,7 +685,8 @@
       "frame_colorhash": "0bc00000000"
     },
     "hash": "313d2d3d3b617193",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_53.webp"
   },
   "card_54": {
     "name": "La Esok Sekolah",
@@ -677,7 +698,8 @@
       "frame_colorhash": "03c02000000"
     },
     "hash": "714d2730ac716b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_54.webp"
   },
   "card_55": {
     "name": "Droppalero Droppala",
@@ -689,7 +711,8 @@
       "frame_colorhash": "03e02000000"
     },
     "hash": "1286cec284a4cc8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_55.webp"
   },
   "card_56": {
     "name": "67",
@@ -701,7 +724,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "3a739a96d6a6728e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_56.webp"
   },
   "card_57": {
     "name": "Ayo Maff",
@@ -713,7 +737,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "2c28ad6535576b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_57.webp"
   },
   "card_58": {
     "name": "Турецкий кофе",
@@ -725,7 +750,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "7286ae26a2dc6a8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_58.webp"
   },
   "card_59": {
     "name": "Симит",
@@ -737,7 +763,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "acae9692e2c5618e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_59.webp"
   },
   "card_60": {
     "name": "Адана-кебаб",
@@ -749,7 +776,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "84b1b08696870b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_60.webp"
   },
   "card_61": {
     "name": "Сайтама",
@@ -761,7 +789,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "11516c381073338e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_61.webp"
   },
   "card_62": {
     "name": "Ванпанчмен",
@@ -773,7 +802,8 @@
       "frame_colorhash": "06e00000000"
     },
     "hash": "31b1323905576b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_62.webp"
   },
   "card_63": {
     "name": "Хранитель ночи",
@@ -785,7 +815,8 @@
       "frame_colorhash": "06c01000000"
     },
     "hash": "64650f130f4f6b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_63.webp"
   },
   "card_64": {
     "name": "VS",
@@ -797,7 +828,8 @@
       "frame_colorhash": "03e00000000"
     },
     "hash": "556131383135778e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_64.webp"
   },
   "card_65": {
     "name": "Старший вамрир",
@@ -809,7 +841,8 @@
       "frame_colorhash": "06c00000000"
     },
     "hash": "79593737390d6b8e",
-    "rarity": 3
+    "rarity": 3,
+    "icon": "/static/cards/card_65.webp"
   },
   "card_66": {
     "name": "Девятихвостый",
