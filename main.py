@@ -514,7 +514,17 @@ async def scan_preview(
 async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
     auth = _validate_telegram_init_data(init_data)
     get_or_create_user(auth["id"])
-    return {"cards": get_user_cards(auth["id"]) }
+    user = auth["user"]
+    return {
+        "registered": True,
+        "telegram_id": auth["id"],
+        "user": {
+            "first_name": user.get("first_name", ""),
+            "last_name": user.get("last_name", ""),
+            "username": user.get("username", ""),
+        },
+        "cards": get_user_cards(auth["id"]),
+    }
 
 
 @app.post("/me/collection/confirm")
