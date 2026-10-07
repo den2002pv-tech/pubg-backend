@@ -223,7 +223,53 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
         candidates.sort(key=lambda item: item[0], reverse=True)
         return candidates[0][1]
 
-    # Full-screen card viewer fallback.
+    # Brightness-separation fallback for the centered viewer.
+    # The modal background is intentionally dark/blurred, while the enlarged
+    # card remains a much brighter central object. This works even when the
+    # decorative frame has gaps and therefore produces no closed contour.
+    gray_f = gray.astype(np.float32)
+
+    col_band = gray_f[int(h * 0.04):int(h * 0.96), :]
+    col_mean = col_band.mean(axis=0)
+    outer_cols = np.concatenate([
+        col_mean[:max(1, int(w * 0.15))],
+        col_mean[min(w - 1, int(w * 0.85)):],
+    ])
+    col_delta = col_mean - float(outer_cols.mean())
+    active_x = np.where(col_delta > 20.0)[0]
+
+    row_band = gray_f[:, int(w * 0.35):int(w * 0.65)]
+    row_mean = row_band.mean(axis=1)
+    outer_rows = np.concatenate([
+        row_mean[:max(1, int(h * 0.12))],
+        row_mean[min(h - 1, int(h * 0.88)):],
+    ])
+    row_delta = row_mean - float(outer_rows.mean())
+    active_y = np.where(row_delta > 20.0)[0]
+
+    if active_x.size and active_y.size:
+        x1, x2 = int(active_x.min()), int(active_x.max()) + 1
+        y1, y2 = int(active_y.min()), int(active_y.max()) + 1
+        cw, ch = x2 - x1, y2 - y1
+        ratio = cw / float(ch or 1)
+        center_x = (x1 + x2) / 2.0
+
+        if (
+            0.45 <= ratio <= 0.90
+            and cw >= w * 0.20
+            and ch >= h * 0.55
+            and abs(center_x - w / 2.0) <= w * 0.10
+        ):
+            pad_x = max(2, int(cw * 0.012))
+            pad_y = max(2, int(ch * 0.012))
+            x1 = max(0, x1 - pad_x)
+            y1 = max(0, y1 - pad_y)
+            x2 = min(w, x2 + pad_x)
+            y2 = min(h, y2 + pad_y)
+            return (x1, y1, x2 - x1, y2 - y1)
+
+    # If brightness separation is insufficient, try a small family of
+    # centered card-shaped rectangles as a final viewer fallback.
     # Some PUBG screenshots show one enlarged card in the exact center while
     # the inventory behind it is dark/blurred. The decorative frame is not
     # necessarily one closed contour, so contour detection can return nothing.
