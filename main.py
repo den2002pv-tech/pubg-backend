@@ -356,8 +356,10 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
         if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
             continue
 
-        # No individual grayscale hash may exceed the configured acceptable distance.
-        if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE:
+        # One grayscale hash may be an outlier because of crop/compression.
+        # The 3-of-4 voting rule above is the actual acceptance gate.
+        # Keep only a safety ceiling for very poor candidates.
+        if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6:
             continue
 
         scan_color = card_hashes.get("frame_colorhash")
@@ -374,10 +376,18 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
                 continue
 
             color_bits = max(1, len(scan_color) * 4)
-            if (color_distance / color_bits) > CARD_MATCH_COLOR_MAX_RATIO:
+            color_ratio = color_distance / color_bits
+            # Color is a secondary discriminator. Strong grayscale agreement
+            # may survive lighting/JPEG changes, while a large hue mismatch
+            # is penalized so blue/gold variants do not tie.
+            if color_ratio > 0.55 and strong_count < 3:
                 continue
+            color_penalty = color_ratio * 8.0
+        else:
+            color_ratio = 0.0
+            color_penalty = 0.0
 
-        score = (distances[0] + distances[1]) / 2
+        score = (distances[0] + distances[1]) / 2 + color_penalty
         if score < best_score:
             best_score = score
             best_id = card_id
