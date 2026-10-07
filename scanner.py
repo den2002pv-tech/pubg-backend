@@ -181,6 +181,52 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
     return sorted(result, key=lambda r: r[0])
 
 
+def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Find one large, centered card when no regular inventory row exists.
+
+    This is intentionally a fallback: normal inventory detection keeps
+    priority, while this branch accepts a single card that can occupy most
+    of the screen vertically.
+    """
+    h, w = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges = cv2.Canny(gray, 45, 140)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    candidates: list[tuple[float, tuple[int, int, int, int]]] = []
+
+    for contour in contours:
+        x, y, cw, ch = cv2.boundingRect(contour)
+        ratio = cw / float(ch or 1)
+        area = cw * ch
+
+        if cw < w * 0.20 or cw > w * 0.90:
+            continue
+        if ch < h * 0.30 or ch > h * 0.92:
+            continue
+        if not 0.45 <= ratio <= 0.90:
+            continue
+        if area < w * h * 0.08:
+            continue
+
+        cx = x + cw / 2.0
+        cy = y + ch / 2.0
+        center_penalty = abs(cx - w / 2.0) / w + abs(cy - h / 2.0) / h
+        edge = _edge_score(edges, (x, y, cw, ch))
+        score = (edge / 100.0) + (area / (w * h)) - center_penalty * 0.55
+        candidates.append((score, (x, y, cw, ch)))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+
 def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     candidates = _candidate_rectangles(img)
     rows = _cluster_rows(candidates, img.shape[0])
@@ -191,10 +237,17 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
         # resolutions, aspect ratios, and different numbers of cards.
         return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
+    # If there is no regular inventory row, try a centered single-card
+    # viewer. This fallback deliberately does not invent a rectangle from
+    # screen dimensions: it still requires a detected contour with card-like
+    # geometry and visible border evidence.
+    single = _single_card_candidate(img)
+    if single is not None:
+        return [[single]]
+
     # Never fabricate card rectangles from screen dimensions alone.
     # A generic/admin page can have strong edges in the same places as the
     # old fallback grid and would then be returned as fake inventory cards.
-    # If CV cannot find at least one regular card run, report no cards.
     return []
 
 
