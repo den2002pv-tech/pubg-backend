@@ -240,6 +240,7 @@ def _hamming(a: str, b: str) -> int | None:
 
 ICON_MATCH_THRESHOLD = float(os.getenv("ICON_MATCH_THRESHOLD", "18"))
 CARD_MATCH_HASH_MAX_DISTANCE = float(os.getenv("CARD_MATCH_HASH_MAX_DISTANCE", "18"))
+CARD_MATCH_MIN_CLOSE_DISTANCE = float(os.getenv("CARD_MATCH_MIN_CLOSE_DISTANCE", "12"))
 CARD_MATCH_COLOR_MAX_RATIO = float(os.getenv("CARD_MATCH_COLOR_MAX_RATIO", "0.25"))
 
 
@@ -322,6 +323,12 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
         if distances:
             # Do not let several good hashes hide one clearly different hash.
             if any(d > max_hash_distance for d in distances):
+                continue
+
+            # A real match should have at least one strong low-distance hash.
+            # This rejects borderline false positives where every hash is only
+            # moderately similar (for example 14/15/18/18).
+            if min(distances) > CARD_MATCH_MIN_CLOSE_DISTANCE:
                 continue
 
             # The frame color is a separate discriminator for rarity variants.
