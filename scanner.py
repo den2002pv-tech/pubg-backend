@@ -33,13 +33,25 @@ def _candidate_rectangles(img: np.ndarray) -> list[tuple[int, int, int, int]]:
         x, y, cw, ch = cv2.boundingRect(contour)
         ratio = cw / float(ch or 1)
         area = cw * ch
-        if cw < w * 0.055 or cw > w * 0.45:
+        if cw < w * 0.055 or cw > w * 0.62:
             continue
-        if ch < h * 0.18 or ch > h * 0.78:
+        if ch < h * 0.18 or ch > h * 0.95:
             continue
         if not 0.45 <= ratio <= 0.90:
             continue
         if area < w * h * 0.012:
+            continue
+        # A real card needs visible frame evidence on multiple sides.
+        bw = max(2, int(cw * 0.035))
+        bh = max(2, int(ch * 0.035))
+        strips = (
+            edges[y:y + ch, x:x + bw],
+            edges[y:y + ch, max(x, x + cw - bw):x + cw],
+            edges[y:y + bh, x:x + cw],
+            edges[max(y, y + ch - bh):y + ch, x:x + cw],
+        )
+        side_scores = [float(s.mean()) / 255.0 if s.size else 0.0 for s in strips]
+        if sum(v >= 0.035 for v in side_scores) < 3:
             continue
         out.append((x, y, cw, ch))
     return out
@@ -161,6 +173,11 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
     result = list(row)
     known_centers = centers[:]
 
+    # PUBG rows contain at most four cards. Never extrapolate a fifth card
+    # into the right-side interface.
+    if len(result) >= 4:
+        return sorted(result, key=lambda r: r[0])
+
     # Reconstruct only slots that have convincing frame-edge evidence.
     for direction in (-1, 1):
         base = min(known_centers) if direction < 0 else max(known_centers)
@@ -170,6 +187,8 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
             y = int(round(np.median([r[1] for r in row])))
             candidate = (x, y, med_w, med_h)
             if x < 0 or x + med_w > w or y < 0 or y + med_h > h:
+                break
+            if len(result) >= 4 or x + med_w > w * 0.82:
                 break
             if _edge_score(edges, candidate) < 28.0:
                 break
@@ -210,6 +229,18 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
         if not 0.45 <= ratio <= 0.90:
             continue
         if area < w * h * 0.08:
+            continue
+
+        bw = max(2, int(cw * 0.035))
+        bh = max(2, int(ch * 0.035))
+        strips = (
+            edges[y:y + ch, x:x + bw],
+            edges[y:y + ch, max(x, x + cw - bw):x + cw],
+            edges[y:y + bh, x:x + cw],
+            edges[max(y, y + ch - bh):y + ch, x:x + cw],
+        )
+        side_scores = [float(s.mean()) / 255.0 if s.size else 0.0 for s in strips]
+        if sum(v >= 0.035 for v in side_scores) < 3:
             continue
 
         cx = x + cw / 2.0
@@ -268,65 +299,7 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
             y2 = min(h, y2 + pad_y)
             return (x1, y1, x2 - x1, y2 - y1)
 
-    # If brightness separation is insufficient, try a small family of
-    # centered card-shaped rectangles as a final viewer fallback.
-    # Some PUBG screenshots show one enlarged card in the exact center while
-    # the inventory behind it is dark/blurred. The decorative frame is not
-    # necessarily one closed contour, so contour detection can return nothing.
-    # Search a small family of centered card-shaped rectangles instead of
-    # hashing the whole blurred screen.
-    gray_f = gray.astype(np.float32)
-    best: tuple[float, tuple[int, int, int, int]] | None = None
-
-    for hf in np.linspace(0.70, 0.98, 8):
-        for wf in np.linspace(0.24, 0.40, 9):
-            cw = int(round(w * wf))
-            ch = int(round(h * hf))
-            if cw <= 0 or ch <= 0:
-                continue
-
-            ratio = cw / float(ch)
-            if not 0.45 <= ratio <= 0.90:
-                continue
-
-            x = (w - cw) // 2
-            y = (h - ch) // 2
-            inner = gray_f[y:y + ch, x:x + cw]
-            if inner.size == 0:
-                continue
-
-            side_left = gray_f[:, max(0, x - cw // 2):x]
-            side_right = gray_f[:, min(w, x + cw):min(w, x + cw + cw // 2)]
-            outside = np.concatenate([side_left, side_right], axis=1)
-            if outside.size == 0:
-                continue
-
-            contrast = float(inner.mean() - outside.mean())
-
-            bw = max(2, int(cw * 0.035))
-            bh = max(2, int(ch * 0.035))
-            strips = [
-                inner[:, :bw],
-                inner[:, -bw:],
-                inner[:bh, :],
-                inner[-bh:, :],
-            ]
-            edge = float(np.mean([
-                np.mean(np.abs(np.diff(s, axis=1))) if s.shape[1] > 1 else 0.0
-                for s in strips[:2]
-            ] + [
-                np.mean(np.abs(np.diff(s, axis=0))) if s.shape[0] > 1 else 0.0
-                for s in strips[2:]
-            ]))
-
-            score = contrast + edge * 0.30
-            if best is None or score > best[0]:
-                best = (score, (x, y, cw, ch))
-
-    if best is not None and best[0] >= 38.0:
-        return best[1]
-
-    return None
+    # Never fabricate a card rectangle from screen dimensions alone.\n    # If the modal frame is not detectable, return no card.\n    return None
 
 
 
