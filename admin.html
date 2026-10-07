@@ -343,6 +343,10 @@ function renderResults(cards){
         <h3>${esc(c.name || c.id)}</h3>
 
         <div class="muted">
+          Количество: <b>${esc(c.quantity || 1)}</b>${Number(c.quantity || 1) > 1 ? ' · дубликатов: <b>${esc(c.duplicates || 0)}</b>' : ''}
+        </div>
+
+        <div class="muted">
           ID: <b>${esc(c.id)}</b>
         </div>
 
