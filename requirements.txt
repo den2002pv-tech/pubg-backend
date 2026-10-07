@@ -5,3 +5,4 @@ imagehash
 python-multipart
 opencv-python-headless
 numpy
+psycopg[binary]
