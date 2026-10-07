@@ -95,9 +95,16 @@ async function loadMyCollection(){
   const r=await fetch(API+'/me/cards',{headers:telegramHeaders()});
   if(!r.ok){account.textContent='❌ Telegram не удалось подтвердить';return;}
   const d=await r.json();
-  account.textContent='✅ Telegram подключён — инвентарь сохранён';
+  const u=d.user||{};
+  const fullName=[u.first_name,u.last_name].filter(Boolean).join(' ');
+  const username=u.username?' @'+u.username:'';
+  const who=fullName||u.username||('ID '+d.telegram_id);
+  account.innerHTML='✅ Telegram подключён<br>👤 Подключился: <b>'+esc(who)+'</b>'+esc(username)+'<br>💾 Инвентарь сохранён';
   if((d.cards||[]).length)showInventory(d.cards);
-  else document.getElementById('inventory').style.display='block';
+  else {
+   document.getElementById('inventory').style.display='block';
+   document.getElementById('inventoryList').innerHTML='<div class="empty">Инвентарь пока пуст.</div>';
+  }
  }catch(e){account.textContent='❌ Ошибка подключения к аккаунту';console.warn(e);}
 }
 function showInventory(cards){
