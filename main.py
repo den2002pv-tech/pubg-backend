@@ -476,7 +476,11 @@ async def scan(file: UploadFile = File(...)):
         raw_id, raw_distance = _match_card(card.get("raw_hashes", {}), db)
         if raw_id is not None and raw_distance < best_distance:
             best_id, best_distance = raw_id, raw_distance
-        if best_id is not None:
+        matched = (
+            best_id is not None
+            and best_distance <= float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
+        )
+        if matched:
             info = db[best_id]
             matches.append({
                 "id": best_id,
