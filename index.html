@@ -36,6 +36,8 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 const tg=window.Telegram?.WebApp;
 tg?.expand();
 const API='https://pubg-backend-3rtc.onrender.com';
+const telegramInitData=tg?.initData||'';
+const telegramHeaders=()=>telegramInitData?{'X-Telegram-Init-Data':telegramInitData}:{};
 const input=document.getElementById('fileInput');
 const statusText=document.getElementById('statusText');
 const status=document.getElementById('status');
@@ -49,7 +51,7 @@ async function uploadImage(){
  statusText.textContent='⏳ Сканирование...'; status.textContent='';
  const fd=new FormData(); fd.append('file',file);
  try{
-  const r=await fetch(API+'/scan',{method:'POST',body:fd}); const d=await r.json();
+  const r=await fetch(API+'/scan',{method:'POST',body:fd,headers:telegramHeaders()}); const d=await r.json();
   if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
   statusText.textContent='📷 Выбрать другой скриншот';
   status.textContent='Найдено карточек: '+(d.count||0); showResults(d.cards||[]);
@@ -77,6 +79,18 @@ function showResults(cards){
  });
  document.getElementById('results').style.display='block';
 }
+
+async function loadMyCollection(){
+ if(!telegramInitData)return;
+ try{
+  const r=await fetch(API+'/me/cards',{headers:telegramHeaders()});
+  if(!r.ok)return;
+  const d=await r.json();
+  if((d.cards||[]).length)showResults(d.cards.map(c=>({...c,duplicates:Math.max(0,Number(c.quantity||0)-1)})));
+ }catch(e){console.warn('Не удалось загрузить коллекцию',e);}
+}
+loadMyCollection();
+
 function requestTrade(cardId){
  const text='Функция обмена будет подключена следующим этапом.';
  if(tg?.showAlert)tg.showAlert(text);else alert(text);
