@@ -418,11 +418,11 @@
   "card_33": {
     "name": "Гамабунта",
     "hashes": {
-      "full_phash": "fc3e832bf5dc1088",
+      "full_phash": "fc3f832bf5dc1080",
       "full_dhash": "474d31263317338e",
-      "visual_phash": "fe072328679d5e28",
-      "visual_dhash": "4f4d31262733370f",
-      "frame_colorhash": "06e00000000"
+      "visual_phash": "fe07232c679d5e20",
+      "visual_dhash": "4f4d31262733170d",
+      "frame_colorhash": "03e00000000"
     },
     "hash": "474d31263317338e",
     "rarity": 3,
@@ -431,61 +431,61 @@
   "card_34": {
     "name": "Сборная Португалии",
     "hashes": {
-      "full_phash": "f85c832bf4fc6085",
-      "full_dhash": "1353333517296b8e",
-      "visual_phash": "fe8183b51ce637c0",
-      "visual_dhash": "33d3513536130969",
+      "full_phash": "f85c832bf4fc6281",
+      "full_dhash": "1753333537296b8e",
+      "visual_phash": "fe8183345ce677c0",
+      "visual_dhash": "33d3533536330969",
       "frame_colorhash": "02e00000000"
     },
-    "hash": "1353333517296b8e",
+    "hash": "1753333537296b8e",
     "rarity": 3,
     "icon": "/static/cards/card_34.webp"
   },
   "card_35": {
     "name": "Техника Воскрешения",
     "hashes": {
-      "full_phash": "db13a73bd4e660c0",
-      "full_dhash": "785a886831516b8e",
-      "visual_phash": "db830b9c36787c83",
+      "full_phash": "db93a73ad4e660c0",
+      "full_dhash": "785ac86831516b8e",
+      "visual_phash": "db930b9c26786c87",
       "visual_dhash": "5859490c68315151",
       "frame_colorhash": "03e00000000"
     },
-    "hash": "785a886831516b8e",
+    "hash": "785ac86831516b8e",
     "rarity": 3,
     "icon": "/static/cards/card_35.webp"
   },
   "card_36": {
     "name": "Harley-Davidson",
     "hashes": {
-      "full_phash": "f8d0856e757b3884",
-      "full_dhash": "0080981b23254b8e",
-      "visual_phash": "fb8184e8711f3b62",
+      "full_phash": "f8d0856e757b2a84",
+      "full_dhash": "0480981b23254b8e",
+      "visual_phash": "fb818468713f1f62",
       "visual_dhash": "8680581b1b332551",
       "frame_colorhash": "03e00000000"
     },
-    "hash": "0080981b23254b8e",
+    "hash": "0480981b23254b8e",
     "rarity": 3,
     "icon": "/static/cards/card_36.webp"
   },
   "card_37": {
     "name": "Ford F-15 pp Raptor",
     "hashes": {
-      "full_phash": "c4c0935a7c7785da",
-      "full_dhash": "84e0c6862565798e",
-      "visual_phash": "ecc1957a21e55ed0",
-      "visual_dhash": "c0e2e48601256572",
+      "full_phash": "c4c0935e7c7705da",
+      "full_dhash": "84e0c68625616b8e",
+      "visual_phash": "ecc1957a61c55ed0",
+      "visual_dhash": "80e2f0c605256570",
       "frame_colorhash": "06e00000000"
     },
-    "hash": "84e0c6862565798e",
+    "hash": "84e0c68625616b8e",
     "rarity": 3,
     "icon": "/static/cards/card_37.webp"
   },
   "card_38": {
     "name": "Ford Mustang GTD",
     "hashes": {
-      "full_phash": "d1d5846a7ddf30c0",
+      "full_phash": "d1d5846e7ddf3080",
       "full_dhash": "c6c098480305698e",
-      "visual_phash": "ff80246b173ccbc1",
+      "visual_phash": "ff80247b173cca83",
       "visual_dhash": "82c0f01848430545",
       "frame_colorhash": "06e00000000"
     },
@@ -496,13 +496,13 @@
   "card_39": {
     "name": "Блестящий удар",
     "hashes": {
-      "full_phash": "95f0662eddde4c80",
-      "full_dhash": "0c8e8eb898b16a8e",
-      "visual_phash": "b3e06a9c9ccc2793",
-      "visual_dhash": "0c8fceac581c354b",
+      "full_phash": "95f0660e5ddf4cc0",
+      "full_dhash": "0c8e8eb898316a8e",
+      "visual_phash": "b3e0629c9ccc27b3",
+      "visual_dhash": "0c8fceac181c354b",
       "frame_colorhash": "06c00000000"
     },
-    "hash": "0c8e8eb898b16a8e",
+    "hash": "0c8e8eb898316a8e",
     "rarity": 3,
     "icon": "/static/cards/card_39.webp"
   },
@@ -511,9 +511,9 @@
     "hashes": {
       "full_phash": "b543683edd3e3490",
       "full_dhash": "13cbcc6a5a5f658e",
-      "visual_phash": "b3ea68cd4eb0343c",
-      "visual_dhash": "b3c9dc4b6a4a5e45",
-      "frame_colorhash": "03c00008000"
+      "visual_phash": "b3ea68cd2eb0343c",
+      "visual_dhash": "b3c9cc4b6a4a5e45",
+      "frame_colorhash": "03c00000000"
     },
     "hash": "13cbcc6a5a5f658e",
     "rarity": 3,
@@ -525,7 +525,7 @@
       "full_phash": "ee5a9139d9d942a4",
       "full_dhash": "316565312727138e",
       "visual_phash": "efd08019dbd634cc",
-      "visual_dhash": "31c54669316b6743",
+      "visual_dhash": "31c54669312b6743",
       "frame_colorhash": "03e00000000"
     },
     "hash": "316565312727138e",
@@ -536,58 +536,58 @@
     "name": "Сакура Харуно",
     "hashes": {
       "full_phash": "e45e896af5d77080",
-      "full_dhash": "31714504060d6b8e",
-      "visual_phash": "ee894aadb5d229a8",
-      "visual_dhash": "61e5644426260505",
+      "full_dhash": "3171c504060d6b8e",
+      "visual_phash": "eecd4a2db5d22928",
+      "visual_dhash": "61e564440627050d",
       "frame_colorhash": "03e00000000"
     },
-    "hash": "31714504060d6b8e",
+    "hash": "3171c504060d6b8e",
     "rarity": 3,
     "icon": "/static/cards/card_42.webp"
   },
   "card_43": {
     "name": "Саске Учиха",
     "hashes": {
-      "full_phash": "e953377ad4ce6480",
-      "full_dhash": "0d5961f091236b8e",
-      "visual_phash": "fb0123f0c7e61c36",
-      "visual_dhash": "5eda5262b0b1054b",
+      "full_phash": "e953373ad4ce6c80",
+      "full_dhash": "0d5d51f091236b8e",
+      "visual_phash": "fb0123f0c76e1c36",
+      "visual_dhash": "4fda5262b0b1054b",
       "frame_colorhash": "03e00000000"
     },
-    "hash": "0d5961f091236b8e",
+    "hash": "0d5d51f091236b8e",
     "rarity": 3,
     "icon": "/static/cards/card_43.webp"
   },
   "card_44": {
     "name": "Наруто Узумаки",
     "hashes": {
-      "full_phash": "ec4e853bf46e6091",
-      "full_dhash": "3171a72711556b8e",
-      "visual_phash": "efcc811a6ec22d78",
-      "visual_dhash": "61f0662735555157",
-      "frame_colorhash": "03e00000000"
+      "full_phash": "ec4e853b74ee6091",
+      "full_dhash": "3171e72711556b8e",
+      "visual_phash": "efcc81186ec03d79",
+      "visual_dhash": "61f0622735555157",
+      "frame_colorhash": "02e00000000"
     },
-    "hash": "3171a72711556b8e",
+    "hash": "3171e72711556b8e",
     "rarity": 3,
     "icon": "/static/cards/card_44.webp"
   },
   "card_45": {
     "name": "Наруто Режим отшельника",
     "hashes": {
-      "full_phash": "ee4c816bf4d968c1",
-      "full_dhash": "316597370f49598e",
-      "visual_phash": "ee8482379cd9ec2c",
-      "visual_dhash": "60e51733364d4931",
+      "full_phash": "ee4c816b75d968c1",
+      "full_dhash": "316597370f594b8e",
+      "visual_phash": "ee84823798d9ec2d",
+      "visual_dhash": "61ed1733364d4931",
       "frame_colorhash": "03e00000000"
     },
-    "hash": "316597370f49598e",
+    "hash": "316597370f594b8e",
     "rarity": 3,
     "icon": "/static/cards/card_45.webp"
   },
   "card_46": {
     "name": "Наруто Режим Шести Путей",
     "hashes": {
-      "full_phash": "cd58b33bd4f06494",
+      "full_phash": "cd58b33bd4f46484",
       "full_dhash": "1959f336236b4b8e",
       "visual_phash": "cf90339cf1c63cb0",
       "visual_dhash": "58d9737232736349",
@@ -600,52 +600,52 @@
   "card_47": {
     "name": "Наруто Ураганные хроники",
     "hashes": {
-      "full_phash": "f55da5e7d9c10881",
-      "full_dhash": "2226b630346dcc8e",
-      "visual_phash": "ff9927c9e1818923",
+      "full_phash": "f55da5e7d9c10890",
+      "full_dhash": "0226b632346dce8e",
+      "visual_phash": "ff99a7c9e1818922",
       "visual_dhash": "5266773111544d4d",
       "frame_colorhash": "06e00000000"
     },
-    "hash": "2226b630346dcc8e",
+    "hash": "0226b632346dce8e",
     "rarity": 3,
     "icon": "/static/cards/card_47.webp"
   },
   "card_48": {
     "name": "Памятная карточка автора",
     "hashes": {
-      "full_phash": "f591b32eccc7c0c4",
-      "full_dhash": "3218d85232075b8e",
-      "visual_phash": "bd913a2c0ee5cdc8",
-      "visual_dhash": "7b9cd8d433330731",
-      "frame_colorhash": "06c00000000"
+      "full_phash": "f591b36eccc740c4",
+      "full_dhash": "3218d85232074b8e",
+      "visual_phash": "bd913a2cc6e4cdc8",
+      "visual_dhash": "3b1cd8dc33330731",
+      "frame_colorhash": "06e00000000"
     },
-    "hash": "3218d85232075b8e",
+    "hash": "3218d85232074b8e",
     "rarity": 3,
     "icon": "/static/cards/card_48.webp"
   },
   "card_49": {
     "name": "FMVP — ULF-KECTH",
     "hashes": {
-      "full_phash": "9e5a61cfd43632c1",
-      "full_dhash": "39513d346261698e",
+      "full_phash": "9e5a61cfd4b63281",
+      "full_dhash": "39711d346261698e",
       "visual_phash": "9f7a428f36364ac8",
-      "visual_dhash": "69d9597c72626840",
+      "visual_dhash": "69d9597c76626840",
       "frame_colorhash": "02e00000000"
     },
-    "hash": "39513d346261698e",
+    "hash": "39711d346261698e",
     "rarity": 3,
     "icon": "/static/cards/card_49.webp"
   },
   "card_50": {
     "name": "Чемпион 4T",
     "hashes": {
-      "full_phash": "cf5a984bd77c6090",
-      "full_dhash": "796919484949238e",
-      "visual_phash": "df1c0ac76afa1ac0",
-      "visual_dhash": "696c3c4a4c5149a5",
-      "frame_colorhash": "03e00000000"
+      "full_phash": "cf5a984bd5fc6090",
+      "full_dhash": "796939484949238e",
+      "visual_phash": "df1c0ac37afa1ac0",
+      "visual_dhash": "69683c0a4c5149a5",
+      "frame_colorhash": "02e00000000"
     },
-    "hash": "796919484949238e",
+    "hash": "796939484949238e",
     "rarity": 3,
     "icon": "/static/cards/card_50.webp"
   },
@@ -653,12 +653,12 @@
     "name": "Чемпион YG",
     "hashes": {
       "full_phash": "fb5b840ed1db6290",
-      "full_dhash": "71311b1b1b612b8e",
-      "visual_phash": "db9d06985a6e1bc8",
+      "full_dhash": "71711b1b1b612b8e",
+      "visual_phash": "db9586985a6e1bc8",
       "visual_dhash": "79b25a1b19192161",
       "frame_colorhash": "03e00000000"
     },
-    "hash": "71311b1b1b612b8e",
+    "hash": "71711b1b1b612b8e",
     "rarity": 3,
     "icon": "/static/cards/card_51.webp"
   },
@@ -666,25 +666,25 @@
     "name": "Париж, Франция",
     "hashes": {
       "full_phash": "c0d43d4ad57f6690",
-      "full_dhash": "01908eccc8c94b8e",
-      "visual_phash": "e2bd1b922966718d",
-      "visual_dhash": "11a8868e8c8dcd41",
+      "full_dhash": "01918eccc8c94b8e",
+      "visual_phash": "e2bd1b922d66710d",
+      "visual_dhash": "11a88e8e8c8dcd41",
       "frame_colorhash": "03e01000040"
     },
-    "hash": "01908eccc8c94b8e",
+    "hash": "01918eccc8c94b8e",
     "rarity": 3,
     "icon": "/static/cards/card_52.webp"
   },
   "card_53": {
     "name": "Керамбит",
     "hashes": {
-      "full_phash": "ba3221cdf9f6c481",
-      "full_dhash": "313d2d3d3b617193",
-      "visual_phash": "9e3649fb76c408c5",
-      "visual_dhash": "317c6c3c3d397060",
-      "frame_colorhash": "0bc00000000"
+      "full_phash": "ba3225cdf9f64481",
+      "full_dhash": "333d2d3d3b617193",
+      "visual_phash": "de3649fb74c408c5",
+      "visual_dhash": "317d6c3c3d396060",
+      "frame_colorhash": "0be00000000"
     },
-    "hash": "313d2d3d3b617193",
+    "hash": "333d2d3d3b617193",
     "rarity": 3,
     "icon": "/static/cards/card_53.webp"
   },
@@ -692,22 +692,22 @@
     "name": "La Esok Sekolah",
     "hashes": {
       "full_phash": "fe7e230bd49f40c0",
-      "full_dhash": "714d2730ac716b8e",
-      "visual_phash": "fe6743901ccd6686",
-      "visual_dhash": "795d45323c2c7171",
-      "frame_colorhash": "03c02000000"
+      "full_dhash": "714d2730a4716b8e",
+      "visual_phash": "fe6743901dcd6606",
+      "visual_dhash": "795d45323c247171",
+      "frame_colorhash": "03c01000000"
     },
-    "hash": "714d2730ac716b8e",
+    "hash": "714d2730a4716b8e",
     "rarity": 3,
     "icon": "/static/cards/card_54.webp"
   },
   "card_55": {
     "name": "Droppalero Droppala",
     "hashes": {
-      "full_phash": "c5e53a9ad96b6094",
+      "full_phash": "c5e53a9a596b6294",
       "full_dhash": "1286cec284a4cc8e",
       "visual_phash": "e4a71e984be33664",
-      "visual_dhash": "9b86cec393a6a631",
+      "visual_dhash": "1b86cec393a6a631",
       "frame_colorhash": "03e02000000"
     },
     "hash": "1286cec284a4cc8e",
@@ -717,13 +717,13 @@
   "card_56": {
     "name": "67",
     "hashes": {
-      "full_phash": "95598e9ef57830c1",
-      "full_dhash": "3a739a96d6a6728e",
+      "full_phash": "95d99e9e757820c1",
+      "full_dhash": "3a739a96d6a6528e",
       "visual_phash": "a99b8e853eb0a137",
       "visual_dhash": "79795b9b13d6962d",
       "frame_colorhash": "06e00000000"
     },
-    "hash": "3a739a96d6a6728e",
+    "hash": "3a739a96d6a6528e",
     "rarity": 3,
     "icon": "/static/cards/card_56.webp"
   },
@@ -731,61 +731,61 @@
     "name": "Ayo Maff",
     "hashes": {
       "full_phash": "fe52a139dcce61c0",
-      "full_dhash": "2c28ad6535576b8e",
+      "full_dhash": "2c28ad6535536b8e",
       "visual_phash": "fed7211cd6e064a1",
       "visual_dhash": "2c2a0e6d6434554b",
       "frame_colorhash": "06e00000000"
     },
-    "hash": "2c28ad6535576b8e",
+    "hash": "2c28ad6535536b8e",
     "rarity": 3,
     "icon": "/static/cards/card_57.webp"
   },
   "card_58": {
     "name": "Турецкий кофе",
     "hashes": {
-      "full_phash": "e5648b9b7d1f3084",
-      "full_dhash": "7286ae26a2dc6a8e",
-      "visual_phash": "e56790991f940fd2",
-      "visual_dhash": "eba70e2647239ed8",
+      "full_phash": "e564ca9b7d1f3084",
+      "full_dhash": "72a6ae26a2dc6a8e",
+      "visual_phash": "e56792991fb40fc0",
+      "visual_dhash": "eba70e2607239ed8",
       "frame_colorhash": "06e00000000"
     },
-    "hash": "7286ae26a2dc6a8e",
+    "hash": "72a6ae26a2dc6a8e",
     "rarity": 3,
     "icon": "/static/cards/card_58.webp"
   },
   "card_59": {
     "name": "Симит",
     "hashes": {
-      "full_phash": "c4b4b64e75db40c5",
-      "full_dhash": "acae9692e2c5618e",
+      "full_phash": "c4f4364e75db40c5",
+      "full_dhash": "acae9692e2c56b8e",
       "visual_phash": "e0b436ea18cd4fb1",
-      "visual_dhash": "2da4c6929ae3c1c5",
+      "visual_dhash": "2dac86929ae3c1c5",
       "frame_colorhash": "06e00000000"
     },
-    "hash": "acae9692e2c5618e",
+    "hash": "acae9692e2c56b8e",
     "rarity": 3,
     "icon": "/static/cards/card_59.webp"
   },
   "card_60": {
     "name": "Адана-кебаб",
     "hashes": {
-      "full_phash": "e0d89262f5b73c98",
-      "full_dhash": "84b1b08696870b8e",
-      "visual_phash": "f8dc7260a52d3d62",
-      "visual_dhash": "84a1307687328507",
+      "full_phash": "e0d8926275b73d98",
+      "full_dhash": "8491b08696878b8e",
+      "visual_phash": "f8d47260a72d3d62",
+      "visual_dhash": "84a130768732850d",
       "frame_colorhash": "03e00000000"
     },
-    "hash": "84b1b08696870b8e",
+    "hash": "8491b08696878b8e",
     "rarity": 3,
     "icon": "/static/cards/card_60.webp"
   },
   "card_61": {
     "name": "Сайтама",
     "hashes": {
-      "full_phash": "dc1ae369f59e60c0",
+      "full_phash": "dc5ae369f59660c0",
       "full_dhash": "11516c381073338e",
-      "visual_phash": "9f93487897cb3431",
-      "visual_dhash": "51d574683a345363",
+      "visual_phash": "9f934870b7cb3431",
+      "visual_dhash": "51d574683a345373",
       "frame_colorhash": "03e00000000"
     },
     "hash": "11516c381073338e",
@@ -795,36 +795,36 @@
   "card_62": {
     "name": "Ванпанчмен",
     "hashes": {
-      "full_phash": "dc58854bf29e25a5",
-      "full_dhash": "31b1323905576b8e",
-      "visual_phash": "de9c805212b72fe5",
-      "visual_dhash": "b0b12338352157d3",
+      "full_phash": "dc58854b729f25a5",
+      "full_dhash": "30b1323905576b8e",
+      "visual_phash": "dc9c815252a76fe1",
+      "visual_dhash": "b0b1333835215773",
       "frame_colorhash": "06e00000000"
     },
-    "hash": "31b1323905576b8e",
+    "hash": "30b1323905576b8e",
     "rarity": 3,
     "icon": "/static/cards/card_62.webp"
   },
   "card_63": {
     "name": "Хранитель ночи",
     "hashes": {
-      "full_phash": "fe16960ed1cb61c1",
-      "full_dhash": "64650f130f4f6b8e",
+      "full_phash": "fe16940ed1cb69c1",
+      "full_dhash": "64640f130f4f6b8e",
       "visual_phash": "fe9484945bdb4b09",
-      "visual_dhash": "64a4675b134f4f47",
+      "visual_dhash": "64a4275b134f4f47",
       "frame_colorhash": "06c01000000"
     },
-    "hash": "64650f130f4f6b8e",
+    "hash": "64640f130f4f6b8e",
     "rarity": 3,
     "icon": "/static/cards/card_63.webp"
   },
   "card_64": {
     "name": "VS",
     "hashes": {
-      "full_phash": "fe4a812ef5b560c8",
+      "full_phash": "fe5a812ef5f520c0",
       "full_dhash": "556131383135778e",
       "visual_phash": "ffc100b737785922",
-      "visual_dhash": "56e1713168313567",
+      "visual_dhash": "5661713168313567",
       "frame_colorhash": "03e00000000"
     },
     "hash": "556131383135778e",
@@ -834,11 +834,11 @@
   "card_65": {
     "name": "Старший вамрир",
     "hashes": {
-      "full_phash": "fe1b833bd4dc60c0",
+      "full_phash": "fe5b833bd4cd20c0",
       "full_dhash": "79593737390d6b8e",
-      "visual_phash": "ff91039a9cde9a80",
-      "visual_dhash": "78557737373d2d0f",
-      "frame_colorhash": "06c00000000"
+      "visual_phash": "ff91839a9cdc9a01",
+      "visual_dhash": "78517737373d2d4f",
+      "frame_colorhash": "06e00000000"
     },
     "hash": "79593737390d6b8e",
     "rarity": 3,
@@ -847,51 +847,52 @@
   "card_66": {
     "name": "Девятихвостый",
     "hashes": {
-      "full_phash": "d8ca2f72b52dd094",
-      "full_dhash": "0b71b0b0dc9d3396",
-      "visual_phash": "da6f6ab12b9025f0",
-      "visual_dhash": "0971717150ec9c11",
-      "frame_colorhash": "09c00008000"
+      "full_phash": "d8eb2f72b52d5084",
+      "full_dhash": "0b71b1b0dc9d3396",
+      "visual_phash": "da6b6ab02bb0a9f0",
+      "visual_dhash": "0d71707150ec9c31",
+      "frame_colorhash": "10e00010000"
     },
-    "hash": "0b71b0b0dc9d3396",
+    "hash": "0b71b1b0dc9d3396",
     "rarity": 3,
     "icon": "/static/cards/card_66.webp"
   },
   "card_67": {
     "name": "Шар Хвостатого Зверя",
     "hashes": {
-      "full_phash": "ec4aaf8756f42509",
-      "full_dhash": "6f6133b4eb863396",
-      "visual_phash": "ee52a082f6a47bb4",
-      "visual_dhash": "6d7133353449e617",
-      "frame_colorhash": "01e00008000"
+      "full_phash": "ed4a3fa550fc241a",
+      "full_dhash": "6f6135b4ea663316",
+      "visual_phash": "efc6a2c0a42c7bb4",
+      "visual_dhash": "4d6151655469e717",
+      "frame_colorhash": "10e00010000"
     },
-    "hash": "6f6133b4eb863396",
+    "hash": "6f6135b4ea663316",
     "rarity": 3,
     "icon": "/static/cards/card_67.webp"
   },
   "card_68": {
     "name": "Сайтама и Генос",
     "hashes": {
-      "full_phash": "d1c28d3d655e1d98",
-      "full_dhash": "96cbf8459a1b69aa",
-      "visual_phash": "f2c2aae14f155c1e",
-      "visual_dhash": "95c9295c459b1979",
-      "frame_colorhash": "0be00008000"
+      "full_phash": "d3c08e3d651f1d98",
+      "full_dhash": "95c979448b19698a",
+      "visual_phash": "f2c63a68453d5c0f",
+      "visual_dhash": "95cd695cc5991978",
+      "frame_colorhash": "09e00010000"
     },
-    "hash": "96cbf8459a1b69aa",
-    "rarity": 3
+    "hash": "95c979448b19698a",
+    "rarity": 3,
+    "icon": "/static/cards/card_68.webp"
   },
   "card_69": {
     "name": "Турецкий чай",
     "hashes": {
-      "full_phash": "bcc62e3fc5c1b148",
-      "full_dhash": "67659c90323e2b2b",
-      "visual_phash": "bee426cda4b56c12",
-      "visual_dhash": "66653596b1633a2e",
-      "frame_colorhash": "06e40000000"
+      "full_phash": "bcc62e3f4de13148",
+      "full_dhash": "66259c90323e2b2b",
+      "visual_phash": "bee436cca5b56812",
+      "visual_dhash": "6665359691213a2e",
+      "frame_colorhash": "0fe00000000"
     },
-    "hash": "67659c90323e2b2b",
+    "hash": "66259c90323e2b2b",
     "rarity": 3,
     "icon": "/static/cards/card_69.webp"
   }
