@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,7 +22,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
+from database import clear_user_cards, get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
 
 app = FastAPI(title="PUBG Card Scanner")
 
@@ -30,6 +30,7 @@ app = FastAPI(title="PUBG Card Scanner")
 @app.on_event("startup")
 def startup_database() -> None:
     init_db()
+    _migrate_frame_color_hashes()
     sync_cards(load_db())
 
 app.add_middleware(
@@ -56,6 +57,18 @@ app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-image
 DB_FILE = Path("card_hashes.json")
 SESSION_MAX_AGE = 12 * 60 * 60
 ADMIN_TOKEN_PREFIX = "pubg_admin_v1"
+
+HASH_REGEN_PROGRESS: dict[str, Any] = {
+    "running": False,
+    "current": 0,
+    "total": 0,
+    "card_id": "",
+    "status": "idle",
+    "updated": 0,
+    "error": "",
+}
+
+
 
 
 def load_db() -> dict[str, Any]:
@@ -238,46 +251,137 @@ def _hamming(a: str, b: str) -> int | None:
         return None
 
 
-ICON_MATCH_THRESHOLD = float(os.getenv("ICON_MATCH_THRESHOLD", "18"))
+ICON_MATCH_THRESHOLD = float(os.getenv("ICON_MATCH_THRESHOLD", "10"))
+CARD_MATCH_STRONG_DISTANCE = int(os.getenv("CARD_MATCH_STRONG_DISTANCE", "7"))
+CARD_MATCH_ACCEPTABLE_DISTANCE = int(os.getenv("CARD_MATCH_ACCEPTABLE_DISTANCE", "14"))
+CARD_MATCH_MIN_STRONG_HASHES = int(os.getenv("CARD_MATCH_MIN_STRONG_HASHES", "2"))
+CARD_MATCH_MIN_ACCEPTABLE_HASHES = int(os.getenv("CARD_MATCH_MIN_ACCEPTABLE_HASHES", "3"))
+CARD_MATCH_COLOR_MAX_RATIO = float(os.getenv("CARD_MATCH_COLOR_MAX_RATIO", "0.35"))
+
+
+def _migrate_frame_color_hashes() -> None:
+    """Add frame color hashes to older cards using their saved icons."""
+    db = load_db()
+    changed = False
+
+    for card_id, info in db.items():
+        if not isinstance(info, dict):
+            continue
+
+        hashes = clean_hashes(info.get("hashes"))
+        if valid_hash(hashes.get("frame_colorhash")):
+            continue
+
+        icon_path = CARDS_DIR / f"{card_id}.webp"
+        if not icon_path.is_file():
+            continue
+
+        try:
+            with Image.open(icon_path) as icon:
+                new_hashes = calculate_card_hashes(icon.convert("RGB"))
+        except Exception:
+            continue
+
+        frame_hash = new_hashes.get("frame_colorhash")
+        if not valid_hash(frame_hash):
+            continue
+
+        hashes["frame_colorhash"] = frame_hash
+        info["hashes"] = hashes
+        info["hash"] = hashes.get("full_dhash") or info.get("hash", "")
+        changed = True
+
+    if changed:
+        save_db(db)
 
 
 def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | None, float]:
     """
-    Compare corresponding hashes. Lower is better.
-    Each available hash contributes equally; this avoids comparing a dHash
-    against a pHash just because both are hex strings.
+    Match by hash voting instead of a global average.
+
+    A card is accepted only when:
+      - at least 2 of the 4 grayscale hashes are <= CARD_MATCH_STRONG_DISTANCE;
+      - at least 3 of the 4 grayscale hashes are <= CARD_MATCH_ACCEPTABLE_DISTANCE;
+      - no available grayscale hash is above CARD_MATCH_ACCEPTABLE_DISTANCE;
+      - when a frame color hash exists, it must also be compatible.
+
+    The returned score is the average of the two strongest grayscale hashes.
+    This keeps the displayed distance intuitive while preventing several
+    mediocre 10-18 distances from producing a false match.
     """
     best_id: str | None = None
     best_score = float("inf")
+
+    standard_keys = (
+        "full_phash",
+        "full_dhash",
+        "visual_phash",
+        "visual_dhash",
+    )
 
     for card_id, info in db.items():
         stored = clean_hashes(info.get("hashes"))
         distances: list[int] = []
 
-        for key, value in card_hashes.items():
+        for key in standard_keys:
+            value = card_hashes.get(key)
             other = stored.get(key)
-            if other:
-                d = _hamming(value, other)
-                if d is not None:
-                    distances.append(d)
+            if not value or not other:
+                continue
 
-        if not distances:
-            legacy = info.get("hash")
-            d = _hamming(card_hashes.get("full_dhash", ""), str(legacy)) if legacy else None
+            d = _hamming(value, other)
             if d is not None:
                 distances.append(d)
 
-        if distances:
-            # Mean of the corresponding hashes. Four hashes make recognition
-            # more stable than relying on only one.
-            score = sum(distances) / len(distances)
-            if score < best_score:
-                best_score = score
-                best_id = card_id
+        # Legacy records may only have the old single "hash" field.
+        if not distances:
+            legacy = info.get("hash")
+            value = card_hashes.get("full_dhash", "")
+            d = _hamming(value, str(legacy)) if legacy else None
+            if d is not None:
+                distances.append(d)
+
+        if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            continue
+
+        distances.sort()
+
+        strong_count = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
+        acceptable_count = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
+
+        if strong_count < CARD_MATCH_MIN_STRONG_HASHES:
+            continue
+
+        if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            continue
+
+        # No individual grayscale hash may exceed the configured acceptable distance.
+        if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE:
+            continue
+
+        scan_color = card_hashes.get("frame_colorhash")
+        stored_color = stored.get("frame_colorhash")
+
+        # If the scanner has a color frame hash, a stored card without one
+        # cannot be considered an identity match.
+        if scan_color and not stored_color:
+            continue
+
+        if scan_color and stored_color:
+            color_distance = _hamming(scan_color, stored_color)
+            if color_distance is None:
+                continue
+
+            color_bits = max(1, len(scan_color) * 4)
+            if (color_distance / color_bits) > CARD_MATCH_COLOR_MAX_RATIO:
+                continue
+
+        score = (distances[0] + distances[1]) / 2
+        if score < best_score:
+            best_score = score
+            best_id = card_id
 
     return best_id, best_score
-
-
 
 def _next_card_id(db: dict[str, Any]) -> str:
     numbers = []
@@ -561,6 +665,16 @@ async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Ini
     }
 
 
+@app.delete("/me/collection")
+async def clear_my_collection(
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    get_or_create_user(auth["id"])
+    deleted = clear_user_cards(auth["id"])
+    return {"status": "ok", "deleted": deleted, "cards": []}
+
+
 @app.post("/me/collection/confirm")
 async def confirm_my_collection(
     data: dict[str, Any],
@@ -728,6 +842,7 @@ async def match_icon(
 async def save_icon(
     card_id: str,
     file: UploadFile = File(...),
+    manual: bool = False,
     authorization: str | None = Header(default=None),
 ):
     require_admin(authorization)
@@ -739,11 +854,14 @@ async def save_icon(
     image = await _read_image(file)
     card_image = _extract_single_card(image)
 
-    # Recalculate hashes from the actual card and require a reasonably close
-    # match before permanently attaching the icon.
+    # Always calculate hashes from the actual extracted card. Automatic
+    # matching remains strict, but a manual admin confirmation is an explicit
+    # identity decision and must also support high-quality viewer screenshots
+    # whose pixels differ from the inventory screenshot.
     hashes = calculate_card_hashes(card_image)
     matched_id, score = _match_card(hashes, db)
-    if matched_id != card_id or score > ICON_MATCH_THRESHOLD:
+
+    if not manual and (matched_id != card_id or score > ICON_MATCH_THRESHOLD):
         raise HTTPException(
             status_code=400,
             detail=f"Изображение не подтверждено для {card_id} (найдено: {matched_id}, distance={score:.2f}, порог={ICON_MATCH_THRESHOLD:g})",
@@ -756,11 +874,15 @@ async def save_icon(
     db[card_id]["icon"] = f"/static/cards/{path.name}"
     save_db(db)
 
+    # Manual confirmation may intentionally have no automatic match.
+    # Never return infinity to Starlette/JSON: JSON does not allow NaN/Infinity.
+    safe_score = round(score, 2) if math.isfinite(score) else None
+
     return {
         "status": "ok",
         "card_id": card_id,
         "icon": db[card_id]["icon"],
-        "score": round(score, 2),
+        "score": safe_score,
     }
 
 
@@ -918,6 +1040,94 @@ def _github_commit() -> dict[str, Any]:
         "cards": len(load_db()),
         "icons": len(local_icons),
     }
+
+
+
+def _regenerate_hashes_from_icons() -> None:
+    """Rebuild all card hashes from the saved card icons."""
+    global HASH_REGEN_PROGRESS
+
+    db = load_db()
+    items = [
+        (card_id, info)
+        for card_id, info in db.items()
+        if isinstance(info, dict) and (CARDS_DIR / f"{card_id}.webp").is_file()
+    ]
+
+    HASH_REGEN_PROGRESS = {
+        "running": True,
+        "current": 0,
+        "total": len(items),
+        "card_id": "",
+        "status": "running",
+        "updated": int(time.time()),
+        "error": "",
+    }
+
+    try:
+        for index, (card_id, info) in enumerate(items, start=1):
+            icon_path = CARDS_DIR / f"{card_id}.webp"
+
+            with Image.open(icon_path) as icon:
+                hashes = calculate_card_hashes(icon.convert("RGB"))
+
+            info["hashes"] = hashes
+            info["hash"] = hashes.get("full_dhash", info.get("hash", ""))
+
+            HASH_REGEN_PROGRESS.update({
+                "current": index,
+                "total": len(items),
+                "card_id": card_id,
+                "status": "running" if index < len(items) else "completed",
+                "updated": int(time.time()),
+            })
+
+        save_db(db)
+
+    except Exception as exc:
+        HASH_REGEN_PROGRESS.update({
+            "status": "error",
+            "error": str(exc),
+            "updated": int(time.time()),
+        })
+    finally:
+        HASH_REGEN_PROGRESS["running"] = False
+
+
+@app.post("/admin/regenerate-hashes")
+async def regenerate_hashes(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+
+    if HASH_REGEN_PROGRESS.get("running"):
+        return HASH_REGEN_PROGRESS
+
+    # Start in a background thread so the admin page can poll progress.
+    import threading
+    thread = threading.Thread(
+        target=_regenerate_hashes_from_icons,
+        name="hash-regeneration",
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "running": True,
+        "current": 0,
+        "total": sum(
+            1 for card_id, info in load_db().items()
+            if isinstance(info, dict) and (CARDS_DIR / f"{card_id}.webp").is_file()
+        ),
+        "card_id": "",
+        "status": "starting",
+        "updated": int(time.time()),
+        "error": "",
+    }
+
+
+@app.get("/admin/regenerate-hashes/progress")
+async def regenerate_hashes_progress(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    return HASH_REGEN_PROGRESS
 
 
 @app.post("/admin/github-commit")

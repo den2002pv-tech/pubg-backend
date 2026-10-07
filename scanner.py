@@ -181,6 +181,155 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
     return sorted(result, key=lambda r: r[0])
 
 
+def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
+    """Find one large, centered card when no regular inventory row exists.
+
+    This is intentionally a fallback: normal inventory detection keeps
+    priority, while this branch accepts a single card that can occupy most
+    of the screen vertically.
+    """
+    h, w = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges = cv2.Canny(gray, 45, 140)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    candidates: list[tuple[float, tuple[int, int, int, int]]] = []
+
+    for contour in contours:
+        x, y, cw, ch = cv2.boundingRect(contour)
+        ratio = cw / float(ch or 1)
+        area = cw * ch
+
+        if cw < w * 0.20 or cw > w * 0.90:
+            continue
+        if ch < h * 0.30 or ch > h * 0.92:
+            continue
+        if not 0.45 <= ratio <= 0.90:
+            continue
+        if area < w * h * 0.08:
+            continue
+
+        cx = x + cw / 2.0
+        cy = y + ch / 2.0
+        center_penalty = abs(cx - w / 2.0) / w + abs(cy - h / 2.0) / h
+        edge = _edge_score(edges, (x, y, cw, ch))
+        score = (edge / 100.0) + (area / (w * h)) - center_penalty * 0.55
+        candidates.append((score, (x, y, cw, ch)))
+
+    if candidates:
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return candidates[0][1]
+
+    # Brightness-separation fallback for the centered viewer.
+    # The modal background is intentionally dark/blurred, while the enlarged
+    # card remains a much brighter central object. This works even when the
+    # decorative frame has gaps and therefore produces no closed contour.
+    gray_f = gray.astype(np.float32)
+
+    col_band = gray_f[int(h * 0.04):int(h * 0.96), :]
+    col_mean = col_band.mean(axis=0)
+    outer_cols = np.concatenate([
+        col_mean[:max(1, int(w * 0.15))],
+        col_mean[min(w - 1, int(w * 0.85)):],
+    ])
+    col_delta = col_mean - float(outer_cols.mean())
+    active_x = np.where(col_delta > 20.0)[0]
+
+    row_band = gray_f[:, int(w * 0.35):int(w * 0.65)]
+    row_mean = row_band.mean(axis=1)
+    outer_rows = np.concatenate([
+        row_mean[:max(1, int(h * 0.12))],
+        row_mean[min(h - 1, int(h * 0.88)):],
+    ])
+    row_delta = row_mean - float(outer_rows.mean())
+    active_y = np.where(row_delta > 20.0)[0]
+
+    if active_x.size and active_y.size:
+        x1, x2 = int(active_x.min()), int(active_x.max()) + 1
+        y1, y2 = int(active_y.min()), int(active_y.max()) + 1
+        cw, ch = x2 - x1, y2 - y1
+        ratio = cw / float(ch or 1)
+        center_x = (x1 + x2) / 2.0
+
+        if (
+            0.45 <= ratio <= 0.90
+            and cw >= w * 0.20
+            and ch >= h * 0.55
+            and abs(center_x - w / 2.0) <= w * 0.10
+        ):
+            pad_x = max(2, int(cw * 0.012))
+            pad_y = max(2, int(ch * 0.012))
+            x1 = max(0, x1 - pad_x)
+            y1 = max(0, y1 - pad_y)
+            x2 = min(w, x2 + pad_x)
+            y2 = min(h, y2 + pad_y)
+            return (x1, y1, x2 - x1, y2 - y1)
+
+    # If brightness separation is insufficient, try a small family of
+    # centered card-shaped rectangles as a final viewer fallback.
+    # Some PUBG screenshots show one enlarged card in the exact center while
+    # the inventory behind it is dark/blurred. The decorative frame is not
+    # necessarily one closed contour, so contour detection can return nothing.
+    # Search a small family of centered card-shaped rectangles instead of
+    # hashing the whole blurred screen.
+    gray_f = gray.astype(np.float32)
+    best: tuple[float, tuple[int, int, int, int]] | None = None
+
+    for hf in np.linspace(0.70, 0.98, 8):
+        for wf in np.linspace(0.24, 0.40, 9):
+            cw = int(round(w * wf))
+            ch = int(round(h * hf))
+            if cw <= 0 or ch <= 0:
+                continue
+
+            ratio = cw / float(ch)
+            if not 0.45 <= ratio <= 0.90:
+                continue
+
+            x = (w - cw) // 2
+            y = (h - ch) // 2
+            inner = gray_f[y:y + ch, x:x + cw]
+            if inner.size == 0:
+                continue
+
+            side_left = gray_f[:, max(0, x - cw // 2):x]
+            side_right = gray_f[:, min(w, x + cw):min(w, x + cw + cw // 2)]
+            outside = np.concatenate([side_left, side_right], axis=1)
+            if outside.size == 0:
+                continue
+
+            contrast = float(inner.mean() - outside.mean())
+
+            bw = max(2, int(cw * 0.035))
+            bh = max(2, int(ch * 0.035))
+            strips = [
+                inner[:, :bw],
+                inner[:, -bw:],
+                inner[:bh, :],
+                inner[-bh:, :],
+            ]
+            edge = float(np.mean([
+                np.mean(np.abs(np.diff(s, axis=1))) if s.shape[1] > 1 else 0.0
+                for s in strips[:2]
+            ] + [
+                np.mean(np.abs(np.diff(s, axis=0))) if s.shape[0] > 1 else 0.0
+                for s in strips[2:]
+            ]))
+
+            score = contrast + edge * 0.30
+            if best is None or score > best[0]:
+                best = (score, (x, y, cw, ch))
+
+    if best is not None and best[0] >= 38.0:
+        return best[1]
+
+    return None
+
+
+
 def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     candidates = _candidate_rectangles(img)
     rows = _cluster_rows(candidates, img.shape[0])
@@ -191,10 +340,17 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
         # resolutions, aspect ratios, and different numbers of cards.
         return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
+    # If there is no regular inventory row, try a centered single-card
+    # viewer. This fallback deliberately does not invent a rectangle from
+    # screen dimensions: it still requires a detected contour with card-like
+    # geometry and visible border evidence.
+    single = _single_card_candidate(img)
+    if single is not None:
+        return [[single]]
+
     # Never fabricate card rectangles from screen dimensions alone.
     # A generic/admin page can have strong edges in the same places as the
     # old fallback grid and would then be returned as fake inventory cards.
-    # If CV cannot find at least one regular card run, report no cards.
     return []
 
 
@@ -214,6 +370,59 @@ def extract_visual_area(card: Image.Image) -> Image.Image:
     w, h = card.size
     # Ignore small frame/quantity/name regions while keeping the actual artwork.
     return card.crop((int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.78)))
+
+
+def extract_frame_area(card: Image.Image) -> Image.Image:
+    """Build a compact image containing only the card's outer frame.
+
+    Saved admin icons are fitted into a black 256x384 canvas. Remove only
+    contiguous near-black padding first, otherwise that padding becomes part
+    of frame_colorhash and the saved icon gets a different color signature
+    from the same card cropped directly from an inventory screenshot.
+    """
+    card = card.convert("RGB")
+
+    arr = np.asarray(card)
+    luminance = arr.mean(axis=2)
+    active = luminance > 8.0
+
+    if active.any():
+        ys, xs = np.where(active)
+        x1, x2 = int(xs.min()), int(xs.max()) + 1
+        y1, y2 = int(ys.min()), int(ys.max()) + 1
+
+        # Only crop when the image actually has substantial black padding.
+        if (
+            x1 > card.width * 0.02
+            or y1 > card.height * 0.02
+            or x2 < card.width * 0.98
+            or y2 < card.height * 0.98
+        ):
+            card = card.crop((x1, y1, x2, y2))
+
+    w, h = card.size
+    top_h = max(2, int(h * 0.10))
+    bottom_h = max(2, int(h * 0.10))
+    side_w = max(2, int(w * 0.10))
+
+    top = card.crop((0, 0, w, top_h))
+    bottom = card.crop((0, h - bottom_h, w, h - 1))
+    left = card.crop((0, top_h, side_w, max(top_h + 1, h - bottom_h)))
+    right = card.crop((w - side_w, top_h, w, max(top_h + 1, h - bottom_h)))
+
+    target_w = w
+    target_h = max(1, int(target_w * 0.18))
+    parts = [
+        top.resize((target_w, target_h), Image.Resampling.BILINEAR),
+        bottom.resize((target_w, target_h), Image.Resampling.BILINEAR),
+        left.resize((target_w, target_h), Image.Resampling.BILINEAR),
+        right.resize((target_w, target_h), Image.Resampling.BILINEAR),
+    ]
+
+    canvas = Image.new("RGB", (target_w, target_h * len(parts)))
+    for index, part in enumerate(parts):
+        canvas.paste(part, (0, index * target_h))
+    return canvas
 
 
 
@@ -340,11 +549,16 @@ def normalize_card(card: Image.Image) -> Image.Image:
 def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
     full = normalize_card(card)
     visual = normalize_card(extract_visual_area(card))
+    frame = extract_frame_area(card)
     return {
         "full_phash": str(imagehash.phash(full)),
         "full_dhash": str(imagehash.dhash(full)),
         "visual_phash": str(imagehash.phash(visual)),
         "visual_dhash": str(imagehash.dhash(visual)),
+        # pHash/dHash are grayscale and therefore can treat a blue and a
+        # gold rarity frame as nearly identical. colorhash keeps the hue
+        # information from the outer frame.
+        "frame_colorhash": str(imagehash.colorhash(frame)),
     }
 
 
