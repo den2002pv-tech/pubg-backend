@@ -22,7 +22,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import init_db, sync_cards
+from database import get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
 
 app = FastAPI(title="PUBG Card Scanner")
 
@@ -167,6 +167,41 @@ def _valid_session(value: str | None) -> bool:
     return hmac.compare_digest(sig, expected)
 
 
+def _validate_telegram_init_data(init_data: str) -> dict[str, Any]:
+    """Validate Telegram Mini App initData and return the Telegram user."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на Render")
+
+    from urllib.parse import parse_qsl
+
+    pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+    received_hash = pairs.pop("hash", "")
+    if not received_hash:
+        raise HTTPException(status_code=401, detail="Отсутствует Telegram hash")
+
+    auth_date = pairs.get("auth_date", "")
+    try:
+        if time.time() - int(auth_date) > 86400:
+            raise HTTPException(status_code=401, detail="Telegram initData устарел")
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Некорректный Telegram auth_date") from exc
+
+    data_check_string = "\\n".join(f"{key}={pairs[key]}" for key in sorted(pairs))
+    secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
+    expected_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(received_hash, expected_hash):
+        raise HTTPException(status_code=401, detail="Недействительные данные Telegram")
+
+    try:
+        user = json.loads(pairs.get("user", "{}"))
+        telegram_id = int(user["id"])
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=401, detail="Не удалось определить пользователя Telegram") from exc
+
+    return {"id": telegram_id, "user": user}
+
+
 def _authorization_token(authorization: str | None) -> str | None:
     if not authorization:
         return None
@@ -193,6 +228,10 @@ def require_admin(authorization: str | None) -> None:
 
 class LoginSchema(BaseModel):
     password: str
+
+
+class TelegramAuthSchema(BaseModel):
+    init_data: str
 
 
 class CardSaveSchema(BaseModel):
@@ -471,8 +510,36 @@ async def scan_preview(
     return result
 
 
+@app.get("/me/cards")
+async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    auth = _validate_telegram_init_data(init_data)
+    get_or_create_user(auth["id"])
+    return {"cards": get_user_cards(auth["id"]) }
+
+
+@app.post("/me/collection")
+async def save_my_collection(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    cards = data.get("cards", [])
+    if not isinstance(cards, list):
+        raise HTTPException(status_code=400, detail="cards должен быть массивом")
+    get_or_create_user(auth["id"])
+    saved = 0
+    for item in cards:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        quantity = max(0, int(item.get("quantity", 0) or 0))
+        set_user_card_quantity(auth["id"], str(item["id"]), quantity)
+        saved += 1
+    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"]) }
+
+
 @app.post("/scan")
-async def scan(file: UploadFile = File(...)):
+async def scan(file: UploadFile = File(...), init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    auth = _validate_telegram_init_data(init_data) if init_data else None
     image = await _read_image(file)
     result = scan_screenshot(image, save_previews=False)
     db = load_db()
@@ -512,6 +579,16 @@ async def scan(file: UploadFile = File(...)):
                 "row": card["row"],
                 "col": card["col"],
             })
+    if auth:
+        get_or_create_user(auth["id"])
+        for item in matches:
+            if item.get("id"):
+                set_user_card_quantity(auth["id"], item["id"], item["quantity"])
+        saved = get_user_cards(auth["id"])
+        for item in matches:
+            owned = next((x["quantity"] for x in saved if x["id"] == item.get("id")), 0)
+            item["owned_quantity"] = owned
+
     return {"cards": matches, "count": len(matches)}
 
 
