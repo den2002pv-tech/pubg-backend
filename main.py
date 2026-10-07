@@ -46,7 +46,12 @@ STATIC_DIR = Path("static")
 CARDS_DIR = STATIC_DIR / "cards"
 CARDS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Admin workflow previews are temporary. Render's free filesystem is ephemeral.
+TEMP_DIR = Path("temp_images")
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
 
 DB_FILE = Path("card_hashes.json")
 SESSION_MAX_AGE = 12 * 60 * 60
@@ -404,6 +409,21 @@ def _prepare_icon(image: Image.Image) -> Image.Image:
     return canvas
 
 
+def _save_admin_preview(data_url: str, index: int) -> str:
+    """Persist one temporary admin card preview on Render."""
+    if not data_url.startswith("data:image/") or "," not in data_url:
+        return data_url
+    try:
+        encoded = data_url.split(",", 1)[1]
+        payload = base64.b64decode(encoded)
+        filename = f"scan-{int(time.time() * 1000)}-{index}.jpg"
+        path = TEMP_DIR / filename
+        path.write_bytes(payload)
+        return f"/temp-images/{filename}"
+    except Exception:
+        return data_url
+
+
 def _extract_single_card(image: Image.Image) -> Image.Image:
     """
     For the icon tab the user normally uploads one whole card image.
@@ -450,6 +470,7 @@ async def admin_status(authorization: str | None = Header(default=None)):
         "logged_in": logged_in,
         "cards": len(load_db()),
         "icons": sum(1 for x in load_db().values() if x.get("icon")),
+        "temporary_files": sum(1 for p in TEMP_DIR.iterdir() if p.is_file()),
     }
 
 
@@ -484,12 +505,43 @@ async def scan_preview(
     require_admin(authorization)
     image = await _read_image(file)
     result = scan_screenshot(image, save_previews=True)
+    for index, card in enumerate(result.get("cards", [])):
+        if card.get("preview"):
+            card["preview"] = _save_admin_preview(card["preview"], index)
     db = load_db()
     result["cards"] = _enrich_admin_scan(
         result.get("cards", []),
         db,
     )
     return result
+
+
+@app.get("/admin/temp-files")
+async def list_temp_files(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    files = []
+    for path in sorted(TEMP_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
+        if path.is_file():
+            files.append({
+                "name": path.name,
+                "url": f"/temp-images/{path.name}",
+                "size": path.stat().st_size,
+            })
+    return files
+
+
+@app.delete("/admin/temp-files")
+async def delete_temp_files(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    deleted = 0
+    for path in TEMP_DIR.glob("*"):
+        if path.is_file():
+            try:
+                path.unlink()
+                deleted += 1
+            except OSError:
+                pass
+    return {"status": "ok", "deleted": deleted}
 
 
 @app.get("/me/cards")
