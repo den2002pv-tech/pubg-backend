@@ -42,14 +42,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-TEMP_DIR = Path("temp_images")
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
-
 STATIC_DIR = Path("static")
 CARDS_DIR = STATIC_DIR / "cards"
 CARDS_DIR.mkdir(parents=True, exist_ok=True)
 
-app.mount("/temp_images", StaticFiles(directory=str(TEMP_DIR)), name="temp_images")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 DB_FILE = Path("card_hashes.json")
@@ -90,19 +86,6 @@ def clean_hashes(value: Any) -> dict[str, str]:
 def valid_hash(value: Any) -> bool:
     s = str(value or "").strip().lower()
     return bool(s) and s not in {"undefined", "null", "none"}
-
-
-def local_preview_path(url: str) -> Path | None:
-    if not url:
-        return None
-    prefix = "/temp_images/"
-    if not url.startswith(prefix):
-        return None
-    name = Path(url[len(prefix):]).name
-    path = (TEMP_DIR / name).resolve()
-    if path.parent != TEMP_DIR.resolve() or not path.exists():
-        return None
-    return path
 
 
 def _session_secret() -> str:
@@ -467,7 +450,6 @@ async def admin_status(authorization: str | None = Header(default=None)):
         "logged_in": logged_in,
         "cards": len(load_db()),
         "icons": sum(1 for x in load_db().values() if x.get("icon")),
-        "temporary_files": sum(1 for p in TEMP_DIR.iterdir() if p.is_file()),
     }
 
 
@@ -627,15 +609,6 @@ async def save_card(
     hashes = clean_hashes(data.hashes)
     legacy_hash = data.hash if valid_hash(data.hash) else None
 
-    if not hashes:
-        path = local_preview_path(data.preview)
-        if path:
-            try:
-                with Image.open(path) as img:
-                    hashes = calculate_card_hashes(img.convert("RGB"))
-            except Exception:
-                hashes = {}
-
     if not hashes and legacy_hash:
         hashes = {"full_dhash": legacy_hash}
 
@@ -775,31 +748,6 @@ async def delete_card(
     del db[card_id]
     save_db(db)
     return {"status": "ok"}
-
-
-@app.get("/admin/temp-files")
-async def temp_files(authorization: str | None = Header(default=None)):
-    require_admin(authorization)
-    files = []
-    for p in sorted(TEMP_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if p.is_file():
-            files.append({
-                "name": p.name,
-                "url": f"/temp_images/{p.name}",
-                "size": p.stat().st_size,
-            })
-    return files
-
-
-@app.delete("/admin/temp-files")
-async def delete_temp_files(authorization: str | None = Header(default=None)):
-    require_admin(authorization)
-    count = 0
-    for p in TEMP_DIR.iterdir():
-        if p.is_file():
-            p.unlink()
-            count += 1
-    return {"status": "ok", "deleted": count}
 
 
 def _github_request(method: str, url: str, token: str, payload: dict[str, Any] | None = None) -> Any:
