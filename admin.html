@@ -544,6 +544,16 @@ function renderIconQueue(){
 
       action=`
         <div class="badge missing">⚠️ Автоматически карта не найдена</div>
+        <div class="muted" style="margin-top:8px">
+          Это исходный скриншот, который не удалось определить:
+        </div>
+        <img src="${esc(item.previewUrl)}"
+             alt="Скриншот не определён"
+             style="display:block;max-width:100%;max-height:520px;object-fit:contain;margin:8px 0;border:1px solid #555;border-radius:8px">
+        <div class="row">
+          <a href="${esc(item.previewUrl)}" target="_blank" rel="noopener" class="btn-secondary">Открыть скриншот</a>
+          <button class="btn-secondary" onclick="downloadUnmatchedIcon(${index})">Скачать скриншот</button>
+        </div>
         <p class="muted">Можно вручную выбрать карту из фильтра ниже.</p>
         <select id="manualCard_${index}" onchange="setManualIconCard(${index},this.value)">
           <option value="">Выберите карту...</option>
@@ -659,6 +669,17 @@ async function confirmIcon(index){
     renderIconQueue();
     iconStatus('Иконка не сохранена: '+e.message,'err');
   }
+}
+
+function downloadUnmatchedIcon(index){
+  const item=iconQueue[index];
+  if(!item)return;
+  const link=document.createElement('a');
+  link.href=item.previewUrl;
+  link.download=item.file.name||('unmatched-card-'+(index+1)+'.png');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 async function retryIcon(index){
