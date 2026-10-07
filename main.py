@@ -240,6 +240,43 @@ def _hamming(a: str, b: str) -> int | None:
 
 ICON_MATCH_THRESHOLD = float(os.getenv("ICON_MATCH_THRESHOLD", "18"))
 CARD_MATCH_HASH_MAX_DISTANCE = float(os.getenv("CARD_MATCH_HASH_MAX_DISTANCE", "18"))
+CARD_MATCH_COLOR_MAX_RATIO = float(os.getenv("CARD_MATCH_COLOR_MAX_RATIO", "0.25"))
+
+
+def _migrate_frame_color_hashes() -> None:
+    """Add frame color hashes to older cards using their saved icons."""
+    db = load_db()
+    changed = False
+
+    for card_id, info in db.items():
+        if not isinstance(info, dict):
+            continue
+
+        hashes = clean_hashes(info.get("hashes"))
+        if valid_hash(hashes.get("frame_colorhash")):
+            continue
+
+        icon_path = CARDS_DIR / f"{card_id}.webp"
+        if not icon_path.is_file():
+            continue
+
+        try:
+            with Image.open(icon_path) as icon:
+                new_hashes = calculate_card_hashes(icon.convert("RGB"))
+        except Exception:
+            continue
+
+        frame_hash = new_hashes.get("frame_colorhash")
+        if not valid_hash(frame_hash):
+            continue
+
+        hashes["frame_colorhash"] = frame_hash
+        info["hashes"] = hashes
+        info["hash"] = hashes.get("full_dhash") or info.get("hash", "")
+        changed = True
+
+    if changed:
+        save_db(db)
 
 
 def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | None, float]:
@@ -258,13 +295,23 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     for card_id, info in db.items():
         stored = clean_hashes(info.get("hashes"))
         distances: list[int] = []
+        color_distances: list[int] = []
 
         for key, value in card_hashes.items():
             other = stored.get(key)
+
+            # A scan with the new frame color hash must only match a card
+            # that also has that hash. This prevents old grayscale-only
+            # entries from bypassing the rarity/color check.
+            if key == "frame_colorhash" and not other:
+                continue
+
             if other:
                 d = _hamming(value, other)
                 if d is not None:
                     distances.append(d)
+                    if key == "frame_colorhash":
+                        color_distances.append(d)
 
         if not distances:
             legacy = info.get("hash")
@@ -276,6 +323,14 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             # Do not let several good hashes hide one clearly different hash.
             if any(d > max_hash_distance for d in distances):
                 continue
+
+            # The frame color is a separate discriminator for rarity variants.
+            # Compare it as a ratio so this stays stable if the colorhash
+            # length changes with the library implementation.
+            if color_distances:
+                color_bits = max(1, len(card_hashes["frame_colorhash"]) * 4)
+                if any((d / color_bits) > CARD_MATCH_COLOR_MAX_RATIO for d in color_distances):
+                    continue
 
             score = sum(distances) / len(distances)
             if score < best_score:
