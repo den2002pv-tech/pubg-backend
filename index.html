@@ -51,7 +51,7 @@ const confirmBtn=document.getElementById('confirmBtn');
 let pendingCards=[];
 input.addEventListener('change',uploadImage);
 
-function assetUrl(path){if(!path)return '';return path.startsWith('http')?path:API+path;}
+function assetUrl(path){if(!path)return '';return path.startsWith('http')||path.startsWith('data:')?path:API+path;}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
 async function uploadImage(){
