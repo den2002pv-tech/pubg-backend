@@ -517,6 +517,26 @@ async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Ini
     return {"cards": get_user_cards(auth["id"]) }
 
 
+@app.post("/me/collection/confirm")
+async def confirm_my_collection(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    cards = data.get("cards", [])
+    if not isinstance(cards, list):
+        raise HTTPException(status_code=400, detail="cards должен быть массивом")
+    get_or_create_user(auth["id"])
+    saved = 0
+    for item in cards:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        quantity = max(0, int(item.get("quantity", 0) or 0))
+        set_user_card_quantity(auth["id"], str(item["id"]), quantity)
+        saved += 1
+    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"])}
+
+
 @app.post("/me/collection")
 async def save_my_collection(
     data: dict[str, Any],
@@ -581,15 +601,8 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
             })
     if auth:
         get_or_create_user(auth["id"])
-        for item in matches:
-            if item.get("id"):
-                set_user_card_quantity(auth["id"], item["id"], item["quantity"])
-        saved = get_user_cards(auth["id"])
-        for item in matches:
-            owned = next((x["quantity"] for x in saved if x["id"] == item.get("id")), 0)
-            item["owned_quantity"] = owned
 
-    return {"cards": matches, "count": len(matches)}
+    return {"cards": matches, "count": len(matches), "authenticated": bool(auth)}
 
 
 @app.post("/admin/save-card")
