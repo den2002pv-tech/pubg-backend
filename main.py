@@ -39,6 +39,10 @@ app.add_middleware(
     allow_origins=[
         "https://pubg-app-phi.vercel.app",
     ],
+    # Vercel preview deployments get a different origin. Keep the rule
+    # restricted to this application's Vercel project instead of allowing
+    # every origin, because admin requests use bearer credentials.
+    allow_origin_regex=r"^https://pubg-app-phi(?:-[a-z0-9-]+)*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
