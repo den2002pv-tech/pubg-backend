@@ -391,105 +391,17 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
 
 
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
-    arr = cv2.cvtColor(np.array(card.convert("RGB")), cv2.COLOR_RGB2BGR)
-    h, w = arr.shape[:2]
-    gray = cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
-
-    debug: dict[str, Any] = {
-        "roi": None,
-        "candidates": 0,
-        "selected": None,
-        "reason": None,
-    }
-
-    rx1, ry1 = int(w * 0.45), 0
-    rx2, ry2 = int(w * 0.995), int(h * 0.28)
-    debug["roi"] = [rx1, ry1, rx2, ry2]
-    roi = gray[ry1:ry2, rx1:rx2]
-    bright = cv2.inRange(roi, 190, 255)
-
-    components, labels, stats, _ = cv2.connectedComponentsWithStats(bright, 8)
-    digit_candidates = []
-    for label in range(1, components):
-        x, y, cw, ch, area = stats[label]
-        if area < 35 or area > 450:
-            continue
-        if ch < max(8, int(h * 0.045)) or ch > int(h * 0.14):
-            continue
-        if cw < 3 or cw > max(8, int(w * 0.09)):
-            continue
-        digit_candidates.append((label, x, y, cw, ch, area))
-
-    debug["candidates"] = len(digit_candidates)
-
-    if not digit_candidates:
-        debug["reason"] = "no_digit_candidate"
-        return card.convert("RGB"), 1, 0.0, debug
-
-    digit_candidates.sort(key=lambda item: (item[1] + item[3], item[4]), reverse=True)
-    label, dx, dy, dw, dh, area = digit_candidates[0]
-
-    absolute_x = rx1 + dx
-    absolute_y = ry1 + dy
-    debug["selected"] = {
-        "x": int(absolute_x),
-        "y": int(absolute_y),
-        "width": int(dw),
-        "height": int(dh),
-        "area": int(area),
-        "relative_x": round(absolute_x / max(1, w), 3),
-    }
-
-    if absolute_x < int(w * 0.45) or absolute_y > int(h * 0.24):
-        debug["reason"] = "candidate_outside_badge_zone"
-        return card.convert("RGB"), 1, 0.0, debug
-
-    mask = (labels == label).astype(np.uint8) * 255
-    digit = mask[dy:dy + dh, dx:dx + dw]
-    scores = sorted(
-        ((_digit_score(digit, d), d) for d in _COUNTER_TEMPLATES),
-        reverse=True,
-    )
-    confidence, quantity = scores[0]
-    runner_up = scores[1][0] if len(scores) > 1 else 0.0
-    debug["digit"] = int(quantity)
-    debug["confidence"] = round(float(confidence), 3)
-    debug["runner_up"] = round(float(runner_up), 3)
-
-    if confidence < 0.42 or confidence - runner_up < 0.025:
-        debug["reason"] = "weak_digit_match"
-        return card.convert("RGB"), 1, 0.0, debug
-
-    left_region = bright[
-        max(0, dy - int(dh * 0.25)):min(roi.shape[0], dy + dh + int(dh * 0.25)),
-        max(0, dx - int(dw * 1.9)):dx,
-    ]
-    left_components, _, left_stats, _ = cv2.connectedComponentsWithStats(left_region, 8)
-    has_multiplier = any(
-        8 <= s[2] <= max(14, int(w * 0.08))
-        and 5 <= s[3] <= max(16, int(h * 0.10))
-        and 15 <= s[4] <= 180
-        for s in left_stats[1:]
-    )
-    debug["has_multiplier"] = bool(has_multiplier)
-    if not has_multiplier:
-        debug["reason"] = "multiplier_not_found"
-        return card.convert("RGB"), 1, 0.0, debug
-
-    x1 = max(0, absolute_x - int(dw * 1.65))
-    y1 = max(0, absolute_y - int(dh * 0.38))
-    x2 = min(w, absolute_x + dw + int(dw * 0.45))
-    y2 = min(h, absolute_y + dh + int(dh * 0.45))
-
     # CONTROL TEST:
-    # Do not call cv2.inpaint() here. The previous implementation used the
-    # native OpenCV Telea inpainting path immediately before the Render
-    # SIGSEGV/exit-139 failures. Keep quantity recognition intact and return
-    # the original RGB card so this deployment isolates that native operation.
-    debug["reason"] = "accepted_no_inpaint"
-    debug["badge_box"] = [x1, y1, x2, y2]
-    return card.convert("RGB"), int(quantity), float(confidence), debug
-
+    # Temporarily disable all counter recognition for this deployment.
+    # This removes connectedComponentsWithStats() and all counter-specific
+    # OpenCV processing from the scan path. Card detection and hash
+    # calculation remain unchanged.
+    return (
+        card.convert("RGB"),
+        1,
+        0.0,
+        {"roi": None, "candidates": 0, "selected": None, "reason": "counter_detection_disabled_test"},
+    )
 
 def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
