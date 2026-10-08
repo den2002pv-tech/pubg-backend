@@ -570,6 +570,7 @@ def _enrich_admin_scan(
             "counter": {
                 "quantity": card.get("quantity", 1),
                 "confidence": card.get("quantity_confidence", 0),
+                "details": card.get("counter_debug", {}),
             },
             "top_matches": diagnostics,
         }
