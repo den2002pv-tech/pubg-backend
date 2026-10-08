@@ -529,10 +529,12 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
 
     # Remove only the detected UI badge from the hash input. Geometry stays
     # unchanged and the user-facing preview continues to use the original crop.
-    left = max(0, min(sign_x, digit_x) - int(w * 0.015))
-    right = min(w, max(sign_x + sign_w, digit_x + digit_w) + int(w * 0.015))
-    top = max(0, min(sign_y, digit_y) - int(h * 0.015))
-    bottom = min(h, max(sign_y + sign_h, digit_y + digit_h) + int(h * 0.015))
+    # Expand to the whole small UI badge, not only the white glyphs.
+    # This removes the gray square behind ×N from the hash input as well.
+    left = max(0, min(sign_x, digit_x) - int(w * 0.025))
+    right = min(w, max(sign_x + sign_w, digit_x + digit_w) + int(w * 0.045))
+    top = max(0, min(sign_y, digit_y) - int(h * 0.035))
+    bottom = min(h, max(sign_y + sign_h, digit_y + digit_h) + int(h * 0.045))
 
     clean = arr.copy()
     patch = clean[max(0, top - 1):min(h, bottom + 1), max(0, left - 1):min(w, right + 1)]
