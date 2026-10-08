@@ -23,7 +23,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import add_zero_cards, clear_user_cards, get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
+from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
 
 app = FastAPI(title="PUBG Card Scanner")
 
@@ -826,7 +826,36 @@ async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Ini
             "username": user.get("username", ""),
         },
         "cards": get_user_cards(auth["id"]),
+        "desired_cards": get_desired_cards(auth["id"]),
     }
+
+
+@app.put("/me/desired-cards")
+async def update_desired_cards(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    card_ids = data.get("card_ids", [])
+    if not isinstance(card_ids, list):
+        raise HTTPException(status_code=400, detail="card_ids должен быть массивом")
+    if len(card_ids) > 200:
+        raise HTTPException(status_code=400, detail="Слишком много желаемых карт")
+    get_or_create_user(auth["id"])
+    desired = set_desired_cards(auth["id"], card_ids)
+    return {"status": "ok", "desired_cards": desired}
+
+
+@app.delete("/me/desired-cards/{card_id}")
+async def delete_desired_card(
+    card_id: str,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    get_or_create_user(auth["id"])
+    current = [c["id"] for c in get_desired_cards(auth["id"]) if c["id"] != card_id]
+    desired = set_desired_cards(auth["id"], current)
+    return {"status": "ok", "desired_cards": desired}
 
 
 @app.delete("/me/collection")
