@@ -600,6 +600,19 @@ def encode_preview(card: Image.Image) -> str:
     return f"data:image/jpeg;base64,{encoded}"
 
 
+
+def _json_safe(value: Any) -> Any:
+    """Convert NumPy/PIL-derived scalar values to plain JSON-safe types."""
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
     image = _image_from_any(image)
     detected = detect_inventory_cards(image)
@@ -631,4 +644,4 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         if save_previews:
             entry["preview"] = encode_preview(clean_crop)
         cards.append(entry)
-    return {"cards": cards, "count": len(cards), "image_size": list(image.size)}
+    return _json_safe({"cards": cards, "count": len(cards), "image_size": list(image.size)})
