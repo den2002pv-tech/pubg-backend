@@ -394,6 +394,96 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
 
     return best_id, best_score
 
+def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], limit: int = 8) -> list[dict[str, Any]]:
+    """Return ranked match diagnostics for admin troubleshooting.
+
+    This does not change matching behavior. It exposes the individual hash
+    distances and gate results so a bad recognition can be traced to either
+    the crop/detection or the matcher without dumping full card records.
+    """
+    standard_keys = (
+        "full_phash",
+        "full_dhash",
+        "visual_phash",
+        "visual_dhash",
+    )
+    rows: list[dict[str, Any]] = []
+
+    for card_id, info in db.items():
+        stored = clean_hashes(info.get("hashes"))
+        pairs: list[tuple[str, int]] = []
+        for key in standard_keys:
+            value = card_hashes.get(key)
+            other = stored.get(key)
+            if value and other:
+                d = _hamming(value, other)
+                if d is not None:
+                    pairs.append((key, d))
+
+        distances = sorted(d for _, d in pairs)
+        if not distances:
+            legacy = info.get("hash")
+            value = card_hashes.get("full_dhash", "")
+            d = _hamming(value, str(legacy)) if legacy else None
+            if d is not None:
+                distances = [d]
+
+        strong_count = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
+        acceptable_count = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
+        max_distance = max(distances) if distances else None
+
+        scan_color = card_hashes.get("frame_colorhash")
+        stored_color = stored.get("frame_colorhash")
+        color_ratio = None
+        color_status = "not_checked"
+        if scan_color and not stored_color:
+            color_status = "stored_hash_missing"
+        elif scan_color and stored_color:
+            color_distance = _hamming(scan_color, stored_color)
+            if color_distance is not None:
+                color_ratio = round(color_distance / max(1, len(scan_color) * 4), 3)
+                color_status = "ok" if color_ratio <= 0.55 else "high"
+
+        reasons: list[str] = []
+        if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            reasons.append("less_than_3_hashes")
+        if strong_count < CARD_MATCH_MIN_STRONG_HASHES:
+            reasons.append("less_than_2_strong")
+        if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            reasons.append("less_than_3_acceptable")
+        if max_distance is not None and max_distance > CARD_MATCH_ACCEPTABLE_DISTANCE + 6:
+            reasons.append("hash_outlier_too_large")
+        if scan_color and not stored_color:
+            reasons.append("stored_color_hash_missing")
+        if color_ratio is not None and color_ratio > 0.55 and strong_count < 3:
+            reasons.append("color_mismatch")
+
+        if len(distances) >= 2:
+            score = (distances[0] + distances[1]) / 2
+            if color_ratio is not None:
+                score += color_ratio * 8.0
+        else:
+            score = float("inf")
+
+        rows.append({
+            "id": card_id,
+            "name": info.get("name", card_id),
+            "distances": {key: d for key, d in pairs},
+            "sorted_distances": distances,
+            "strong": strong_count,
+            "acceptable": acceptable_count,
+            "max": max_distance,
+            "color_ratio": color_ratio,
+            "color_status": color_status,
+            "score": None if not math.isfinite(score) else round(score, 2),
+            "accepted": not reasons,
+            "reasons": reasons,
+        })
+
+    rows.sort(key=lambda item: item["score"] if item["score"] is not None else float("inf"))
+    return rows[:max(1, limit)]
+
+
 def _next_card_id(db: dict[str, Any]) -> str:
     numbers = []
 
@@ -425,6 +515,22 @@ def _enrich_admin_scan(
 
     for card in cards:
         item = dict(card)
+        diagnostics = _match_card_diagnostics(card.get("hashes", {}), db)
+        item["debug"] = {
+            "detector": {
+                "box": card.get("box"),
+                "width": card.get("width"),
+                "height": card.get("height"),
+                "ratio": round(card["width"] / max(1, card["height"]), 3) if card.get("height") else None,
+                "row": card.get("row"),
+                "col": card.get("col"),
+            },
+            "counter": {
+                "quantity": card.get("quantity", 1),
+                "confidence": card.get("quantity_confidence", 0),
+            },
+            "top_matches": diagnostics,
+        }
 
         best_id, best_distance = _match_card(
             card.get("hashes", {}),
