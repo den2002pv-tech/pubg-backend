@@ -183,7 +183,7 @@ function renderInventory(){
   const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Нет иконки</div>';
   const el=document.createElement('div');el.className='card'+(missing?' missing':'');
   const check=manualMode&&missing?'<input class="manual-check" type="checkbox" data-id="'+esc(c.id)+'">':'';
-  const exchange=dup>0?'<button class="trade" type="button">Обменять</button>':'<button class="trade" disabled>'+ (missing?'Нет карты':'Нет дубликатов')+'</button>';
+  const exchange=dup>0?'<button class="trade" type="button" onclick="requestTrade(\''+esc(c.id)+ '\')">Обменять</button>':'<button class="trade" disabled>'+ (missing?'Нет карты':'Нет дубликатов')+'</button>';
   el.innerHTML=check+'<div class="icon-wrap">'+icon+'<span class="qty '+(missing?'zero':'')+'">×'+qty+'</span></div>'+
    '<div class="name">'+esc(c.name)+'</div><div class="meta">Редкость: '+esc(c.rarity)+' · Дубликатов: '+dup+'</div>'+
    '<div class="tech">ID: '+esc(c.id)+'</div>'+exchange;
@@ -212,6 +212,11 @@ async function confirmCollection(){
   const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
   pendingCards=[];confirmBtn.style.display='none';inventoryCards=d.cards||inventoryCards;renderInventory();status.textContent='✅ Выбранные карты сохранены. Не выбранные карты не изменены.';
  }catch(e){status.textContent='❌ '+e.message;updateConfirmState();}
+}
+
+function requestTrade(cardId){
+ const text='Функция обмена будет подключена следующим этапом.';
+ if(tg?.showAlert)tg.showAlert(text);else alert(text);
 }
 
 async function clearMyInventory(){
