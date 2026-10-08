@@ -498,6 +498,31 @@ def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], lim
         })
 
     rows.sort(key=lambda item: item["score"] if item["score"] is not None else float("inf"))
+
+    # Mirror the confidence-margin fallback in _match_card so the admin
+    # diagnostics explain why an animated card was accepted or rejected.
+    if rows:
+        best = rows[0]
+        runner = rows[1] if len(rows) > 1 else None
+        margin = (
+            runner["score"] - best["score"]
+            if runner and runner["score"] is not None and best["score"] is not None
+            else float("inf")
+        )
+        best["runner_up_id"] = runner["id"] if runner else None
+        best["runner_up_score"] = runner["score"] if runner else None
+        best["score_margin"] = None if not math.isfinite(margin) else round(margin, 2)
+
+        fallback_ok = (
+            best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
+            and (best["color_ratio"] is not None and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO)
+            and margin > CARD_MATCH_CONFIDENT_MARGIN
+        )
+        best["confidence_fallback"] = fallback_ok
+        if fallback_ok and best["strong"] < CARD_MATCH_MIN_STRONG_HASHES:
+            best["accepted"] = True
+            best["reasons"] = ["accepted_by_confident_margin"]
+
     return rows[:max(1, limit)]
 
 
