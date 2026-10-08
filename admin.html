@@ -324,6 +324,35 @@ function renderCardList(){
 document.getElementById('search').oninput=renderCardList;
 document.getElementById('filter').onchange=renderCardList;
 
+function chooseIconFor(id){
+  id=decodeURIComponent(id);
+  document.querySelector('.tab[data-tab="icons"]').click();
+  document.getElementById('iconFilter').value='all';
+  document.getElementById('iconSearch').value=id;
+  document.getElementById('iconInput').click();
+}
+function replaceIcon(id){ chooseIconFor(id); }
+async function deleteIcon(id){
+  id=decodeURIComponent(id);
+  if(!confirm('Удалить постоянную иконку карты?'))return;
+  try{
+    const r=await api('/admin/delete-icon/'+encodeURIComponent(id),{method:'DELETE'});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка удаления иконки');
+    await loadAll();
+  }catch(e){alert('Ошибка: '+e.message)}
+}
+async function deleteCard(id){
+  id=decodeURIComponent(id);
+  if(!confirm('Удалить карту и её постоянную иконку?'))return;
+  try{
+    const r=await api('/admin/delete-card/'+encodeURIComponent(id),{method:'DELETE'});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка удаления карты');
+    await loadAll();
+  }catch(e){alert('Ошибка: '+e.message)}
+}
+
 async function scan(){
   const f=document.getElementById('screenshotInput').files[0];
   if(!f){status('Сначала выбери изображение','err');return}
@@ -388,6 +417,10 @@ function renderResults(cards){
           <summary>Hashes</summary>
           <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes||{},null,2))}</pre>
         </details>
+        <details>
+          <summary>🧪 Диагностика распознавания</summary>
+          <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.debug||{},null,2))}</pre>
+        </details>
       `;
     }else{
       el.innerHTML=`
@@ -421,6 +454,10 @@ function renderResults(cards){
         <details>
           <summary>Hashes</summary>
           <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes||{},null,2))}</pre>
+        </details>
+        <details>
+          <summary>🧪 Диагностика распознавания</summary>
+          <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.debug||{},null,2))}</pre>
         </details>
       `;
     }

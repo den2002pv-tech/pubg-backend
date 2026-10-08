@@ -33,13 +33,24 @@ def _candidate_rectangles(img: np.ndarray) -> list[tuple[int, int, int, int]]:
         x, y, cw, ch = cv2.boundingRect(contour)
         ratio = cw / float(ch or 1)
         area = cw * ch
-        if cw < w * 0.055 or cw > w * 0.45:
+        if cw < w * 0.055 or cw > w * 0.62:
             continue
-        if ch < h * 0.18 or ch > h * 0.78:
+        if ch < h * 0.18 or ch > h * 0.95:
             continue
         if not 0.45 <= ratio <= 0.90:
             continue
         if area < w * h * 0.012:
+            continue
+        bw = max(2, int(cw * 0.035))
+        bh = max(2, int(ch * 0.035))
+        strips = (
+            edges[y:y + ch, x:x + bw],
+            edges[y:y + ch, max(x, x + cw - bw):x + cw],
+            edges[y:y + bh, x:x + cw],
+            edges[max(y, y + ch - bh):y + ch, x:x + cw],
+        )
+        side_scores = [float(s.mean()) / 255.0 if s.size else 0.0 for s in strips]
+        if sum(v >= 0.035 for v in side_scores) < 3:
             continue
         out.append((x, y, cw, ch))
     return out
@@ -61,13 +72,6 @@ def _card_geometry_similar(
 def _regular_card_runs(
     row: list[tuple[int, int, int, int]],
 ) -> list[list[tuple[int, int, int, int]]]:
-    """Keep regular card runs and reject unrelated same-row UI panels.
-
-    The detector must not assume a fixed number of cards or a fixed screen
-    resolution. Real cards normally form a run with nearly identical
-    dimensions and a repeatable center-to-center pitch. A right-side menu,
-    popup, or other UI block usually breaks that geometry.
-    """
     if len(row) < 2:
         return []
 
@@ -161,7 +165,9 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
     result = list(row)
     known_centers = centers[:]
 
-    # Reconstruct only slots that have convincing frame-edge evidence.
+    if len(result) >= 4:
+        return sorted(result, key=lambda r: r[0])
+
     for direction in (-1, 1):
         base = min(known_centers) if direction < 0 else max(known_centers)
         for _ in range(3):
@@ -170,6 +176,8 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
             y = int(round(np.median([r[1] for r in row])))
             candidate = (x, y, med_w, med_h)
             if x < 0 or x + med_w > w or y < 0 or y + med_h > h:
+                break
+            if len(result) >= 4 or x + med_w > w * 0.82:
                 break
             if _edge_score(edges, candidate) < 28.0:
                 break
@@ -182,12 +190,6 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
 
 
 def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
-    """Find one large, centered card when no regular inventory row exists.
-
-    This is intentionally a fallback: normal inventory detection keeps
-    priority, while this branch accepts a single card that can occupy most
-    of the screen vertically.
-    """
     h, w = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -212,6 +214,18 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
         if area < w * h * 0.08:
             continue
 
+        bw = max(2, int(cw * 0.035))
+        bh = max(2, int(ch * 0.035))
+        strips = (
+            edges[y:y + ch, x:x + bw],
+            edges[y:y + ch, max(x, x + cw - bw):x + cw],
+            edges[y:y + bh, x:x + cw],
+            edges[max(y, y + ch - bh):y + ch, x:x + cw],
+        )
+        side_scores = [float(s.mean()) / 255.0 if s.size else 0.0 for s in strips]
+        if sum(v >= 0.035 for v in side_scores) < 3:
+            continue
+
         cx = x + cw / 2.0
         cy = y + ch / 2.0
         center_penalty = abs(cx - w / 2.0) / w + abs(cy - h / 2.0) / h
@@ -223,12 +237,7 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
         candidates.sort(key=lambda item: item[0], reverse=True)
         return candidates[0][1]
 
-    # Brightness-separation fallback for the centered viewer.
-    # The modal background is intentionally dark/blurred, while the enlarged
-    # card remains a much brighter central object. This works even when the
-    # decorative frame has gaps and therefore produces no closed contour.
     gray_f = gray.astype(np.float32)
-
     col_band = gray_f[int(h * 0.04):int(h * 0.96), :]
     col_mean = col_band.mean(axis=0)
     outer_cols = np.concatenate([
@@ -260,6 +269,17 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
             and ch >= h * 0.55
             and abs(center_x - w / 2.0) <= w * 0.10
         ):
+            bw = max(2, int(cw * 0.035))
+            bh = max(2, int(ch * 0.035))
+            strips = (
+                edges[y1:y2, x1:x1 + bw],
+                edges[y1:y2, max(x1, x2 - bw):x2],
+                edges[y1:y1 + bh, x1:x2],
+                edges[max(y1, y2 - bh):y2, x1:x2],
+            )
+            side_scores = [float(s.mean()) / 255.0 if s.size else 0.0 for s in strips]
+            if sum(v >= 0.035 for v in side_scores) < 3:
+                return None
             pad_x = max(2, int(cw * 0.012))
             pad_y = max(2, int(ch * 0.012))
             x1 = max(0, x1 - pad_x)
@@ -268,66 +288,7 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
             y2 = min(h, y2 + pad_y)
             return (x1, y1, x2 - x1, y2 - y1)
 
-    # If brightness separation is insufficient, try a small family of
-    # centered card-shaped rectangles as a final viewer fallback.
-    # Some PUBG screenshots show one enlarged card in the exact center while
-    # the inventory behind it is dark/blurred. The decorative frame is not
-    # necessarily one closed contour, so contour detection can return nothing.
-    # Search a small family of centered card-shaped rectangles instead of
-    # hashing the whole blurred screen.
-    gray_f = gray.astype(np.float32)
-    best: tuple[float, tuple[int, int, int, int]] | None = None
-
-    for hf in np.linspace(0.70, 0.98, 8):
-        for wf in np.linspace(0.24, 0.40, 9):
-            cw = int(round(w * wf))
-            ch = int(round(h * hf))
-            if cw <= 0 or ch <= 0:
-                continue
-
-            ratio = cw / float(ch)
-            if not 0.45 <= ratio <= 0.90:
-                continue
-
-            x = (w - cw) // 2
-            y = (h - ch) // 2
-            inner = gray_f[y:y + ch, x:x + cw]
-            if inner.size == 0:
-                continue
-
-            side_left = gray_f[:, max(0, x - cw // 2):x]
-            side_right = gray_f[:, min(w, x + cw):min(w, x + cw + cw // 2)]
-            outside = np.concatenate([side_left, side_right], axis=1)
-            if outside.size == 0:
-                continue
-
-            contrast = float(inner.mean() - outside.mean())
-
-            bw = max(2, int(cw * 0.035))
-            bh = max(2, int(ch * 0.035))
-            strips = [
-                inner[:, :bw],
-                inner[:, -bw:],
-                inner[:bh, :],
-                inner[-bh:, :],
-            ]
-            edge = float(np.mean([
-                np.mean(np.abs(np.diff(s, axis=1))) if s.shape[1] > 1 else 0.0
-                for s in strips[:2]
-            ] + [
-                np.mean(np.abs(np.diff(s, axis=0))) if s.shape[0] > 1 else 0.0
-                for s in strips[2:]
-            ]))
-
-            score = contrast + edge * 0.30
-            if best is None or score > best[0]:
-                best = (score, (x, y, cw, ch))
-
-    if best is not None and best[0] >= 38.0:
-        return best[1]
-
     return None
-
 
 
 def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
@@ -335,24 +296,12 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     rows = _cluster_rows(candidates, img.shape[0])
     if rows:
         rows = [_complete_row(row, img) for row in rows]
-        # Rows have already been reduced to regular card families.
-        # Do not use a fixed left/right cutoff: users can have different
-        # resolutions, aspect ratios, and different numbers of cards.
         return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
-    # If there is no regular inventory row, try a centered single-card
-    # viewer. This fallback deliberately does not invent a rectangle from
-    # screen dimensions: it still requires a detected contour with card-like
-    # geometry and visible border evidence.
     single = _single_card_candidate(img)
     if single is not None:
         return [[single]]
-
-    # Never fabricate card rectangles from screen dimensions alone.
-    # A generic/admin page can have strong edges in the same places as the
-    # old fallback grid and would then be returned as fake inventory cards.
     return []
-
 
 
 def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
@@ -368,18 +317,10 @@ def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
 
 def extract_visual_area(card: Image.Image) -> Image.Image:
     w, h = card.size
-    # Ignore small frame/quantity/name regions while keeping the actual artwork.
     return card.crop((int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.78)))
 
 
 def extract_frame_area(card: Image.Image) -> Image.Image:
-    """Build a compact image containing only the card's outer frame.
-
-    Saved admin icons are fitted into a black 256x384 canvas. Remove only
-    contiguous near-black padding first, otherwise that padding becomes part
-    of frame_colorhash and the saved icon gets a different color signature
-    from the same card cropped directly from an inventory screenshot.
-    """
     card = card.convert("RGB")
 
     arr = np.asarray(card)
@@ -391,7 +332,6 @@ def extract_frame_area(card: Image.Image) -> Image.Image:
         x1, x2 = int(xs.min()), int(xs.max()) + 1
         y1, y2 = int(ys.min()), int(ys.max()) + 1
 
-        # Only crop when the image actually has substantial black padding.
         if (
             x1 > card.width * 0.02
             or y1 > card.height * 0.02
@@ -425,9 +365,6 @@ def extract_frame_area(card: Image.Image) -> Image.Image:
     return canvas
 
 
-
-# Counter templates are normalized 9x20 binary glyphs. They are based on the
-# PUBG counter font visible in the supplied screenshots and cover quantities 2-9.
 _COUNTER_TEMPLATES = {
     2: "011111100011111110111111111111001111111000111000000111000000111000001111000001111000001111000111110000111100001111000011110000011110000111100000111100000111111111111111111111111111",
     3: "011111100011111110111111111111001111111000111000000111000000111000001111000111110000111110000111110000111111000001111000000111000000111111000111111001111111111111111111110011111110",
@@ -445,6 +382,8 @@ def _template_image(value: str) -> np.ndarray:
 
 
 def _digit_score(mask: np.ndarray, digit: int) -> float:
+    if mask is None or mask.size == 0 or mask.shape[0] < 3 or mask.shape[1] < 3:
+        return 0.0
     normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
     candidate = normalized >= 128
     template = _template_image(_COUNTER_TEMPLATES[digit]) > 0
@@ -453,97 +392,187 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
     return float(intersection / union) if union else 0.0
 
 
-def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float]:
-    """
-    Detect the small gray quantity badge in the card's upper-right corner.
+def _multiply_score(mask: np.ndarray) -> float:
+    if mask is None or mask.size == 0 or mask.shape[0] < 3 or mask.shape[1] < 3:
+        return 0.0
 
-    Returns:
-        cleaned_card, quantity (1 when no badge is present), confidence.
+    normalized = cv2.resize(mask.astype(np.uint8), (15, 15), interpolation=cv2.INTER_AREA)
+    candidate = normalized >= 128
+    template = np.zeros((15, 15), dtype=np.uint8)
+    cv2.line(template, (3, 3), (11, 11), 255, 2)
+    cv2.line(template, (11, 3), (3, 11), 255, 2)
+    target = template > 0
 
-    The badge itself is removed before hashing so ×2/×5/×7 do not create
-    different identities for the same visual card.
-    """
-    arr = cv2.cvtColor(np.array(card.convert("RGB")), cv2.COLOR_RGB2BGR)
+    intersection = np.logical_and(candidate, target).sum()
+    union = np.logical_or(candidate, target).sum()
+    iou = float(intersection / union) if union else 0.0
+
+    fill = float(candidate.mean())
+    return iou if 0.035 <= fill <= 0.45 else 0.0
+
+
+def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
+    card = card.convert("RGB")
+    arr = np.asarray(card)
     h, w = arr.shape[:2]
-    gray = cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
 
-    # The counter is always a small white glyph inside a gray badge at the
-    # upper-right. Looking for the glyph is safer than thresholding the whole
-    # gray rectangle because card artwork can also contain gray areas.
-    rx1, ry1 = int(w * 0.62), 0
-    rx2, ry2 = int(w * 0.995), int(h * 0.26)
-    roi = gray[ry1:ry2, rx1:rx2]
-    bright = cv2.inRange(roi, 190, 255)
+    if h < 20 or w < 20:
+        return card, 1, 0.0, {"roi": None, "candidates": 0, "selected": None, "reason": "card_too_small"}
 
-    components, labels, stats, _ = cv2.connectedComponentsWithStats(bright, 8)
-    digit_candidates = []
-    for label in range(1, components):
-        x, y, cw, ch, area = stats[label]
-        if area < 35 or area > 450:
+    # The counter badge is a UI element in the upper-right corner of the card.
+    # Work only inside this small ROI so card artwork is not interpreted as a digit.
+    x1 = int(w * 0.45)
+    y1 = 0
+    x2 = max(x1 + 1, int(w * 0.995))
+    y2 = max(y1 + 1, int(h * 0.28))
+
+    roi = arr[y1:y2, x1:x2]
+    gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+    bright = cv2.inRange(gray, 190, 255)
+
+    contours, _ = cv2.findContours(bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    candidates: list[dict[str, Any]] = []
+
+    roi_h, roi_w = gray.shape[:2]
+    for contour in contours:
+        cx, cy, cw, ch = cv2.boundingRect(contour)
+        area = cv2.contourArea(contour)
+        if ch < max(4, int(roi_h * 0.10)) or ch > int(roi_h * 0.90):
             continue
-        if ch < max(8, int(h * 0.045)) or ch > int(h * 0.14):
+        if cw < 2 or cw > max(8, int(roi_w * 0.30)):
             continue
-        if cw < 3 or cw > max(8, int(w * 0.09)):
+        if area < 3.0:
             continue
-        digit_candidates.append((label, x, y, cw, ch, area))
 
-    if not digit_candidates:
-        return card.convert("RGB"), 1, 0.0
+        mask = np.zeros((ch, cw), dtype=np.uint8)
+        shifted = contour - np.array([[[cx, cy]]], dtype=np.int32)
+        cv2.drawContours(mask, [shifted], -1, 255, thickness=-1)
 
-    # The number is the rightmost suitable white component.
-    digit_candidates.sort(key=lambda item: (item[1] + item[3], item[4]), reverse=True)
-    label, dx, dy, dw, dh, _ = digit_candidates[0]
+        scores = {digit: _digit_score(mask, digit) for digit in range(2, 10)}
+        ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        best_digit, best_score = ordered[0]
+        runner_up = ordered[1][1]
 
-    # Reject unrelated artwork highlights that happen to be in the same ROI.
-    absolute_x = rx1 + dx
-    absolute_y = ry1 + dy
-    if absolute_x < int(w * 0.70) or absolute_y > int(h * 0.22):
-        return card.convert("RGB"), 1, 0.0
+        if best_score < 0.42 or best_score - runner_up < 0.025:
+            continue
 
-    mask = (labels == label).astype(np.uint8) * 255
-    digit = mask[dy:dy + dh, dx:dx + dw]
-    scores = sorted(
-        ((_digit_score(digit, d), d) for d in _COUNTER_TEMPLATES),
-        reverse=True,
-    )
-    confidence, quantity = scores[0]
-    runner_up = scores[1][0] if len(scores) > 1 else 0.0
+        candidates.append({
+            "x": x1 + cx,
+            "y": y1 + cy,
+            "w": cw,
+            "h": ch,
+            "digit": best_digit,
+            "score": best_score,
+        })
 
-    # Require both a reasonable glyph match and separation from the next digit.
-    if confidence < 0.42 or confidence - runner_up < 0.025:
-        return card.convert("RGB"), 1, 0.0
+    if not candidates:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": 0,
+            "selected": None,
+            "reason": "no_confident_digit",
+        }
 
-    # The multiplication sign should be immediately to the left of the digit.
-    left_region = bright[
-        max(0, dy - int(dh * 0.25)):min(roi.shape[0], dy + dh + int(dh * 0.25)),
-        max(0, dx - int(dw * 1.9)):dx,
+    candidates.sort(key=lambda item: item["score"], reverse=True)
+    selected = candidates[0]
+    digit_x = int(selected["x"])
+    digit_y = int(selected["y"])
+    digit_w = int(selected["w"])
+    digit_h = int(selected["h"])
+
+    # Validate the multiplication sign separately. It must look like an actual
+    # X, not merely be another bright rectangular contour.
+    sign_candidates: list[tuple[float, int, int, int, int]] = []
+    search_left = max(x1, digit_x - int(w * 0.12))
+    sign_region = bright[
+        max(0, digit_y - int(digit_h * 0.35)):min(roi_h, digit_y + digit_h + int(digit_h * 0.35)),
+        search_left - x1:digit_x - x1,
     ]
-    left_components, _, left_stats, _ = cv2.connectedComponentsWithStats(left_region, 8)
-    has_multiplier = any(
-        8 <= s[2] <= max(14, int(w * 0.08))
-        and 5 <= s[3] <= max(16, int(h * 0.10))
-        and 15 <= s[4] <= 180
-        for s in left_stats[1:]
-    )
-    if not has_multiplier:
-        return card.convert("RGB"), 1, 0.0
 
-    # Remove the whole badge with a small inpaint margin. Keep the operation
-    # local so card artwork outside the badge is untouched.
-    x1 = max(0, absolute_x - int(dw * 1.65))
-    y1 = max(0, absolute_y - int(dh * 0.38))
-    x2 = min(w, absolute_x + dw + int(dw * 0.45))
-    y2 = min(h, absolute_y + dh + int(dh * 0.45))
-    inpaint_mask = np.zeros((h, w), dtype=np.uint8)
-    inpaint_mask[y1:y2, x1:x2] = 255
-    cleaned = cv2.inpaint(arr, inpaint_mask, 3, cv2.INPAINT_TELEA)
-    cleaned_pil = Image.fromarray(cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB))
+    if sign_region.size:
+        sign_contours, _ = cv2.findContours(sign_region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        sy0 = max(0, digit_y - int(digit_h * 0.35))
+        for contour in sign_contours:
+            sx, sy, sw, sh = cv2.boundingRect(contour)
+            if sw < 3 or sh < 3:
+                continue
+            if sw > digit_h * 1.25 or sh > digit_h * 1.25:
+                continue
+            area = cv2.contourArea(contour)
+            if area < 2.0:
+                continue
 
-    return cleaned_pil, int(quantity), float(confidence)
+            mask = np.zeros((sh, sw), dtype=np.uint8)
+            shifted = contour - np.array([[[sx, sy]]], dtype=np.int32)
+            cv2.drawContours(mask, [shifted], -1, 255, thickness=-1)
+            score = _multiply_score(mask)
+            sign_candidates.append((score, search_left + sx, sy0 + sy, sw, sh))
 
+    if not sign_candidates:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": len(candidates),
+            "selected": {"digit": selected["digit"], "score": round(float(selected["score"]), 3)},
+            "reason": "multiply_sign_not_found",
+        }
+
+    sign_candidates.sort(key=lambda item: item[0], reverse=True)
+    sign_score, sign_x, sign_y, sign_w, sign_h = sign_candidates[0]
+    if sign_score < 0.30:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": len(candidates),
+            "selected": {"digit": selected["digit"], "score": round(float(selected["score"]), 3)},
+            "reason": "multiply_sign_low_confidence",
+            "multiply_score": round(float(sign_score), 3),
+        }
+
+    # Remove only the detected UI badge from the hash input. Geometry stays
+    # unchanged and the user-facing preview continues to use the original crop.
+    # Expand to the whole small UI badge, not only the white glyphs.
+    # This removes the gray square behind ×N from the hash input as well.
+    left = max(0, min(sign_x, digit_x) - int(w * 0.025))
+    right = min(w, max(sign_x + sign_w, digit_x + digit_w) + int(w * 0.045))
+    top = max(0, min(sign_y, digit_y) - int(h * 0.035))
+    bottom = min(h, max(sign_y + sign_h, digit_y + digit_h) + int(h * 0.045))
+
+    clean = arr.copy()
+    patch = clean[max(0, top - 1):min(h, bottom + 1), max(0, left - 1):min(w, right + 1)]
+    if patch.size:
+        clean[max(0, top):bottom, max(0, left):right] = np.median(patch, axis=(0, 1)).astype(np.uint8)
+
+    clean_card = Image.fromarray(clean, mode="RGB")
+    return clean_card, int(selected["digit"]), float(min(selected["score"], sign_score)), {
+        "roi": [x1, y1, x2, y2],
+        "candidates": len(candidates),
+        "selected": {
+            "digit": selected["digit"],
+            "digit_score": round(float(selected["score"]), 3),
+            "multiply_score": round(float(sign_score), 3),
+            "box": [left, top, right - left, bottom - top],
+        },
+        "reason": "ok",
+    }
 
 def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
+
+
+def is_gray_locked_card(card: Image.Image) -> bool:
+    arr = np.asarray(card.convert("RGB"))
+    if arr.size == 0:
+        return False
+    hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+    h, w = hsv.shape[:2]
+    border = np.concatenate([
+        hsv[:max(1, int(h * 0.12)), :, 1].ravel(),
+        hsv[max(0, int(h * 0.88)):, :, 1].ravel(),
+        hsv[:, :max(1, int(w * 0.10)), 1].ravel(),
+        hsv[:, max(0, int(w * 0.90)):, 1].ravel(),
+    ])
+    if border.size == 0:
+        return False
+    return float(np.mean(border)) < 20.0 and float(np.percentile(border, 90)) < 48.0
 
 
 def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
@@ -555,21 +584,29 @@ def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
         "full_dhash": str(imagehash.dhash(full)),
         "visual_phash": str(imagehash.phash(visual)),
         "visual_dhash": str(imagehash.dhash(visual)),
-        # pHash/dHash are grayscale and therefore can treat a blue and a
-        # gold rarity frame as nearly identical. colorhash keeps the hue
-        # information from the outer frame.
         "frame_colorhash": str(imagehash.colorhash(frame)),
     }
 
 
 def encode_preview(card: Image.Image) -> str:
-    """Encode a small preview in memory; never persist scan previews on Render."""
     image = card.convert("RGB")
     image.thumbnail((256, 384), Image.Resampling.LANCZOS)
     buffer = BytesIO()
     image.save(buffer, "JPEG", quality=82, optimize=True)
     encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
     return f"data:image/jpeg;base64,{encoded}"
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
@@ -579,7 +616,9 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
     for item in detected:
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
-        clean_crop, quantity, quantity_confidence = _detect_counter(crop)
+        if is_gray_locked_card(crop):
+            continue
+        clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
         raw_hashes = calculate_card_hashes(crop)
         hashes = calculate_card_hashes(clean_crop)
         entry = {
@@ -594,8 +633,10 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
             "quantity": quantity,
             "duplicates": max(0, quantity - 1),
             "quantity_confidence": round(quantity_confidence, 3),
+            "counter_debug": counter_debug,
         }
         if save_previews:
-            entry["preview"] = encode_preview(clean_crop)
+            # Keep the original card in the preview; UI cleanup is hash-only.
+            entry["preview"] = encode_preview(crop)
         cards.append(entry)
-    return {"cards": cards, "count": len(cards), "image_size": list(image.size)}
+    return _json_safe({"cards": cards, "count": len(cards), "image_size": list(image.size)})
