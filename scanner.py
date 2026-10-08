@@ -382,6 +382,8 @@ def _template_image(value: str) -> np.ndarray:
 
 
 def _digit_score(mask: np.ndarray, digit: int) -> float:
+    if mask is None or mask.size == 0 or mask.shape[0] < 3 or mask.shape[1] < 3:
+        return 0.0
     normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
     candidate = normalized >= 128
     template = _template_image(_COUNTER_TEMPLATES[digit]) > 0
@@ -390,18 +392,165 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
     return float(intersection / union) if union else 0.0
 
 
+def _multiply_score(mask: np.ndarray) -> float:
+    if mask is None or mask.size == 0 or mask.shape[0] < 3 or mask.shape[1] < 3:
+        return 0.0
+
+    normalized = cv2.resize(mask.astype(np.uint8), (15, 15), interpolation=cv2.INTER_AREA)
+    candidate = normalized >= 128
+    template = np.zeros((15, 15), dtype=np.uint8)
+    cv2.line(template, (3, 3), (11, 11), 255, 2)
+    cv2.line(template, (11, 3), (3, 11), 255, 2)
+    target = template > 0
+
+    intersection = np.logical_and(candidate, target).sum()
+    union = np.logical_or(candidate, target).sum()
+    iou = float(intersection / union) if union else 0.0
+
+    fill = float(candidate.mean())
+    return iou if 0.035 <= fill <= 0.45 else 0.0
+
+
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
-    # CONTROL TEST:
-    # Temporarily disable all counter recognition for this deployment.
-    # This removes connectedComponentsWithStats() and all counter-specific
-    # OpenCV processing from the scan path. Card detection and hash
-    # calculation remain unchanged.
-    return (
-        card.convert("RGB"),
-        1,
-        0.0,
-        {"roi": None, "candidates": 0, "selected": None, "reason": "counter_detection_disabled_test"},
-    )
+    card = card.convert("RGB")
+    arr = np.asarray(card)
+    h, w = arr.shape[:2]
+
+    if h < 20 or w < 20:
+        return card, 1, 0.0, {"roi": None, "candidates": 0, "selected": None, "reason": "card_too_small"}
+
+    # The counter badge is a UI element in the upper-right corner of the card.
+    # Work only inside this small ROI so card artwork is not interpreted as a digit.
+    x1 = int(w * 0.45)
+    y1 = 0
+    x2 = max(x1 + 1, int(w * 0.995))
+    y2 = max(y1 + 1, int(h * 0.28))
+
+    roi = arr[y1:y2, x1:x2]
+    gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+    bright = cv2.inRange(gray, 190, 255)
+
+    contours, _ = cv2.findContours(bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    candidates: list[dict[str, Any]] = []
+
+    roi_h, roi_w = gray.shape[:2]
+    for contour in contours:
+        cx, cy, cw, ch = cv2.boundingRect(contour)
+        area = cv2.contourArea(contour)
+        if ch < max(4, int(roi_h * 0.10)) or ch > int(roi_h * 0.90):
+            continue
+        if cw < 2 or cw > max(8, int(roi_w * 0.30)):
+            continue
+        if area < 3.0:
+            continue
+
+        mask = np.zeros((ch, cw), dtype=np.uint8)
+        shifted = contour - np.array([[[cx, cy]]], dtype=np.int32)
+        cv2.drawContours(mask, [shifted], -1, 255, thickness=-1)
+
+        scores = {digit: _digit_score(mask, digit) for digit in range(2, 10)}
+        ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        best_digit, best_score = ordered[0]
+        runner_up = ordered[1][1]
+
+        if best_score < 0.42 or best_score - runner_up < 0.025:
+            continue
+
+        candidates.append({
+            "x": x1 + cx,
+            "y": y1 + cy,
+            "w": cw,
+            "h": ch,
+            "digit": best_digit,
+            "score": best_score,
+        })
+
+    if not candidates:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": 0,
+            "selected": None,
+            "reason": "no_confident_digit",
+        }
+
+    candidates.sort(key=lambda item: item["score"], reverse=True)
+    selected = candidates[0]
+    digit_x = int(selected["x"])
+    digit_y = int(selected["y"])
+    digit_w = int(selected["w"])
+    digit_h = int(selected["h"])
+
+    # Validate the multiplication sign separately. It must look like an actual
+    # X, not merely be another bright rectangular contour.
+    sign_candidates: list[tuple[float, int, int, int, int]] = []
+    search_left = max(x1, digit_x - int(w * 0.12))
+    sign_region = bright[
+        max(0, digit_y - int(digit_h * 0.35)):min(roi_h, digit_y + digit_h + int(digit_h * 0.35)),
+        search_left - x1:digit_x - x1,
+    ]
+
+    if sign_region.size:
+        sign_contours, _ = cv2.findContours(sign_region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        sy0 = max(0, digit_y - int(digit_h * 0.35))
+        for contour in sign_contours:
+            sx, sy, sw, sh = cv2.boundingRect(contour)
+            if sw < 3 or sh < 3:
+                continue
+            if sw > digit_h * 1.25 or sh > digit_h * 1.25:
+                continue
+            area = cv2.contourArea(contour)
+            if area < 2.0:
+                continue
+
+            mask = np.zeros((sh, sw), dtype=np.uint8)
+            shifted = contour - np.array([[[sx, sy]]], dtype=np.int32)
+            cv2.drawContours(mask, [shifted], -1, 255, thickness=-1)
+            score = _multiply_score(mask)
+            sign_candidates.append((score, search_left + sx, sy0 + sy, sw, sh))
+
+    if not sign_candidates:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": len(candidates),
+            "selected": {"digit": selected["digit"], "score": round(float(selected["score"]), 3)},
+            "reason": "multiply_sign_not_found",
+        }
+
+    sign_candidates.sort(key=lambda item: item[0], reverse=True)
+    sign_score, sign_x, sign_y, sign_w, sign_h = sign_candidates[0]
+    if sign_score < 0.30:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": len(candidates),
+            "selected": {"digit": selected["digit"], "score": round(float(selected["score"]), 3)},
+            "reason": "multiply_sign_low_confidence",
+            "multiply_score": round(float(sign_score), 3),
+        }
+
+    # Remove only the detected UI badge from the hash input. Geometry stays
+    # unchanged and the user-facing preview continues to use the original crop.
+    left = max(0, min(sign_x, digit_x) - int(w * 0.015))
+    right = min(w, max(sign_x + sign_w, digit_x + digit_w) + int(w * 0.015))
+    top = max(0, min(sign_y, digit_y) - int(h * 0.015))
+    bottom = min(h, max(sign_y + sign_h, digit_y + digit_h) + int(h * 0.015))
+
+    clean = arr.copy()
+    patch = clean[max(0, top - 1):min(h, bottom + 1), max(0, left - 1):min(w, right + 1)]
+    if patch.size:
+        clean[max(0, top):bottom, max(0, left):right] = np.median(patch, axis=(0, 1)).astype(np.uint8)
+
+    clean_card = Image.fromarray(clean, mode="RGB")
+    return clean_card, int(selected["digit"]), float(min(selected["score"], sign_score)), {
+        "roi": [x1, y1, x2, y2],
+        "candidates": len(candidates),
+        "selected": {
+            "digit": selected["digit"],
+            "digit_score": round(float(selected["score"]), 3),
+            "multiply_score": round(float(sign_score), 3),
+            "box": [left, top, right - left, bottom - top],
+        },
+        "reason": "ok",
+    }
 
 def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
@@ -485,6 +634,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
             "counter_debug": counter_debug,
         }
         if save_previews:
-            entry["preview"] = encode_preview(clean_crop)
+            # Keep the original card in the preview; UI cleanup is hash-only.
+            entry["preview"] = encode_preview(crop)
         cards.append(entry)
     return _json_safe({"cards": cards, "count": len(cards), "image_size": list(image.size)})
