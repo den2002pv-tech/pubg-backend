@@ -258,6 +258,10 @@ CARD_MATCH_ACCEPTABLE_DISTANCE = int(os.getenv("CARD_MATCH_ACCEPTABLE_DISTANCE",
 CARD_MATCH_MIN_STRONG_HASHES = int(os.getenv("CARD_MATCH_MIN_STRONG_HASHES", "2"))
 CARD_MATCH_MIN_ACCEPTABLE_HASHES = int(os.getenv("CARD_MATCH_MIN_ACCEPTABLE_HASHES", "3"))
 CARD_MATCH_COLOR_MAX_RATIO = float(os.getenv("CARD_MATCH_COLOR_MAX_RATIO", "0.35"))
+# A fallback for animated cards whose hashes are consistently shifted: if the
+# best candidate is clearly ahead of the runner-up, 3 acceptable hashes plus
+# a compatible frame color can be enough even without 2 "strong" hashes.
+CARD_MATCH_CONFIDENT_MARGIN = float(os.getenv("CARD_MATCH_CONFIDENT_MARGIN", "5.0"))
 
 
 def _migrate_frame_color_hashes() -> None:
@@ -298,21 +302,19 @@ def _migrate_frame_color_hashes() -> None:
 
 def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | None, float]:
     """
-    Match by hash voting instead of a global average.
+    Match by hash voting, with a conservative confidence-margin fallback.
 
-    A card is accepted only when:
-      - at least 2 of the 4 grayscale hashes are <= CARD_MATCH_STRONG_DISTANCE;
-      - at least 3 of the 4 grayscale hashes are <= CARD_MATCH_ACCEPTABLE_DISTANCE;
-      - no available grayscale hash is above CARD_MATCH_ACCEPTABLE_DISTANCE;
-      - when a frame color hash exists, it must also be compatible.
+    Normal matches still require the configured strong/acceptable vote. For
+    animated cards, where every hash can shift by a few bits, a candidate may
+    pass without two strong hashes only when:
+      - it has at least 3 acceptable grayscale hashes;
+      - it passes the existing outlier safety ceiling;
+      - its frame color is compatible;
+      - it is clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
 
-    The returned score is the average of the two strongest grayscale hashes.
-    This keeps the displayed distance intuitive while preventing several
-    mediocre 10-18 distances from producing a false match.
+    This avoids globally relaxing the strong threshold.
     """
-    best_id: str | None = None
-    best_score = float("inf")
-
+    candidates: list[dict[str, Any]] = []
     standard_keys = (
         "full_phash",
         "full_dhash",
@@ -329,12 +331,10 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             other = stored.get(key)
             if not value or not other:
                 continue
-
             d = _hamming(value, other)
             if d is not None:
                 distances.append(d)
 
-        # Legacy records may only have the old single "hash" field.
         if not distances:
             legacy = info.get("hash")
             value = card_hashes.get("full_dhash", "")
@@ -346,27 +346,18 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             continue
 
         distances.sort()
-
         strong_count = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
         acceptable_count = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
-
-        if strong_count < CARD_MATCH_MIN_STRONG_HASHES:
-            continue
 
         if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
             continue
 
-        # One grayscale hash may be an outlier because of crop/compression.
-        # The 3-of-4 voting rule above is the actual acceptance gate.
-        # Keep only a safety ceiling for very poor candidates.
         if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6:
             continue
 
         scan_color = card_hashes.get("frame_colorhash")
         stored_color = stored.get("frame_colorhash")
 
-        # If the scanner has a color frame hash, a stored card without one
-        # cannot be considered an identity match.
         if scan_color and not stored_color:
             continue
 
@@ -374,12 +365,8 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             color_distance = _hamming(scan_color, stored_color)
             if color_distance is None:
                 continue
-
             color_bits = max(1, len(scan_color) * 4)
             color_ratio = color_distance / color_bits
-            # Color is a secondary discriminator. Strong grayscale agreement
-            # may survive lighting/JPEG changes, while a large hue mismatch
-            # is penalized so blue/gold variants do not tie.
             if color_ratio > 0.55 and strong_count < 3:
                 continue
             color_penalty = color_ratio * 8.0
@@ -388,11 +375,41 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             color_penalty = 0.0
 
         score = (distances[0] + distances[1]) / 2 + color_penalty
-        if score < best_score:
-            best_score = score
-            best_id = card_id
+        candidates.append({
+            "id": card_id,
+            "score": score,
+            "strong": strong_count,
+            "acceptable": acceptable_count,
+            "color_ratio": color_ratio,
+        })
 
-    return best_id, best_score
+    if not candidates:
+        return None, float("inf")
+
+    candidates.sort(key=lambda item: item["score"])
+    best = candidates[0]
+    runner_up = candidates[1] if len(candidates) > 1 else None
+
+    # Preferred path: the original strong-vote rule.
+    if best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES:
+        return best["id"], best["score"]
+
+    # Conservative fallback for animated/dynamic cards. Do not simply raise
+    # the strong threshold globally: that would weaken discrimination for
+    # visually similar static cards. Instead require a clear score margin.
+    margin = (
+        runner_up["score"] - best["score"]
+        if runner_up is not None
+        else float("inf")
+    )
+    if (
+        best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
+        and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO
+        and margin > CARD_MATCH_CONFIDENT_MARGIN
+    ):
+        return best["id"], best["score"]
+
+    return None, float("inf")
 
 def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], limit: int = 8) -> list[dict[str, Any]]:
     """Return ranked match diagnostics for admin troubleshooting.
