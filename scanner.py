@@ -440,25 +440,32 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
     return float(intersection / union) if union else 0.0
 
 
-def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float]:
+def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
     """
     Detect the small gray quantity badge in the card's upper-right corner.
 
-    Returns:
-        cleaned_card, quantity (1 when no badge is present), confidence.
-
-    The badge itself is removed before hashing so ×2/×5/×7 do not create
-    different identities for the same visual card.
+    The detector deliberately searches a wider upper-right region because
+    animated/mythic card frames can extend the bounding box beyond the normal
+    card body. The returned debug object explains why a counter was accepted
+    or rejected.
     """
     arr = cv2.cvtColor(np.array(card.convert("RGB")), cv2.COLOR_RGB2BGR)
     h, w = arr.shape[:2]
     gray = cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
 
-    # The counter is always a small white glyph inside a gray badge at the
-    # upper-right. Looking for the glyph is safer than thresholding the whole
-    # gray rectangle because card artwork can also contain gray areas.
-    rx1, ry1 = int(w * 0.62), 0
-    rx2, ry2 = int(w * 0.995), int(h * 0.26)
+    debug: dict[str, Any] = {
+        "roi": None,
+        "candidates": 0,
+        "selected": None,
+        "reason": None,
+    }
+
+    # Do not anchor the badge to a fixed 62% x-position. Fire/ornamental
+    # borders can make the detected box much wider than the card body, while
+    # the actual badge stays over the normal card area.
+    rx1, ry1 = int(w * 0.45), 0
+    rx2, ry2 = int(w * 0.995), int(h * 0.28)
+    debug["roi"] = [rx1, ry1, rx2, ry2]
     roi = gray[ry1:ry2, rx1:rx2]
     bright = cv2.inRange(roi, 190, 255)
 
@@ -474,18 +481,31 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float]:
             continue
         digit_candidates.append((label, x, y, cw, ch, area))
 
+    debug["candidates"] = len(digit_candidates)
+
     if not digit_candidates:
-        return card.convert("RGB"), 1, 0.0
+        debug["reason"] = "no_digit_candidate"
+        return card.convert("RGB"), 1, 0.0, debug
 
-    # The number is the rightmost suitable white component.
     digit_candidates.sort(key=lambda item: (item[1] + item[3], item[4]), reverse=True)
-    label, dx, dy, dw, dh, _ = digit_candidates[0]
+    label, dx, dy, dw, dh, area = digit_candidates[0]
 
-    # Reject unrelated artwork highlights that happen to be in the same ROI.
     absolute_x = rx1 + dx
     absolute_y = ry1 + dy
-    if absolute_x < int(w * 0.70) or absolute_y > int(h * 0.22):
-        return card.convert("RGB"), 1, 0.0
+    debug["selected"] = {
+        "x": absolute_x,
+        "y": absolute_y,
+        "width": dw,
+        "height": dh,
+        "area": area,
+        "relative_x": round(absolute_x / max(1, w), 3),
+    }
+
+    # Keep a broad positional guard, but no longer require the digit to be
+    # inside the far-right 30% of the detected box.
+    if absolute_x < int(w * 0.45) or absolute_y > int(h * 0.24):
+        debug["reason"] = "candidate_outside_badge_zone"
+        return card.convert("RGB"), 1, 0.0, debug
 
     mask = (labels == label).astype(np.uint8) * 255
     digit = mask[dy:dy + dh, dx:dx + dw]
@@ -495,12 +515,14 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float]:
     )
     confidence, quantity = scores[0]
     runner_up = scores[1][0] if len(scores) > 1 else 0.0
+    debug["digit"] = int(quantity)
+    debug["confidence"] = round(float(confidence), 3)
+    debug["runner_up"] = round(float(runner_up), 3)
 
-    # Require both a reasonable glyph match and separation from the next digit.
     if confidence < 0.42 or confidence - runner_up < 0.025:
-        return card.convert("RGB"), 1, 0.0
+        debug["reason"] = "weak_digit_match"
+        return card.convert("RGB"), 1, 0.0, debug
 
-    # The multiplication sign should be immediately to the left of the digit.
     left_region = bright[
         max(0, dy - int(dh * 0.25)):min(roi.shape[0], dy + dh + int(dh * 0.25)),
         max(0, dx - int(dw * 1.9)):dx,
@@ -512,11 +534,11 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float]:
         and 15 <= s[4] <= 180
         for s in left_stats[1:]
     )
+    debug["has_multiplier"] = bool(has_multiplier)
     if not has_multiplier:
-        return card.convert("RGB"), 1, 0.0
+        debug["reason"] = "multiplier_not_found"
+        return card.convert("RGB"), 1, 0.0, debug
 
-    # Remove the whole badge with a small inpaint margin. Keep the operation
-    # local so card artwork outside the badge is untouched.
     x1 = max(0, absolute_x - int(dw * 1.65))
     y1 = max(0, absolute_y - int(dh * 0.38))
     x2 = min(w, absolute_x + dw + int(dw * 0.45))
@@ -526,8 +548,9 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float]:
     cleaned = cv2.inpaint(arr, inpaint_mask, 3, cv2.INPAINT_TELEA)
     cleaned_pil = Image.fromarray(cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB))
 
-    return cleaned_pil, int(quantity), float(confidence)
-
+    debug["reason"] = "accepted"
+    debug["badge_box"] = [x1, y1, x2, y2]
+    return cleaned_pil, int(quantity), float(confidence), debug
 
 def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
@@ -588,7 +611,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         # Do not let them enter matching or the user's inventory.
         if is_gray_locked_card(crop):
             continue
-        clean_crop, quantity, quantity_confidence = _detect_counter(crop)
+        clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
         raw_hashes = calculate_card_hashes(crop)
         hashes = calculate_card_hashes(clean_crop)
         entry = {
@@ -603,6 +626,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
             "quantity": quantity,
             "duplicates": max(0, quantity - 1),
             "quantity_confidence": round(quantity_confidence, 3),
+            "counter_debug": counter_debug,
         }
         if save_previews:
             entry["preview"] = encode_preview(clean_crop)
