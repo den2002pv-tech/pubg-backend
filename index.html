@@ -27,7 +27,7 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 .compare-details summary{color:#aeb4bb;font-size:11px;cursor:pointer}.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
 .compare-box{min-width:0}.compare-label{color:#8e949b;font-size:9px;text-align:center;margin-bottom:3px}
 .compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#111;border-radius:6px;display:block}
-.toolbar{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px}.toolbar input,.toolbar select,.scan-qty{width:100%;background:#11151a;color:#fff;border:1px solid #3a4048;border-radius:9px;padding:9px}
+.toolbar{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px}.toolbar input,.toolbar select,.scan-qty,.inventory-qty{width:100%;background:#11151a;color:#fff;border:1px solid #3a4048;border-radius:9px;padding:9px}.inventory-actions{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:8px}.small-danger{border:1px solid #8b3d3d;border-radius:8px;padding:8px;background:#4a2525;color:#fff;cursor:pointer}.small-save{border:0;border-radius:8px;padding:8px;background:#2d7d4f;color:#fff;cursor:pointer}.small-save:disabled,.small-danger:disabled{opacity:.55}.missing-filter{display:flex;align-items:center;gap:7px;margin:8px 0;color:#c9cdd1;font-size:12px}.missing-filter input{width:18px;height:18px}
 .scan-row{display:flex;gap:8px;align-items:center;margin-top:8px}.scan-row label{display:flex;align-items:center;gap:6px;font-size:12px;color:#c9cdd1}
 .scan-row input[type=checkbox]{width:18px;height:18px}.scan-qty{max-width:90px}.manual-check{position:absolute;left:8px;top:8px;z-index:2;width:20px;height:20px}
 @media(max-width:380px){.compare{gap:4px}}
@@ -79,6 +79,7 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
     <option value="owned">Полученные первыми</option>
    </select>
   </div>
+  <label class="missing-filter"><input id="missingOnly" type="checkbox"> Только карты, которых сейчас нет (×0)</label>
   <div class="hint">Галочка «Хочу получить» — это отдельный список желаемых карт. Она не меняет количество в инвентаре.</div>
   <div id="inventoryList" class="grid"></div>
   <button id="saveDesiredBtn" class="trade" disabled>💾 Сохранить желаемые карты</button>
@@ -105,7 +106,7 @@ function inventoryQuantity(id){const c=inventoryCards.find(x=>x.id===id);return 
 document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>switchTab(btn.dataset.tab)));
 input.addEventListener('change',uploadImage);
 document.getElementById('inventorySearch').addEventListener('input',renderInventory);
-document.getElementById('inventorySort').addEventListener('change',renderInventory);
+document.getElementById('inventorySort').addEventListener('change',renderInventory);\ndocument.getElementById('missingOnly').addEventListener('change',renderInventory);
 document.getElementById('saveDesiredBtn').addEventListener('click',saveDesired);
 confirmBtn.addEventListener('click',confirmCollection);
 document.getElementById('clearInventoryBtn').addEventListener('click',clearMyInventory);
@@ -137,20 +138,21 @@ function showResults(cards){
  cards.forEach(c=>{
   const recognized=!!c.id;
   const pending=recognized?pendingCards.find(x=>x.id===c.id&&x.row===c.row&&x.col===c.col):null;
-  const detected=pending?pending.editQuantity:Math.max(1,num(c.quantity,1));
+  const detected=pending&&pending.editQuantity!=null?pending.editQuantity:Math.max(1,num(c.quantity,1));
   const owned=recognized?inventoryQuantity(c.id):0;
-  const duplicates=Math.max(0,detected-1);
+  const duplicates=detected==null?0:Math.max(0,detected-1);
   const compare='<div class="compare"><div class="compare-box"><div class="compare-label">Скан</div>'+(c.preview?'<img src="'+esc(assetUrl(c.preview))+'" alt="Скан карты">':'<div class="empty">Нет изображения</div>')+'</div><div class="compare-box"><div class="compare-label">Эталон</div>'+(c.icon?'<img src="'+esc(assetUrl(c.icon))+'" alt="Эталон карты">':'<div class="empty">Нет эталона</div>')+'</div></div>';
   const el=document.createElement('div');el.className='card'+(pending?.selected?' selected':'');
-  el.innerHTML='<div class="icon-wrap">'+compare+'<span class="qty">скан ×'+detected+'</span></div>'+
+  el.innerHTML='<div class="icon-wrap">'+compare+'<span class="qty">скан ×'+(detected==null?'—':detected)+'</span></div>'+
    '<div class="name">'+esc(c.name||'Неизвестная карта')+'</div>'+
    '<div class="meta">'+(recognized?'У пользователя сейчас: <b>×'+owned+'</b>':'Не распознана')+'</div>'+
-   (recognized?'<div class="scan-row"><label><input class="scan-select" type="checkbox" '+(pending?.selected?'checked':'')+'> Сохранить</label><input class="scan-qty" type="number" min="1" max="999" value="'+detected+'" aria-label="Количество"></div><div class="tech">После сохранения: ×'+detected+' · дубликатов: '+duplicates+'</div>':'<div class="tech">Эта карта не будет изменять инвентарь.</div>')+
+   (recognized?'<div class="scan-row"><label><input class="scan-select" type="checkbox" '+(pending?.selected?'checked':'')+'> Сохранить</label><input class="scan-qty" type="number" min="1" max="999" value="'+(detected==null?'':detected)+'" aria-label="Количество"></div><div class="tech">После сохранения: ×'+(detected==null?'—':detected)+' · дубликатов: '+duplicates+'</div>':'<div class="tech">Эта карта не будет изменять инвентарь.</div>')+
    compare+'<div class="tech">'+(c.distance!=null?'Совпадение: d='+esc(c.distance):'Совпадение не определено')+'</div>';
   if(recognized){
    const cb=el.querySelector('.scan-select'),q=el.querySelector('.scan-qty');
    cb.addEventListener('change',()=>{pending.selected=cb.checked;el.classList.toggle('selected',cb.checked);updateConfirmState();});
-   q.addEventListener('input',()=>{pending.editQuantity=Math.max(1,Math.min(999,num(q.value,1)));q.value=pending.editQuantity;renderScanCardQuantity(el,pending.editQuantity);});
+   q.addEventListener('input',()=>{ if(q.value===''){pending.editQuantity=null;renderScanCardQuantity(el,null);return;} const n=Number(q.value); if(Number.isFinite(n)) pending.editQuantity=Math.max(1,Math.min(999,Math.trunc(n))); renderScanCardQuantity(el,pending.editQuantity); });
+   q.addEventListener('blur',()=>{if(pending.editQuantity==null){q.value='';}else{q.value=pending.editQuantity;}});
   }
   root.appendChild(el);
  });
@@ -161,11 +163,11 @@ function renderScanCardQuantity(el,q){
  const badge=el.querySelector('.qty'),dup=el.querySelector('.tech:nth-last-child(2)');
  if(badge)badge.textContent='скан ×'+q;
  const tech=[...el.querySelectorAll('.tech')].find(x=>x.textContent.includes('После сохранения:'));
- if(tech)tech.textContent='После сохранения: ×'+q+' · дубликатов: '+Math.max(0,q-1);
+ if(tech)tech.textContent=q==null?'Введите количество перед сохранением':'После сохранения: ×'+q+' · дубликатов: '+Math.max(0,q-1);
 }
 
 function updateConfirmState(){
- const selected=pendingCards.filter(c=>c.selected);
+ const selected=pendingCards.filter(c=>c.selected&&c.editQuantity!=null);
  confirmBtn.style.display=pendingCards.length?'block':'none';
  confirmBtn.disabled=!selected.length;
  confirmBtn.textContent=selected.length?'✅ Сохранить выбранные ('+selected.length+')':'⚠️ Выберите карты';
@@ -186,7 +188,7 @@ async function loadMyCollection(){
 
 function sortedFilteredInventory(){
  const query=document.getElementById('inventorySearch').value.trim().toLowerCase();
- let list=inventoryCards.filter(c=>(!query||String(c.name||'').toLowerCase().includes(query)||String(c.id||'').toLowerCase().includes(query)));
+ const missingOnly=document.getElementById('missingOnly').checked;\n let list=inventoryCards.filter(c=>(!missingOnly||num(c.quantity)===0)&&(!query||String(c.name||'').toLowerCase().includes(query)||String(c.id||'').toLowerCase().includes(query)));
  const mode=document.getElementById('inventorySort').value;
  list.sort((a,b)=>{
   const aq=num(a.quantity),bq=num(b.quantity),ad=Math.max(0,aq-1),bd=Math.max(0,bq-1);
@@ -218,8 +220,13 @@ function renderInventory(){
   const el=document.createElement('div');el.className='card'+(qty===0?' missing':'')+(desired?' selected':'');
   el.innerHTML='<div class="icon-wrap">'+icon+'<span class="qty '+(qty===0?'zero':'')+'">×'+qty+'</span></div>'+
    '<div class="name">'+esc(c.name)+'</div><div class="meta">Редкость: '+esc(c.rarity)+' · Дубликатов: '+dup+'</div>'+
+   '<div class="inventory-actions"><input class="inventory-qty" type="number" min="0" max="999" value="'+qty+'" aria-label="Количество"><button class="small-save">💾</button></div>'+
+   '<button class="small-danger" style="width:100%;margin-top:6px">🗑️ Удалить из инвентаря</button>'+
    '<div class="desired-row"><label><input type="checkbox" class="desired-check" data-id="'+esc(c.id)+'" '+(desired?'checked':'')+'> ⭐ Хочу получить</label></div>'+
    '<div class="tech">ID: '+esc(c.id)+'</div>';
+  const qtyInput=el.querySelector('.inventory-qty'),saveQty=el.querySelector('.small-save'),deleteBtn=el.querySelector('.small-danger');
+  saveQty.addEventListener('click',()=>updateInventoryQuantity(c.id,qtyInput.value,saveQty));
+  deleteBtn.addEventListener('click',()=>updateInventoryQuantity(c.id,0,deleteBtn));
   const cb=el.querySelector('.desired-check');
   cb.addEventListener('change',()=>{if(cb.checked)desiredIds.add(c.id);else desiredIds.delete(c.id);el.classList.toggle('selected',cb.checked);updateDesiredButton();});
   root.appendChild(el);
@@ -233,6 +240,16 @@ function updateDesiredButton(){
  btn.textContent='💾 Сохранить желаемые карты ('+desiredIds.size+')';
 }
 
+async function updateInventoryQuantity(cardId,value,button){
+ const n=Number(value); if(!Number.isInteger(n)||n<0||n>999){status.textContent='❌ Количество должно быть от 0 до 999';return;}
+ button.disabled=true;
+ try{
+  const r=await fetch(API+'/me/collection/confirm',{method:'POST',headers:{...telegramHeaders(),'Content-Type':'application/json'},body:JSON.stringify({cards:[{id:cardId,quantity:n,duplicates:Math.max(0,n-1)}]})});
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
+  inventoryCards=d.cards||inventoryCards;renderInventory();status.textContent=n===0?'✅ Карта убрана из инвентаря (×0).':'✅ Количество карты изменено на ×'+n;
+ }catch(e){status.textContent='❌ '+e.message;}finally{button.disabled=false;}
+}
+
 async function saveDesired(){
  const btn=document.getElementById('saveDesiredBtn');btn.disabled=true;btn.textContent='⏳ Сохранение...';
  try{
@@ -243,7 +260,7 @@ async function saveDesired(){
 }
 
 async function confirmCollection(){
- const selected=pendingCards.filter(c=>c.selected).map(c=>({...c,quantity:c.editQuantity,duplicates:Math.max(0,c.editQuantity-1)}));
+ const selected=pendingCards.filter(c=>c.selected&&c.editQuantity!=null).map(c=>({...c,quantity:c.editQuantity,duplicates:Math.max(0,c.editQuantity-1)}));
  if(!selected.length)return;
  confirmBtn.disabled=true;confirmBtn.textContent='⏳ Сохранение...';
  try{
