@@ -106,7 +106,8 @@ function inventoryQuantity(id){const c=inventoryCards.find(x=>x.id===id);return 
 document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>switchTab(btn.dataset.tab)));
 input.addEventListener('change',uploadImage);
 document.getElementById('inventorySearch').addEventListener('input',renderInventory);
-document.getElementById('inventorySort').addEventListener('change',renderInventory);\ndocument.getElementById('missingOnly').addEventListener('change',renderInventory);
+document.getElementById('inventorySort').addEventListener('change',renderInventory);
+document.getElementById('missingOnly').addEventListener('change',renderInventory);
 document.getElementById('saveDesiredBtn').addEventListener('click',saveDesired);
 confirmBtn.addEventListener('click',confirmCollection);
 document.getElementById('clearInventoryBtn').addEventListener('click',clearMyInventory);
@@ -188,7 +189,8 @@ async function loadMyCollection(){
 
 function sortedFilteredInventory(){
  const query=document.getElementById('inventorySearch').value.trim().toLowerCase();
- const missingOnly=document.getElementById('missingOnly').checked;\n let list=inventoryCards.filter(c=>(!missingOnly||num(c.quantity)===0)&&(!query||String(c.name||'').toLowerCase().includes(query)||String(c.id||'').toLowerCase().includes(query)));
+ const missingOnly=document.getElementById('missingOnly').checked;
+ let list=inventoryCards.filter(c=>(!missingOnly||num(c.quantity)===0)&&(!query||String(c.name||'').toLowerCase().includes(query)||String(c.id||'').toLowerCase().includes(query)));
  const mode=document.getElementById('inventorySort').value;
  list.sort((a,b)=>{
   const aq=num(a.quantity),bq=num(b.quantity),ad=Math.max(0,aq-1),bd=Math.max(0,bq-1);
