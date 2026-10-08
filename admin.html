@@ -417,6 +417,10 @@ function renderResults(cards){
           <summary>Hashes</summary>
           <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes||{},null,2))}</pre>
         </details>
+        <details>
+          <summary>🧪 Диагностика распознавания</summary>
+          <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.debug||{},null,2))}</pre>
+        </details>
       `;
     }else{
       el.innerHTML=`
@@ -450,6 +454,10 @@ function renderResults(cards){
         <details>
           <summary>Hashes</summary>
           <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.hashes||{},null,2))}</pre>
+        </details>
+        <details>
+          <summary>🧪 Диагностика распознавания</summary>
+          <pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(c.debug||{},null,2))}</pre>
         </details>
       `;
     }
