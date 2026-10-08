@@ -23,7 +23,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import clear_user_cards, get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
+from database import add_zero_cards, clear_user_cards, get_or_create_user, get_user_cards, init_db, set_user_card_quantity, sync_cards
 
 app = FastAPI(title="PUBG Card Scanner")
 
@@ -835,8 +835,32 @@ async def clear_my_collection(
 ):
     auth = _validate_telegram_init_data(init_data)
     get_or_create_user(auth["id"])
-    deleted = clear_user_cards(auth["id"])
-    return {"status": "ok", "deleted": deleted, "cards": []}
+    clear_user_cards(auth["id"])
+    return {"status": "ok", "cards": get_user_cards(auth["id"])}
+
+
+@app.post("/me/inventory/add-zero")
+async def add_zero_inventory_cards(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    """Add selected master cards to the user's inventory with quantity 0."""
+    auth = _validate_telegram_init_data(init_data)
+    card_ids = data.get("card_ids", [])
+    if not isinstance(card_ids, list):
+        raise HTTPException(status_code=400, detail="card_ids должен быть массивом")
+
+    get_or_create_user(auth["id"])
+    normalized = [str(card_id).strip() for card_id in card_ids if str(card_id).strip()]
+    if len(normalized) > 200:
+        raise HTTPException(status_code=400, detail="Слишком много карт за один запрос")
+
+    added = add_zero_cards(auth["id"], normalized)
+    return {
+        "status": "ok",
+        "added": added,
+        "cards": get_user_cards(auth["id"]),
+    }
 
 
 @app.post("/me/collection/confirm")
