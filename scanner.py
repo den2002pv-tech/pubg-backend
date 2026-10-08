@@ -41,7 +41,6 @@ def _candidate_rectangles(img: np.ndarray) -> list[tuple[int, int, int, int]]:
             continue
         if area < w * h * 0.012:
             continue
-        # A real card needs visible frame evidence on multiple sides.
         bw = max(2, int(cw * 0.035))
         bh = max(2, int(ch * 0.035))
         strips = (
@@ -73,13 +72,6 @@ def _card_geometry_similar(
 def _regular_card_runs(
     row: list[tuple[int, int, int, int]],
 ) -> list[list[tuple[int, int, int, int]]]:
-    """Keep regular card runs and reject unrelated same-row UI panels.
-
-    The detector must not assume a fixed number of cards or a fixed screen
-    resolution. Real cards normally form a run with nearly identical
-    dimensions and a repeatable center-to-center pitch. A right-side menu,
-    popup, or other UI block usually breaks that geometry.
-    """
     if len(row) < 2:
         return []
 
@@ -173,12 +165,9 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
     result = list(row)
     known_centers = centers[:]
 
-    # PUBG rows contain at most four cards. Never extrapolate a fifth card
-    # into the right-side interface.
     if len(result) >= 4:
         return sorted(result, key=lambda r: r[0])
 
-    # Reconstruct only slots that have convincing frame-edge evidence.
     for direction in (-1, 1):
         base = min(known_centers) if direction < 0 else max(known_centers)
         for _ in range(3):
@@ -201,12 +190,6 @@ def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list
 
 
 def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
-    """Find one large, centered card when no regular inventory row exists.
-
-    This is intentionally a fallback: normal inventory detection keeps
-    priority, while this branch accepts a single card that can occupy most
-    of the screen vertically.
-    """
     h, w = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -254,12 +237,7 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
         candidates.sort(key=lambda item: item[0], reverse=True)
         return candidates[0][1]
 
-    # Brightness-separation fallback for the centered viewer.
-    # The modal background is intentionally dark/blurred, while the enlarged
-    # card remains a much brighter central object. This works even when the
-    # decorative frame has gaps and therefore produces no closed contour.
     gray_f = gray.astype(np.float32)
-
     col_band = gray_f[int(h * 0.04):int(h * 0.96), :]
     col_mean = col_band.mean(axis=0)
     outer_cols = np.concatenate([
@@ -291,9 +269,6 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
             and ch >= h * 0.55
             and abs(center_x - w / 2.0) <= w * 0.10
         ):
-            # Brightness separation alone is not enough: a modal/menu
-            # can also be a bright centered rectangle. Require frame evidence
-            # on at least three sides before accepting it as a card.
             bw = max(2, int(cw * 0.035))
             bh = max(2, int(ch * 0.035))
             strips = (
@@ -313,8 +288,7 @@ def _single_card_candidate(img: np.ndarray) -> tuple[int, int, int, int] | None:
             y2 = min(h, y2 + pad_y)
             return (x1, y1, x2 - x1, y2 - y1)
 
-    # Never fabricate a card rectangle from screen dimensions alone.\n    # If the modal frame is not detectable, return no card.\n    return None
-
+    return None
 
 
 def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
@@ -322,24 +296,12 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     rows = _cluster_rows(candidates, img.shape[0])
     if rows:
         rows = [_complete_row(row, img) for row in rows]
-        # Rows have already been reduced to regular card families.
-        # Do not use a fixed left/right cutoff: users can have different
-        # resolutions, aspect ratios, and different numbers of cards.
         return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
-    # If there is no regular inventory row, try a centered single-card
-    # viewer. This fallback deliberately does not invent a rectangle from
-    # screen dimensions: it still requires a detected contour with card-like
-    # geometry and visible border evidence.
     single = _single_card_candidate(img)
     if single is not None:
         return [[single]]
-
-    # Never fabricate card rectangles from screen dimensions alone.
-    # A generic/admin page can have strong edges in the same places as the
-    # old fallback grid and would then be returned as fake inventory cards.
     return []
-
 
 
 def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
@@ -355,18 +317,10 @@ def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
 
 def extract_visual_area(card: Image.Image) -> Image.Image:
     w, h = card.size
-    # Ignore small frame/quantity/name regions while keeping the actual artwork.
     return card.crop((int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.78)))
 
 
 def extract_frame_area(card: Image.Image) -> Image.Image:
-    """Build a compact image containing only the card's outer frame.
-
-    Saved admin icons are fitted into a black 256x384 canvas. Remove only
-    contiguous near-black padding first, otherwise that padding becomes part
-    of frame_colorhash and the saved icon gets a different color signature
-    from the same card cropped directly from an inventory screenshot.
-    """
     card = card.convert("RGB")
 
     arr = np.asarray(card)
@@ -378,7 +332,6 @@ def extract_frame_area(card: Image.Image) -> Image.Image:
         x1, x2 = int(xs.min()), int(xs.max()) + 1
         y1, y2 = int(ys.min()), int(ys.max()) + 1
 
-        # Only crop when the image actually has substantial black padding.
         if (
             x1 > card.width * 0.02
             or y1 > card.height * 0.02
@@ -412,9 +365,6 @@ def extract_frame_area(card: Image.Image) -> Image.Image:
     return canvas
 
 
-
-# Counter templates are normalized 9x20 binary glyphs. They are based on the
-# PUBG counter font visible in the supplied screenshots and cover quantities 2-9.
 _COUNTER_TEMPLATES = {
     2: "011111100011111110111111111111001111111000111000000111000000111000001111000001111000001111000111110000111100001111000011110000011110000111100000111100000111111111111111111111111111",
     3: "011111100011111110111111111111001111111000111000000111000000111000001111000111110000111110000111110000111111000001111000000111000000111111000111111001111111111111111111110011111110",
@@ -441,14 +391,6 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
 
 
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
-    """
-    Detect the small gray quantity badge in the card's upper-right corner.
-
-    The detector deliberately searches a wider upper-right region because
-    animated/mythic card frames can extend the bounding box beyond the normal
-    card body. The returned debug object explains why a counter was accepted
-    or rejected.
-    """
     arr = cv2.cvtColor(np.array(card.convert("RGB")), cv2.COLOR_RGB2BGR)
     h, w = arr.shape[:2]
     gray = cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
@@ -460,9 +402,6 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         "reason": None,
     }
 
-    # Do not anchor the badge to a fixed 62% x-position. Fire/ornamental
-    # borders can make the detected box much wider than the card body, while
-    # the actual badge stays over the normal card area.
     rx1, ry1 = int(w * 0.45), 0
     rx2, ry2 = int(w * 0.995), int(h * 0.28)
     debug["roi"] = [rx1, ry1, rx2, ry2]
@@ -501,8 +440,6 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         "relative_x": round(absolute_x / max(1, w), 3),
     }
 
-    # Keep a broad positional guard, but no longer require the digit to be
-    # inside the far-right 30% of the detected box.
     if absolute_x < int(w * 0.45) or absolute_y > int(h * 0.24):
         debug["reason"] = "candidate_outside_badge_zone"
         return card.convert("RGB"), 1, 0.0, debug
@@ -543,21 +480,22 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
     y1 = max(0, absolute_y - int(dh * 0.38))
     x2 = min(w, absolute_x + dw + int(dw * 0.45))
     y2 = min(h, absolute_y + dh + int(dh * 0.45))
-    inpaint_mask = np.zeros((h, w), dtype=np.uint8)
-    inpaint_mask[y1:y2, x1:x2] = 255
-    cleaned = cv2.inpaint(arr, inpaint_mask, 3, cv2.INPAINT_TELEA)
-    cleaned_pil = Image.fromarray(cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB))
 
-    debug["reason"] = "accepted"
+    # CONTROL TEST:
+    # Do not call cv2.inpaint() here. The previous implementation used the
+    # native OpenCV Telea inpainting path immediately before the Render
+    # SIGSEGV/exit-139 failures. Keep quantity recognition intact and return
+    # the original RGB card so this deployment isolates that native operation.
+    debug["reason"] = "accepted_no_inpaint"
     debug["badge_box"] = [x1, y1, x2, y2]
-    return cleaned_pil, int(quantity), float(confidence), debug
+    return card.convert("RGB"), int(quantity), float(confidence), debug
+
 
 def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
 
 
 def is_gray_locked_card(card: Image.Image) -> bool:
-    """Return True for inventory cards rendered grayscale because they are locked."""
     arr = np.asarray(card.convert("RGB"))
     if arr.size == 0:
         return False
@@ -583,15 +521,11 @@ def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
         "full_dhash": str(imagehash.dhash(full)),
         "visual_phash": str(imagehash.phash(visual)),
         "visual_dhash": str(imagehash.dhash(visual)),
-        # pHash/dHash are grayscale and therefore can treat a blue and a
-        # gold rarity frame as nearly identical. colorhash keeps the hue
-        # information from the outer frame.
         "frame_colorhash": str(imagehash.colorhash(frame)),
     }
 
 
 def encode_preview(card: Image.Image) -> str:
-    """Encode a small preview in memory; never persist scan previews on Render."""
     image = card.convert("RGB")
     image.thumbnail((256, 384), Image.Resampling.LANCZOS)
     buffer = BytesIO()
@@ -600,9 +534,7 @@ def encode_preview(card: Image.Image) -> str:
     return f"data:image/jpeg;base64,{encoded}"
 
 
-
 def _json_safe(value: Any) -> Any:
-    """Convert NumPy/PIL-derived scalar values to plain JSON-safe types."""
     if isinstance(value, np.generic):
         return value.item()
     if isinstance(value, np.ndarray):
@@ -613,6 +545,7 @@ def _json_safe(value: Any) -> Any:
         return [_json_safe(item) for item in value]
     return value
 
+
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
     image = _image_from_any(image)
     detected = detect_inventory_cards(image)
@@ -620,8 +553,6 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
     for item in detected:
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
-        # Cards rendered fully grayscale are locked/unowned in the inventory.
-        # Do not let them enter matching or the user's inventory.
         if is_gray_locked_card(crop):
             continue
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
