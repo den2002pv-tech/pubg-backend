@@ -14,19 +14,22 @@ h2{margin:4px 0 6px;text-align:center}.subtitle{color:#9aa0a6;text-align:center;
 input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:center;font-size:14px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .card{position:relative;background:#20242a;border:1px solid #353a42;border-radius:14px;padding:8px;overflow:hidden}
+.card.missing{opacity:.72}.card.selected{border-color:#4e9bff}
 .icon-wrap{position:relative;aspect-ratio:2/3;background:#111;border-radius:9px;overflow:hidden}
 .icon{width:100%;height:100%;object-fit:contain;display:block}
 .qty{position:absolute;right:6px;top:6px;background:#70757b;color:#fff;border-radius:7px;padding:3px 7px;font-weight:800;font-size:13px}
-.name{font-weight:750;margin:8px 2px 2px;line-height:1.2}.meta{color:#aeb4bb;font-size:12px;margin:3px 2px}
+.qty.zero{background:#4a4f55;color:#c4c8cc}.name{font-weight:750;margin:8px 2px 2px;line-height:1.2}.meta{color:#aeb4bb;font-size:12px;margin:3px 2px}
 .trade{width:100%;border:0;border-radius:9px;padding:8px;margin-top:7px;font-weight:750;background:#2d7d4f;color:#fff;cursor:pointer}
 .trade:disabled{background:#3a3f45;color:#8e949b;cursor:default}
 .danger{width:100%;border:1px solid #8b3d3d;border-radius:9px;padding:9px;margin-top:12px;font-weight:750;background:#4a2525;color:#fff;cursor:pointer}
 .danger:disabled{opacity:.65;cursor:default}.tech{margin-top:6px;color:#737a83;font-size:11px}
-.empty{color:#9aa0a6;text-align:center;padding:18px 4px}
-.compare-details{margin-top:7px;border-top:1px solid #343941;padding-top:6px}
-.compare-details summary{color:#aeb4bb;font-size:11px;cursor:pointer}
-.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
-.compare-box{min-width:0}.compare-label{color:#8e949b;font-size:9px;text-align:center;margin-bottom:3px}.compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#111;border-radius:6px;display:block}
+.empty{color:#9aa0a6;text-align:center;padding:18px 4px}.compare-details{margin-top:7px;border-top:1px solid #343941;padding-top:6px}
+.compare-details summary{color:#aeb4bb;font-size:11px;cursor:pointer}.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.compare-box{min-width:0}.compare-label{color:#8e949b;font-size:9px;text-align:center;margin-bottom:3px}
+.compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#111;border-radius:6px;display:block}
+.toolbar{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px}.toolbar input,.toolbar select,.scan-qty{width:100%;background:#11151a;color:#fff;border:1px solid #3a4048;border-radius:9px;padding:9px}
+.scan-row{display:flex;gap:8px;align-items:center;margin-top:8px}.scan-row label{display:flex;align-items:center;gap:6px;font-size:12px;color:#c9cdd1}
+.scan-row input[type=checkbox]{width:18px;height:18px}.scan-qty{max-width:90px}.manual-check{position:absolute;left:8px;top:8px;z-index:2;width:20px;height:20px}
 @media(max-width:380px){.compare{gap:4px}}
 @media(min-width:700px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 </style>
@@ -35,165 +38,193 @@ input[type=file]{display:none}.status{margin-top:10px;color:#aeb4bb;text-align:c
 <h2>Обмен карт PUBG Mobile</h2>
 <p class="subtitle">Загрузите скриншот коллекции — карты определятся автоматически.</p>
 <div id="account" class="panel">🔄 Проверка аккаунта Telegram...</div>
+
 <div class="panel">
 <label class="upload" for="fileInput"><span id="statusText">📷 Выбрать скриншот</span><input type="file" id="fileInput" accept="image/*"></label>
 <div id="status" class="status"></div>
 </div>
-<div id="results" class="panel" style="display:none"><h3 style="margin:2px 0 12px">Результат сканирования</h3><div id="cardsList" class="grid"></div><button id="confirmBtn" class="trade" style="display:none" onclick="confirmCollection()">✅ Добавить распознанные карты</button></div>
+
+<div id="results" class="panel" style="display:none">
+<h3 style="margin:2px 0 12px">Результат сканирования</h3>
+<div id="cardsList" class="grid"></div>
+<button id="confirmBtn" class="trade" style="display:none">✅ Добавить выбранные карты</button>
+</div>
+
 <div id="inventory" class="panel" style="display:none">
 <h3 style="margin:2px 0 12px">Мой инвентарь</h3>
-<div id="inventoryList" class="grid"></div>
-<button id="clearInventoryBtn" class="danger" onclick="clearMyInventory()">🗑️ Удалить весь инвентарь</button>
+<div class="toolbar">
+<input id="inventorySearch" type="search" placeholder="🔎 Поиск по названию или ID">
+<select id="inventorySort">
+<option value="order">Порядок в игре</option>
+<option value="name">Название</option>
+<option value="rarity">Редкость</option>
+<option value="quantity">Количество ↓</option>
+<option value="quantityAsc">Количество ↑</option>
+<option value="duplicates">Дубликаты ↓</option>
+<option value="missing">Отсутствующие первыми</option>
+<option value="owned">Полученные первыми</option>
+</select>
 </div>
+<button id="addMissingBtn" class="trade">➕ Выбрать отсутствующие карты (0)</button>
+<button id="saveMissingBtn" class="trade" style="display:none">💾 Добавить выбранные карты с ×0</button>
+<div id="inventoryList" class="grid"></div>
+<button id="clearInventoryBtn" class="danger">🗑️ Обнулить весь инвентарь</button>
+</div>
+
 <script>
-const tg=window.Telegram?.WebApp;
-tg?.expand();
+const tg=window.Telegram?.WebApp; tg?.expand();
 const API='https://pubg-backend-3rtc.onrender.com';
 const telegramInitData=tg?.initData||'';
 const telegramHeaders=()=>telegramInitData?{'X-Telegram-Init-Data':telegramInitData}:{};
-const input=document.getElementById('fileInput');
-const statusText=document.getElementById('statusText');
-const status=document.getElementById('status');
-const account=document.getElementById('account');
+const input=document.getElementById('fileInput'),statusText=document.getElementById('statusText');
+const status=document.getElementById('status'),account=document.getElementById('account');
 const confirmBtn=document.getElementById('confirmBtn');
-let pendingCards=[];
-input.addEventListener('change',uploadImage);
+let pendingCards=[], inventoryCards=[], manualMode=false;
 
 function assetUrl(path){if(!path)return '';return path.startsWith('http')||path.startsWith('data:')?path:API+path;}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function num(v,fallback=0){const n=Number(v);return Number.isFinite(n)?n:fallback;}
+function cardOrder(c){const m=String(c.id||'').match(/^card_(\d+)$/);return m?Number(m[1]):999999999;}
+
+input.addEventListener('change',uploadImage);
+document.getElementById('inventorySearch').addEventListener('input',()=>renderInventory());
+document.getElementById('inventorySort').addEventListener('change',()=>renderInventory());
+document.getElementById('addMissingBtn').addEventListener('click',()=>{manualMode=!manualMode;renderInventory();});
+document.getElementById('saveMissingBtn').addEventListener('click',saveMissingCards);
+confirmBtn.addEventListener('click',confirmCollection);
+document.getElementById('clearInventoryBtn').addEventListener('click',clearMyInventory);
 
 async function uploadImage(){
  const file=input.files[0]; if(!file)return;
- statusText.textContent='⏳ Сканирование...'; status.textContent='';
- const fd=new FormData(); fd.append('file',file);
+ statusText.textContent='⏳ Сканирование...';status.textContent='';
+ const fd=new FormData();fd.append('file',file);
  try{
-  const r=await fetch(API+'/scan',{method:'POST',body:fd,headers:telegramHeaders()}); const d=await r.json();
-  if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
+  const r=await fetch(API+'/scan',{method:'POST',body:fd,headers:telegramHeaders()});
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
   statusText.textContent='📷 Выбрать другой скриншот';
   status.textContent='Найдено карточек: '+(d.count||0);
-  pendingCards=(d.cards||[]).filter(c=>c.id);
+  pendingCards=(d.cards||[]).filter(c=>c.id).map(c=>({...c,selected:true,editQuantity:Math.max(1,num(c.quantity,1))}));
   showResults(d.cards||[]);
  }catch(e){statusText.textContent='📷 Выбрать скриншот';status.textContent='❌ '+e.message;}
 }
 
 function showResults(cards){
- const root=document.getElementById('cardsList'); root.innerHTML='';
- if(!cards.length){
-  root.innerHTML='<div class="empty">Карты не найдены.</div>';
-  document.getElementById('results').style.display='block';
-  confirmBtn.style.display='none';
-  return;
- }
- cards.forEach(c=>{
-  const quantity=Math.max(1,Number(c.quantity||1));
-  const duplicates=Math.max(0,Number(c.duplicates??quantity-1));
+ const root=document.getElementById('cardsList');root.innerHTML='';
+ if(!cards.length){root.innerHTML='<div class="empty">Карты не найдены.</div>';document.getElementById('results').style.display='block';confirmBtn.style.display='none';return;}
+ cards.forEach((c,i)=>{
   const recognized=!!c.id;
-  const mainImage=recognized&&c.icon
-   ? '<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">'
-   : c.preview
-    ? '<img class="icon" src="'+esc(assetUrl(c.preview))+'" alt="">'
-    : '<div class="empty">Изображение отсутствует</div>';
-  const compare=c.preview
-   ? '<details class="compare-details"><summary>Сравнить скан с эталоном</summary><div class="compare">'+
-      '<div class="compare-box"><div class="compare-label">Скан</div><img src="'+esc(assetUrl(c.preview))+'" alt=""></div>'+
-      (c.icon
-       ? '<div class="compare-box"><div class="compare-label">Эталон</div><img src="'+esc(assetUrl(c.icon))+'" alt=""></div>'
-       : '<div class="compare-box"><div class="compare-label">Эталон</div><div class="empty">Нет</div></div>')+
-      '</div></details>'
-   : '';
-  const qty=quantity>1?'<span class="qty">×'+quantity+'</span>':'';
-  const exchange=duplicates>0
-   ? '<button class="trade" onclick="requestTrade(\''+esc(c.id||'')+'\')">Обменять</button>'
-   : '<button class="trade" disabled>Нет дубликатов</button>';
-  const el=document.createElement('div');
-  el.className='card';
-  el.innerHTML='<div class="icon-wrap">'+mainImage+qty+'</div>'+
+  const pending=recognized?pendingCards.find(x=>x.id===c.id&&x.row===c.row&&x.col===c.col):null;
+  const quantity=pending?pending.editQuantity:Math.max(1,num(c.quantity,1));
+  const duplicates=Math.max(0,quantity-1);
+  const mainImage=recognized&&c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':c.preview?'<img class="icon" src="'+esc(assetUrl(c.preview))+'" alt="">':'<div class="empty">Изображение отсутствует</div>';
+  const compare=c.preview?'<details class="compare-details"><summary>Сравнить скан с эталоном</summary><div class="compare"><div class="compare-box"><div class="compare-label">Скан</div><img src="'+esc(assetUrl(c.preview))+'" alt=""></div>'+(c.icon?'<div class="compare-box"><div class="compare-label">Эталон</div><img src="'+esc(assetUrl(c.icon))+'" alt=""></div>':'<div class="compare-box"><div class="compare-label">Эталон</div><div class="empty">Нет</div></div>')+'</div></details>':'';
+  const el=document.createElement('div');el.className='card'+(pending?.selected?' selected':'');
+  el.innerHTML='<div class="icon-wrap">'+mainImage+'<span class="qty">×'+quantity+'</span></div>'+
    '<div class="name">'+esc(c.name||'Неизвестная карта')+'</div>'+
-   '<div class="meta">'+(recognized?'Распознана':'Не распознана')+
-   (recognized&&duplicates>0?' · дубликатов: '+duplicates:'')+'</div>'+
-   compare+
-   (recognized?exchange:'<div class="tech">Карта не добавляется в инвентарь</div>')+
+   '<div class="meta">'+(recognized?'Распознана':'Не распознана')+(recognized&&duplicates>0?' · дубликатов: '+duplicates:'')+'</div>'+
+   (recognized?'<div class="scan-row"><label><input class="scan-select" type="checkbox" '+(pending?.selected?'checked':'')+'> Сохранить</label><input class="scan-qty" type="number" min="1" max="999" value="'+quantity+'" aria-label="Количество"></div>':'<div class="tech">Не распознана — не изменяет инвентарь</div>')+
+   compare+(recognized&&duplicates>0?'<button class="trade" type="button">Обменять</button>':'')+
    '<div class="tech">'+(c.distance!=null?'Совпадение: d='+esc(c.distance):'Совпадение не определено')+'</div>';
+  if(recognized){
+   const cb=el.querySelector('.scan-select'),q=el.querySelector('.scan-qty');
+   cb.addEventListener('change',()=>{if(pending)pending.selected=cb.checked;el.classList.toggle('selected',cb.checked);updateConfirmState();});
+   q.addEventListener('input',()=>{if(pending){pending.editQuantity=Math.max(1,Math.min(999,num(q.value,1)));q.value=pending.editQuantity;}});
+  }
   root.appendChild(el);
  });
- document.getElementById('results').style.display='block';
- confirmBtn.disabled=false;
- confirmBtn.textContent='✅ Добавить распознанные карты';
- confirmBtn.style.display=pendingCards.length?'block':'none';
+ document.getElementById('results').style.display='block';updateConfirmState();
 }
 
+function updateConfirmState(){
+ const selected=pendingCards.filter(c=>c.selected);
+ confirmBtn.style.display=pendingCards.length?'block':'none';
+ confirmBtn.disabled=!selected.length;
+ confirmBtn.textContent=selected.length?'✅ Добавить выбранные карты ('+selected.length+')':'⚠️ Выберите карты для сохранения';
+}
 
 async function loadMyCollection(){
  if(!telegramInitData){account.textContent='❌ Откройте приложение через Telegram';return;}
  try{
-  const r=await fetch(API+'/me/cards',{headers:telegramHeaders()});
-  if(!r.ok){account.textContent='❌ Telegram не удалось подтвердить';return;}
-  const d=await r.json();
-  const u=d.user||{};
-  const fullName=[u.first_name,u.last_name].filter(Boolean).join(' ');
-  const username=u.username?' @'+u.username:'';
-  const who=fullName||u.username||('ID '+d.telegram_id);
-  account.innerHTML='✅ Telegram подключён<br>👤 Подключился: <b>'+esc(who)+'</b>'+esc(username)+'<br>💾 Инвентарь сохранён';
-  if((d.cards||[]).length)showInventory(d.cards);
-  else {
-   document.getElementById('inventory').style.display='block';
-   document.getElementById('inventoryList').innerHTML='<div class="empty">Инвентарь пока пуст.</div>';
-  }
+  const r=await fetch(API+'/me/cards',{headers:telegramHeaders()});if(!r.ok)throw new Error('Telegram не удалось подтвердить');
+  const d=await r.json(),u=d.user||{},fullName=[u.first_name,u.last_name].filter(Boolean).join(' '),username=u.username?' @'+u.username:'';
+  account.innerHTML='✅ Telegram подключён<br>👤 Подключился: <b>'+esc(fullName||u.username||'Пользователь')+'</b>'+esc(username)+'<br>💾 Полный инвентарь загружен';
+  inventoryCards=d.cards||[];renderInventory();
  }catch(e){account.textContent='❌ Ошибка подключения к аккаунту';console.warn(e);}
 }
-function showInventory(cards){
+
+function sortedFilteredInventory(){
+ const query=document.getElementById('inventorySearch').value.trim().toLowerCase();
+ let list=inventoryCards.filter(c=>(!query||String(c.name||'').toLowerCase().includes(query)||String(c.id||'').toLowerCase().includes(query)));
+ const mode=document.getElementById('inventorySort').value;
+ list.sort((a,b)=>{
+  const aq=num(a.quantity),bq=num(b.quantity),ad=Math.max(0,aq-1),bd=Math.max(0,bq-1);
+  if(mode==='name')return String(a.name).localeCompare(String(b.name),'ru');
+  if(mode==='rarity')return num(a.rarity)-num(b.rarity)||cardOrder(a)-cardOrder(b);
+  if(mode==='quantity')return bq-aq||cardOrder(a)-cardOrder(b);
+  if(mode==='quantityAsc')return aq-bq||cardOrder(a)-cardOrder(b);
+  if(mode==='duplicates')return bd-ad||cardOrder(a)-cardOrder(b);
+  if(mode==='missing')return (aq>0)-(bq>0)||cardOrder(a)-cardOrder(b);
+  if(mode==='owned')return (bq>0)-(aq>0)||cardOrder(a)-cardOrder(b);
+  return cardOrder(a)-cardOrder(b);
+ });
+ return list;
+}
+
+function renderInventory(){
  const root=document.getElementById('inventoryList');root.innerHTML='';
- cards.forEach(c=>{
-  const qty=Number(c.quantity||0), dup=Math.max(0,qty-1);
+ const list=sortedFilteredInventory();
+ document.getElementById('inventory').style.display='block';
+ const zero=list.filter(c=>num(c.quantity)===0);
+ document.getElementById('addMissingBtn').textContent=manualMode?'✖ Завершить выбор отсутствующих':'➕ Выбрать отсутствующие карты (0)';
+ document.getElementById('saveMissingBtn').style.display=manualMode?'block':'none';
+ if(!list.length){root.innerHTML='<div class="empty">Ничего не найдено.</div>';return;}
+ list.forEach(c=>{
+  const qty=num(c.quantity),dup=Math.max(0,qty-1),missing=qty===0;
   const icon=c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':'<div class="empty">Нет иконки</div>';
-  const el=document.createElement('div');el.className='card';
-  el.innerHTML='<div class="icon-wrap">'+icon+'<span class="qty">×'+qty+'</span></div>'+
-   '<div class="name">'+esc(c.name)+'</div><div class="meta">Дубликатов: '+dup+'</div>';
+  const el=document.createElement('div');el.className='card'+(missing?' missing':'');
+  const check=manualMode&&missing?'<input class="manual-check" type="checkbox" data-id="'+esc(c.id)+'">':'';
+  const exchange=dup>0?'<button class="trade" type="button">Обменять</button>':'<button class="trade" disabled>'+ (missing?'Нет карты':'Нет дубликатов')+'</button>';
+  el.innerHTML=check+'<div class="icon-wrap">'+icon+'<span class="qty '+(missing?'zero':'')+'">×'+qty+'</span></div>'+
+   '<div class="name">'+esc(c.name)+'</div><div class="meta">Редкость: '+esc(c.rarity)+' · Дубликатов: '+dup+'</div>'+
+   '<div class="tech">ID: '+esc(c.id)+'</div>'+exchange;
   root.appendChild(el);
  });
- document.getElementById('inventory').style.display='block';
 }
-async function clearMyInventory(){
- if(!telegramInitData)return;
- const ok=tg?.showConfirm
-   ? await new Promise(resolve=>tg.showConfirm('Удалить весь ваш инвентарь? Это действие нельзя отменить.',resolve))
-   : window.confirm('Удалить весь ваш инвентарь? Это действие нельзя отменить.');
- if(!ok)return;
 
- const btn=document.getElementById('clearInventoryBtn');
- btn.disabled=true;
- btn.textContent='⏳ Удаление...';
+async function saveMissingCards(){
+ const ids=[...document.querySelectorAll('.manual-check:checked')].map(x=>x.dataset.id);
+ if(!ids.length){status.textContent='⚠️ Выберите хотя бы одну карту';return;}
+ const btn=document.getElementById('saveMissingBtn');btn.disabled=true;btn.textContent='⏳ Сохранение...';
  try{
-  const r=await fetch(API+'/me/collection',{method:'DELETE',headers:telegramHeaders()});
-  const d=await r.json();
-  if(!r.ok)throw new Error(d.detail||'Ошибка удаления');
-  showInventory([]);
-  status.textContent='✅ Весь инвентарь удалён';
-  btn.textContent='🗑️ Удалить весь инвентарь';
- }catch(e){
-  status.textContent='❌ '+e.message;
-  btn.disabled=false;
-  btn.textContent='🗑️ Удалить весь инвентарь';
- }
+  const r=await fetch(API+'/me/inventory/add-zero',{method:'POST',headers:{...telegramHeaders(),'Content-Type':'application/json'},body:JSON.stringify({card_ids:ids})});
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
+  inventoryCards=d.cards||inventoryCards;manualMode=false;renderInventory();status.textContent='✅ Добавлено карт с количеством ×0: '+(d.added||0);
+ }catch(e){status.textContent='❌ '+e.message;}
+ finally{btn.disabled=false;btn.textContent='💾 Добавить выбранные карты с ×0';}
 }
-
 
 async function confirmCollection(){
- if(!pendingCards.length)return;
+ const selected=pendingCards.filter(c=>c.selected).map(c=>({...c,quantity:c.editQuantity,duplicates:Math.max(0,c.editQuantity-1)}));
+ if(!selected.length)return;
  confirmBtn.disabled=true;confirmBtn.textContent='⏳ Сохранение...';
  try{
-  const r=await fetch(API+'/me/collection/confirm',{method:'POST',headers:{...telegramHeaders(),'Content-Type':'application/json'},body:JSON.stringify({cards:pendingCards})});
+  const r=await fetch(API+'/me/collection/confirm',{method:'POST',headers:{...telegramHeaders(),'Content-Type':'application/json'},body:JSON.stringify({cards:selected})});
   const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
-  pendingCards=[];confirmBtn.style.display='none';showInventory(d.cards||[]);
-  status.textContent='✅ Карты добавлены в инвентарь';
- }catch(e){status.textContent='❌ '+e.message;confirmBtn.disabled=false;confirmBtn.textContent='✅ Добавить выбранные карты в инвентарь';}
+  pendingCards=[];confirmBtn.style.display='none';inventoryCards=d.cards||inventoryCards;renderInventory();status.textContent='✅ Выбранные карты сохранены. Не выбранные карты не изменены.';
+ }catch(e){status.textContent='❌ '+e.message;updateConfirmState();}
+}
+
+async function clearMyInventory(){
+ if(!telegramInitData)return;
+ const ok=tg?.showConfirm?await new Promise(resolve=>tg.showConfirm('Обнулить количество всех карт? Карты останутся в полном инвентаре и станут ×0.',resolve)):window.confirm('Обнулить количество всех карт? Карты останутся в полном инвентаре и станут ×0.');
+ if(!ok)return;
+ const btn=document.getElementById('clearInventoryBtn');btn.disabled=true;btn.textContent='⏳ Обнуление...';
+ try{
+  const r=await fetch(API+'/me/collection',{method:'DELETE',headers:telegramHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка');
+  inventoryCards=d.cards||inventoryCards;renderInventory();status.textContent='✅ Количество всех карт обнулено';
+ }catch(e){status.textContent='❌ '+e.message;}finally{btn.disabled=false;btn.textContent='🗑️ Обнулить весь инвентарь';}
 }
 loadMyCollection();
-
-function requestTrade(cardId){
- const text='Функция обмена будет подключена следующим этапом.';
- if(tg?.showAlert)tg.showAlert(text);else alert(text);
-}
 </script>
 </body>
 </html>
