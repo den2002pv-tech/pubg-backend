@@ -493,11 +493,11 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
     absolute_x = rx1 + dx
     absolute_y = ry1 + dy
     debug["selected"] = {
-        "x": absolute_x,
-        "y": absolute_y,
-        "width": dw,
-        "height": dh,
-        "area": area,
+        "x": int(absolute_x),
+        "y": int(absolute_y),
+        "width": int(dw),
+        "height": int(dh),
+        "area": int(area),
         "relative_x": round(absolute_x / max(1, w), 3),
     }
 
