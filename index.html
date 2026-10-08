@@ -140,10 +140,9 @@ function showResults(cards){
   const detected=pending?pending.editQuantity:Math.max(1,num(c.quantity,1));
   const owned=recognized?inventoryQuantity(c.id):0;
   const duplicates=Math.max(0,detected-1);
-  const mainImage=recognized&&c.icon?'<img class="icon" src="'+esc(assetUrl(c.icon))+'" alt="">':c.preview?'<img class="icon" src="'+esc(assetUrl(c.preview))+'" alt="">':'<div class="empty">Изображение отсутствует</div>';
-  const compare=c.preview?'<details class="compare-details"><summary>Сравнить скан с эталоном</summary><div class="compare"><div class="compare-box"><div class="compare-label">Скан</div><img src="'+esc(assetUrl(c.preview))+'" alt=""></div>'+(c.icon?'<div class="compare-box"><div class="compare-label">Эталон</div><img src="'+esc(assetUrl(c.icon))+'" alt=""></div>':'')+'</div></details>':'';
+  const compare='<div class="compare"><div class="compare-box"><div class="compare-label">Скан</div>'+(c.preview?'<img src="'+esc(assetUrl(c.preview))+'" alt="Скан карты">':'<div class="empty">Нет изображения</div>')+'</div><div class="compare-box"><div class="compare-label">Эталон</div>'+(c.icon?'<img src="'+esc(assetUrl(c.icon))+'" alt="Эталон карты">':'<div class="empty">Нет эталона</div>')+'</div></div>';
   const el=document.createElement('div');el.className='card'+(pending?.selected?' selected':'');
-  el.innerHTML='<div class="icon-wrap">'+mainImage+'<span class="qty">скан ×'+detected+'</span></div>'+
+  el.innerHTML='<div class="icon-wrap">'+compare+'<span class="qty">скан ×'+detected+'</span></div>'+
    '<div class="name">'+esc(c.name||'Неизвестная карта')+'</div>'+
    '<div class="meta">'+(recognized?'У пользователя сейчас: <b>×'+owned+'</b>':'Не распознана')+'</div>'+
    (recognized?'<div class="scan-row"><label><input class="scan-select" type="checkbox" '+(pending?.selected?'checked':'')+'> Сохранить</label><input class="scan-qty" type="number" min="1" max="999" value="'+detected+'" aria-label="Количество"></div><div class="tech">После сохранения: ×'+detected+' · дубликатов: '+duplicates+'</div>':'<div class="tech">Эта карта не будет изменять инвентарь.</div>')+
