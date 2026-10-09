@@ -257,6 +257,7 @@ class CounterTestCaseSchema(BaseModel):
     col: int | None = None
     box: list[int] | None = None
     image_size: list[int] | None = None
+    scan_duration_ms: float | None = None
     counter_debug: dict[str, Any] = {}
 
 
@@ -706,8 +707,8 @@ def _save_counter_fixture(image: Image.Image, box: Any, index: int) -> str:
         if w <= 0 or h <= 0 or x < 0 or y < 0 or x + w > image.width or y + h > image.height:
             return ""
         crop = image.crop((x, y, x + w, y + h)).convert("RGB")
-        filename = f"counter-fixture-{int(time.time() * 1000)}-{index}.jpg"
-        crop.save(TEMP_DIR / filename, format="JPEG", quality=92, optimize=True)
+        filename = f"counter-fixture-{int(time.time() * 1000)}-{index}.png"
+        crop.save(TEMP_DIR / filename, format="PNG")
         return f"/temp-images/{filename}"
     except Exception:
         return ""
@@ -822,10 +823,12 @@ async def scan_preview(
                 card["preview"] = _save_admin_preview(card["preview"], index)
         db = load_db()
         result["cards"] = _enrich_admin_scan(result.get("cards", []), db)
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        result["scan_duration_ms"] = duration_ms
         log_entry.update({
             "status": "ok",
             "detected_count": result.get("count", len(result.get("cards", []))),
-            "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+            "duration_ms": duration_ms,
             "cards": [
                 {
                     "row": card.get("row"),
@@ -1027,6 +1030,7 @@ async def save_counter_test(
         "detected_quantity": data.detected_quantity,
         "correct": data.expected_quantity == data.detected_quantity,
         "quantity_confidence": data.quantity_confidence,
+        "scan_duration_ms": data.scan_duration_ms,
         "counter_debug": counter_debug,
     }
     payload.setdefault("version", 1)
