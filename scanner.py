@@ -488,6 +488,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
     roi_h, roi_w = gray.shape[:2]
     x_candidates: list[dict[str, Any]] = []
     digit_candidates: list[dict[str, Any]] = []
+    threshold_runs: list[dict[str, Any]] = []
 
     def _process_contours(contour_list: list[np.ndarray]) -> None:
         for contour in contour_list:
@@ -522,14 +523,36 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
         contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        x_before, digits_before = len(x_candidates), len(digit_candidates)
         _process_contours(contours)
+        threshold_runs.append({
+            "threshold": thresh,
+            "contours": len(contours),
+            "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
+            "x_candidates_added": len(x_candidates) - x_before,
+            "digit_candidates_added": len(digit_candidates) - digits_before,
+        })
         if x_candidates and digit_candidates:
             break
+
+    candidate_diagnostics = {
+        "threshold_runs": threshold_runs,
+        "x_candidates_found": len(x_candidates),
+        "digit_candidates_found": len(digit_candidates),
+        "x_candidates": [
+            {k: round(float(v), 3) if k == "score" else int(v) for k, v in item.items()}
+            for item in sorted(x_candidates, key=lambda item: item["score"], reverse=True)[:5]
+        ],
+        "digit_candidates": [
+            {k: round(float(v), 3) if k == "score" else int(v) for k, v in item.items()}
+            for item in sorted(digit_candidates, key=lambda item: item["score"], reverse=True)[:10]
+        ],
+    }
 
     if not x_candidates or not digit_candidates:
         return card, 1, 0.0, {
             "roi": [x1, y1, x2, y2], "candidates": 0, "selected": None,
-            "reason": "no_glyph_candidates",
+            "reason": "no_glyph_candidates", **candidate_diagnostics,
         }
 
     badge_candidates: list[dict[str, Any]] = []
@@ -619,7 +642,8 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
     if not badge_candidates:
         return card, 1, 0.0, {
             "roi": [x1, y1, x2, y2], "candidates": 0, "selected": None,
-            "reason": "no_valid_badge",
+            "reason": "no_valid_badge", **candidate_diagnostics,
+            "rejection_stage": "badge_geometry_or_contrast",
         }
 
     badge_candidates.sort(
@@ -658,6 +682,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             "box": best["box"], "contrast": best["contrast"], "bg_median": best["bg_median"],
         },
         "reason": "ok",
+        **candidate_diagnostics,
     }
 
 def normalize_card(card: Image.Image) -> Image.Image:
