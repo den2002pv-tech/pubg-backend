@@ -1067,34 +1067,28 @@ function checkDesiredChanges() {
   const isDifferent = desiredIds.size !== savedDesiredIds.size || [...desiredIds].some(id => !savedDesiredIds.has(id));
   const floatingBar = document.getElementById('floatingBar');
   const floatingCount = document.getElementById('floatingCount');
-  const saveDesiredBtn = document.getElementById('saveDesiredBtn');
-
-  floatingCount.textContent = desiredIds.size;
-  saveDesiredBtn.textContent = '💾 Сохранить желаемые карты (' + desiredIds.size + ')';
-
+  if (floatingCount) floatingCount.textContent = desiredIds.size;
   if (isDifferent) {
-    floatingBar.classList.add('visible');
-    saveDesiredBtn.disabled = false;
-    if (tg?.MainButton) {
+    if (tg?.MainButton && telegramInitData) {
       tg.MainButton.setText('💾 Сохранить список «Ищу» (' + desiredIds.size + ')');
       tg.MainButton.show();
+      tg.MainButton.offClick(saveDesired);
       tg.MainButton.onClick(saveDesired);
-    }
+      if (floatingBar) floatingBar.classList.remove('visible');
+    } else if (floatingBar) floatingBar.classList.add('visible');
   } else {
-    floatingBar.classList.remove('visible');
+    if (floatingBar) floatingBar.classList.remove('visible');
     if (tg?.MainButton && tg.MainButton.isVisible) {
       tg.MainButton.hide();
+      tg.MainButton.offClick(saveDesired);
     }
   }
 }
 
 async function saveDesired() {
   const floatingBtn = document.getElementById('floatingSaveBtn');
-  const saveBtn = document.getElementById('saveDesiredBtn');
-  floatingBtn.disabled = true;
-  saveBtn.disabled = true;
-  floatingBtn.textContent = '⏳...';
-  saveBtn.textContent = '⏳ Сохранение...';
+  if (floatingBtn) { floatingBtn.disabled = true; floatingBtn.textContent = '⏳...'; }
+  if (tg?.MainButton) tg.MainButton.showProgress();
 
   try {
     const r = await fetch(API + '/me/desired-cards', {
@@ -1104,33 +1098,33 @@ async function saveDesired() {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || 'Ошибка сохранения');
-    desiredIds = new Set((d.desired_cards || []).map(c => c.id));
+    desiredIds = new Set((d.desired_cards || []).filter(c => inventoryQuantity(c.id) === 0).map(c => c.id));
     savedDesiredIds = new Set(desiredIds);
     checkDesiredChanges();
     showToast('✅ Список «Ищу» сохранён (' + desiredIds.size + ' карт)');
     triggerHaptic('success');
-    if (currentFilter === 'desired') renderInventory();
+    if (currentFilter === 'desired' || currentFilter === 'not_desired') renderInventory();
   } catch (e) {
     showToast('❌ ' + e.message);
     triggerHaptic('error');
   } finally {
-    floatingBtn.disabled = false;
-    saveBtn.disabled = false;
-    floatingBtn.textContent = '💾 Сохранить';
-    saveBtn.textContent = '💾 Сохранить желаемые карты (' + desiredIds.size + ')';
+    if (floatingBtn) { floatingBtn.disabled = false; floatingBtn.textContent = '💾 Сохранить'; }
+    if (tg?.MainButton) tg.MainButton.hideProgress();
   }
 }
 
 document.getElementById('floatingSaveBtn').addEventListener('click', saveDesired);
-document.getElementById('saveDesiredBtn').addEventListener('click', saveDesired);
 
-// Quick Wishlist Bulk Actions
-document.getElementById('addMissingToDesiredBtn').addEventListener('click', () => {
-  const missingCards = inventoryCards.filter(c => num(c.quantity) === 0);
+// Quick Wishlist Bulk Actions with Confirmation
+document.getElementById('addMissingToDesiredBtn').addEventListener('click', async () => {
+  const missingCards = inventoryCards.filter(c => num(c.quantity) === 0 && !desiredIds.has(c.id));
   if (!missingCards.length) {
-    showToast('У вас уже есть все карты инвентаря!');
+    showToast('Все недостающие карты уже добавлены в «Ищу»!');
     return;
   }
+  const confirmMsg = 'Добавить все недостающие карты (' + missingCards.length + ' шт.) в список «Ищу»?';
+  const ok = tg?.showConfirm ? await new Promise(resolve => tg.showConfirm(confirmMsg, resolve)) : window.confirm(confirmMsg);
+  if (!ok) return;
   let added = 0;
   missingCards.forEach(c => {
     if (!desiredIds.has(c.id)) {
@@ -1144,8 +1138,11 @@ document.getElementById('addMissingToDesiredBtn').addEventListener('click', () =
   showToast('⭐ Добавлено ' + added + ' недостающих карт в «Ищу»');
 });
 
-document.getElementById('clearDesiredBtn').addEventListener('click', () => {
-  if (desiredIds.size === 0) return;
+document.getElementById('clearDesiredBtn').addEventListener('click', async () => {
+  if (desiredIds.size === 0) { showToast('Список «Ищу» уже пуст'); return; }
+  const confirmMsg = 'Сбросить выбор всех карт в «Ищу» (' + desiredIds.size + ' шт.)?';
+  const ok = tg?.showConfirm ? await new Promise(resolve => tg.showConfirm(confirmMsg, resolve)) : window.confirm(confirmMsg);
+  if (!ok) return;
   desiredIds.clear();
   triggerHaptic('light');
   renderInventory();
