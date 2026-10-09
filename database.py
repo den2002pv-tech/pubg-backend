@@ -95,6 +95,15 @@ def set_user_card_quantity(telegram_id: int, card_id: str, quantity: int) -> Non
                 """,
                 (card_id, quantity, telegram_id),
             )
+            if quantity > 0:
+                cur.execute(
+                    """
+                    DELETE FROM desired_cards
+                    WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
+                      AND card_id = %s
+                    """,
+                    (telegram_id, card_id),
+                )
         conn.commit()
 
 
@@ -125,7 +134,9 @@ def get_desired_cards(telegram_id: int) -> list[dict]:
                 FROM desired_cards dc
                 JOIN users u ON u.id = dc.user_id
                 JOIN cards c ON c.id = dc.card_id
+                LEFT JOIN user_cards uc ON uc.user_id = u.id AND uc.card_id = c.id
                 WHERE u.telegram_id = %s
+                  AND COALESCE(uc.quantity, 0) = 0
                 ORDER BY
                     CASE
                         WHEN c.id ~ '^card_[0-9]+$'
@@ -157,7 +168,9 @@ def set_desired_cards(telegram_id: int, card_ids: list[str]) -> list[dict]:
                     SELECT u.id, c.id
                     FROM users u
                     JOIN cards c ON c.id = ANY(%s)
+                    LEFT JOIN user_cards uc ON uc.user_id = u.id AND uc.card_id = c.id
                     WHERE u.telegram_id = %s
+                      AND COALESCE(uc.quantity, 0) = 0
                     ON CONFLICT DO NOTHING
                     """,
                     (unique_ids, telegram_id),
