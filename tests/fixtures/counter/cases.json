@@ -1,4 +1,317 @@
 {
   "version": 1,
-  "cases": []
+  "cases": [
+    {
+      "id": "20261009T201752240690-9a1f1e398f",
+      "timestamp": "2026-10-09T20:17:52.240690+00:00",
+      "app_commit": "1a352816f71f1ffad3d61030aacc3948e9fa9f40",
+      "card_id": "card_53",
+      "card_name": "Керамбит",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        152,
+        71,
+        197,
+        287
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        197,
+        287
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T201752240690-9a1f1e398f.png",
+      "image_sha256": "9a1f1e398fb0888a154b00296a24829dd0bae1ae564498842d893e5b7da4709c",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1251.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            118,
+            2,
+            194,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 32,
+              "bright_pixel_ratio": 0.0517,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 17,
+              "bright_pixel_ratio": 0.1081,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 0,
+          "x_candidates": [
+            {
+              "x": 185,
+              "y": 41,
+              "w": 9,
+              "h": 11,
+              "score": 0.462
+            }
+          ],
+          "digit_candidates": []
+        }
+      }
+    },
+    {
+      "id": "20261009T201752241033-8e428058d6",
+      "timestamp": "2026-10-09T20:17:52.241033+00:00",
+      "app_commit": "1a352816f71f1ffad3d61030aacc3948e9fa9f40",
+      "card_id": "card_52",
+      "card_name": "Париж, Франция",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        371,
+        71,
+        195,
+        287
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        195,
+        287
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T201752241033-8e428058d6.png",
+      "image_sha256": "8e428058d61889ffd2c0c0c5ce40879b2ab9a7cb8e282b2c8902a5ce72483368",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1251.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            117,
+            2,
+            192,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0701,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 169,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.836
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 181,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 2,
+              "score": 0.758
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T201752241276-423453bbb5",
+      "timestamp": "2026-10-09T20:17:52.241276+00:00",
+      "app_commit": "1a352816f71f1ffad3d61030aacc3948e9fa9f40",
+      "card_id": "card_51",
+      "card_name": "Чемпион YG",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        589,
+        71,
+        196,
+        287
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        196,
+        287
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T201752241276-423453bbb5.png",
+      "image_sha256": "423453bbb5a235e0588607ba1d506b1d41caadad1255c7d1147dcea5f07162ed",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1251.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            117,
+            2,
+            193,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 11,
+              "bright_pixel_ratio": 0.084,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 170,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.764
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 182,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 2,
+              "score": 0.769
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T201752241533-61594605d6",
+      "timestamp": "2026-10-09T20:17:52.241533+00:00",
+      "app_commit": "1a352816f71f1ffad3d61030aacc3948e9fa9f40",
+      "card_id": "card_50",
+      "card_name": "Чемпион 4T",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        808,
+        72,
+        196,
+        286
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        196,
+        286
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T201752241533-61594605d6.png",
+      "image_sha256": "61594605d6576ffae9868e6d7120497a90920f55cce1f22b020fdfa3414a2575",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1251.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            117,
+            2,
+            193,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 9,
+              "bright_pixel_ratio": 0.0467,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 10,
+              "bright_pixel_ratio": 0.0799,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 117,
+              "y": 11,
+              "w": 14,
+              "h": 16,
+              "score": 0.482
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 117,
+              "y": 11,
+              "w": 14,
+              "h": 16,
+              "digit": 1,
+              "score": 0.761
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    }
+  ]
 }
