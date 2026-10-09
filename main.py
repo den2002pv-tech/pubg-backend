@@ -892,6 +892,29 @@ async def add_zero_inventory_cards(
     }
 
 
+def _normalize_collection_updates(cards: list[Any]) -> list[tuple[str, int]]:
+    """Normalize inventory updates and make duplicate card IDs deterministic.
+
+    A card is represented once in the album and its badge carries the quantity.
+    If image detection reports the same stable card ID more than once, keep the
+    greatest reported quantity instead of letting the last row silently win.
+    Repeating the same scan therefore remains an absolute, idempotent update.
+    """
+    quantities: dict[str, int] = {}
+    for item in cards:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        card_id = str(item["id"]).strip()
+        if not card_id:
+            continue
+        try:
+            quantity = max(0, min(999, int(item.get("quantity", 0) or 0)))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Некорректное количество карты") from exc
+        quantities[card_id] = max(quantities.get(card_id, 0), quantity)
+    return list(quantities.items())
+
+
 @app.post("/me/collection/confirm")
 async def confirm_my_collection(
     data: dict[str, Any],
@@ -902,13 +925,10 @@ async def confirm_my_collection(
     if not isinstance(cards, list):
         raise HTTPException(status_code=400, detail="cards должен быть массивом")
     get_or_create_user(auth["id"])
-    saved = 0
-    for item in cards:
-        if not isinstance(item, dict) or not item.get("id"):
-            continue
-        quantity = max(0, int(item.get("quantity", 0) or 0))
-        set_user_card_quantity(auth["id"], str(item["id"]), quantity)
-        saved += 1
+    updates = _normalize_collection_updates(cards)
+    for card_id, quantity in updates:
+        set_user_card_quantity(auth["id"], card_id, quantity)
+    saved = len(updates)
     return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"])}
 
 
