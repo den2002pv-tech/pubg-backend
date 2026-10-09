@@ -536,6 +536,41 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             "multiply_score": round(float(sign_score), 3),
         }
 
+    # A digit and an X-shaped detail alone are not enough: colorful card artwork
+    # can contain both shapes. PUBG's quantity badge has a neutral gray backing.
+    # Check the local patch around both glyphs before accepting the counter.
+    badge_left = max(0, min(sign_x, digit_x) - int(digit_h * 0.65))
+    badge_right = min(w, max(sign_x + sign_w, digit_x + digit_w) + int(digit_h * 0.65))
+    badge_top = max(0, min(sign_y, digit_y) - int(digit_h * 0.45))
+    badge_bottom = min(h, max(sign_y + sign_h, digit_y + digit_h) + int(digit_h * 0.45))
+    badge = arr[badge_top:badge_bottom, badge_left:badge_right]
+    if badge.size == 0:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": len(candidates),
+            "selected": {"digit": selected["digit"], "score": round(float(selected["score"]), 3)},
+            "reason": "empty_badge_region",
+        }
+
+    badge_hsv = cv2.cvtColor(badge, cv2.COLOR_RGB2HSV)
+    badge_gray = cv2.cvtColor(badge, cv2.COLOR_RGB2GRAY)
+    neutral_gray = (
+        (badge_hsv[:, :, 1] <= 65)
+        & (badge_hsv[:, :, 2] >= 45)
+        & (badge_hsv[:, :, 2] <= 225)
+    )
+    neutral_ratio = float(neutral_gray.mean())
+    gray_spread = float(np.percentile(badge_gray, 90) - np.percentile(badge_gray, 10))
+    if neutral_ratio < 0.38 or gray_spread > 125:
+        return card, 1, 0.0, {
+            "roi": [x1, y1, x2, y2],
+            "candidates": len(candidates),
+            "selected": {"digit": selected["digit"], "score": round(float(selected["score"]), 3)},
+            "reason": "no_gray_badge_background",
+            "neutral_ratio": round(neutral_ratio, 3),
+            "gray_spread": round(gray_spread, 1),
+        }
+
     # Remove only the detected UI badge from the hash input. Geometry stays
     # unchanged and the user-facing preview continues to use the original crop.
     # Expand to the whole small UI badge, not only the white glyphs.
