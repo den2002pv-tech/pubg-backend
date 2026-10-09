@@ -395,7 +395,7 @@ async function saveCounterTest(index){
       row:Number.isInteger(card.row)?card.row:null,
       col:Number.isInteger(card.col)?card.col:null,
       box:Array.isArray(card.box)?card.box:null,
-      image_size:card.image_size||null,
+      image_size:window.lastScanImageSize||null,
       counter_debug:card.debug?.counter||card.counter_debug||{}
     })});
     const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
@@ -437,7 +437,7 @@ async function scan(){
   try{
     const r=await api('/admin/scan-preview',{method:'POST',body:fd});
     const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
-    window.lastScan=d.cards||[];renderResults(window.lastScan);status(`Найдено карточек: ${d.count||0}`,'ok');await loadStatus()
+    window.lastScan=d.cards||[];window.lastScanImageSize=d.image_size||null;renderResults(window.lastScan);status(`Найдено карточек: ${d.count||0}`,'ok');await loadStatus()
   }catch(e){status('Ошибка сканирования: '+e.message,'err')}
   finally{b.disabled=false;b.textContent='Сканировать'}
 }
