@@ -312,6 +312,2704 @@
           "rejection_stage": "badge_geometry_or_contrast"
         }
       }
+    },
+    {
+      "id": "20261009T204609170360-9a1f1e398f",
+      "timestamp": "2026-10-09T20:46:09.170360+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_53",
+      "card_name": "Керамбит",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        152,
+        71,
+        197,
+        287
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        197,
+        287
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609170360-9a1f1e398f.png",
+      "image_sha256": "9a1f1e398fb0888a154b00296a24829dd0bae1ae564498842d893e5b7da4709c",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 6288.0,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            118,
+            2,
+            194,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 32,
+              "bright_pixel_ratio": 0.0517,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 17,
+              "bright_pixel_ratio": 0.1081,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 0,
+          "x_candidates": [
+            {
+              "x": 185,
+              "y": 41,
+              "w": 9,
+              "h": 11,
+              "score": 0.462
+            }
+          ],
+          "digit_candidates": []
+        }
+      }
+    },
+    {
+      "id": "20261009T204609170757-8e428058d6",
+      "timestamp": "2026-10-09T20:46:09.170757+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_52",
+      "card_name": "Париж, Франция",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        371,
+        71,
+        195,
+        287
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        195,
+        287
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609170757-8e428058d6.png",
+      "image_sha256": "8e428058d61889ffd2c0c0c5ce40879b2ab9a7cb8e282b2c8902a5ce72483368",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 6288.0,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            117,
+            2,
+            192,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0701,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 169,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.836
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 181,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 2,
+              "score": 0.758
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609171108-423453bbb5",
+      "timestamp": "2026-10-09T20:46:09.171108+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_51",
+      "card_name": "Чемпион YG",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        589,
+        71,
+        196,
+        287
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        196,
+        287
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609171108-423453bbb5.png",
+      "image_sha256": "423453bbb5a235e0588607ba1d506b1d41caadad1255c7d1147dcea5f07162ed",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 6288.0,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            117,
+            2,
+            193,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 11,
+              "bright_pixel_ratio": 0.084,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 170,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.764
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 182,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 2,
+              "score": 0.769
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609171367-61594605d6",
+      "timestamp": "2026-10-09T20:46:09.171367+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_50",
+      "card_name": "Чемпион 4T",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        808,
+        72,
+        196,
+        286
+      ],
+      "source_screenshot_size": [
+        1280,
+        588
+      ],
+      "detector_input_size": [
+        196,
+        286
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609171367-61594605d6.png",
+      "image_sha256": "61594605d6576ffae9868e6d7120497a90920f55cce1f22b020fdfa3414a2575",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 6288.0,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            117,
+            2,
+            193,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 9,
+              "bright_pixel_ratio": 0.0467,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 10,
+              "bright_pixel_ratio": 0.0799,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 117,
+              "y": 11,
+              "w": 14,
+              "h": 16,
+              "score": 0.482
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 117,
+              "y": 11,
+              "w": 14,
+              "h": 16,
+              "digit": 1,
+              "score": 0.761
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609171640-037827e15e",
+      "timestamp": "2026-10-09T20:46:09.171640+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_53",
+      "card_name": "Керамбит",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        139,
+        67,
+        185,
+        266
+      ],
+      "source_screenshot_size": [
+        1179,
+        587
+      ],
+      "detector_input_size": [
+        185,
+        266
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609171640-037827e15e.png",
+      "image_sha256": "037827e15e0de01ce04c1383593b3e4e1f91f1b2b4e3ad38dfaa8c822d658a7e",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1268.7,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            111,
+            2,
+            182,
+            53
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 13,
+              "bright_pixel_ratio": 0.0301,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 17,
+              "bright_pixel_ratio": 0.0953,
+              "x_candidates_added": 2,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 2,
+          "digit_candidates_found": 0,
+          "x_candidates": [
+            {
+              "x": 155,
+              "y": 2,
+              "w": 27,
+              "h": 19,
+              "score": 0.42
+            },
+            {
+              "x": 168,
+              "y": 27,
+              "w": 9,
+              "h": 8,
+              "score": 0.355
+            }
+          ],
+          "digit_candidates": []
+        }
+      }
+    },
+    {
+      "id": "20261009T204609171900-dc47463670",
+      "timestamp": "2026-10-09T20:46:09.171900+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_52",
+      "card_name": "Париж, Франция",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        343,
+        68,
+        181,
+        265
+      ],
+      "source_screenshot_size": [
+        1179,
+        587
+      ],
+      "detector_input_size": [
+        181,
+        265
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609171900-dc47463670.png",
+      "image_sha256": "dc47463670cd92085ae003289ee70276d8bc058dd5d4aa0e986286fd84a1216d",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1268.7,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            108,
+            2,
+            178,
+            53
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 3,
+              "bright_pixel_ratio": 0.0275,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 6,
+              "bright_pixel_ratio": 0.0437,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 2,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 108,
+              "y": 40,
+              "w": 6,
+              "h": 8,
+              "digit": 1,
+              "score": 0.622
+            },
+            {
+              "x": 108,
+              "y": 40,
+              "w": 6,
+              "h": 13,
+              "digit": 1,
+              "score": 0.583
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261009T204609172134-5e3229d5c6",
+      "timestamp": "2026-10-09T20:46:09.172134+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_51",
+      "card_name": "Чемпион YG",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        547,
+        68,
+        181,
+        266
+      ],
+      "source_screenshot_size": [
+        1179,
+        587
+      ],
+      "detector_input_size": [
+        181,
+        266
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609172134-5e3229d5c6.png",
+      "image_sha256": "5e3229d5c6ed90a093a18ce31bb9916d979712a04969c69394409c9438717bd3",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1268.7,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            108,
+            2,
+            178,
+            53
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 3,
+              "bright_pixel_ratio": 0.0345,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 13,
+              "bright_pixel_ratio": 0.0927,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 108,
+              "y": 10,
+              "w": 14,
+              "h": 22,
+              "score": 0.523
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 108,
+              "y": 10,
+              "w": 14,
+              "h": 22,
+              "digit": 1,
+              "score": 0.656
+            },
+            {
+              "x": 138,
+              "y": 43,
+              "w": 4,
+              "h": 10,
+              "digit": 1,
+              "score": 0.558
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609172369-0785aa4644",
+      "timestamp": "2026-10-09T20:46:09.172369+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_50",
+      "card_name": "Чемпион 4T",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        749,
+        68,
+        182,
+        265
+      ],
+      "source_screenshot_size": [
+        1179,
+        587
+      ],
+      "detector_input_size": [
+        182,
+        265
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609172369-0785aa4644.png",
+      "image_sha256": "0785aa46447f55a2e8477b577440121038faca9d25e60f4471d52acf74732313",
+      "expected_quantity": 13,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1268.7,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            109,
+            2,
+            179,
+            53
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1014,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 153,
+              "y": 12,
+              "w": 8,
+              "h": 13,
+              "score": 0.654
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 163,
+              "y": 6,
+              "w": 3,
+              "h": 19,
+              "digit": 1,
+              "score": 0.95
+            },
+            {
+              "x": 168,
+              "y": 6,
+              "w": 9,
+              "h": 18,
+              "digit": 3,
+              "score": 0.773
+            },
+            {
+              "x": 153,
+              "y": 12,
+              "w": 8,
+              "h": 13,
+              "digit": 1,
+              "score": 0.672
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609172655-bfd85c6ec1",
+      "timestamp": "2026-10-09T20:46:09.172655+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_65",
+      "card_name": "Старший вамрир",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        206,
+        88,
+        239,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        239,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609172655-bfd85c6ec1.png",
+      "image_sha256": "bfd85c6ec13cd4531f0d4a868cd5bef6653a01f8215a2882e7c5665ba1eeeed3",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1956.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            143,
+            3,
+            235,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 12,
+              "bright_pixel_ratio": 0.0329,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 17,
+              "bright_pixel_ratio": 0.0753,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 3,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 143,
+              "y": 25,
+              "w": 6,
+              "h": 22,
+              "digit": 1,
+              "score": 0.783
+            },
+            {
+              "x": 143,
+              "y": 24,
+              "w": 7,
+              "h": 24,
+              "digit": 1,
+              "score": 0.756
+            },
+            {
+              "x": 154,
+              "y": 24,
+              "w": 8,
+              "h": 20,
+              "digit": 1,
+              "score": 0.711
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261009T204609172968-d671c862f3",
+      "timestamp": "2026-10-09T20:46:09.172968+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_63",
+      "card_name": "Хранитель ночи",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        88,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609172968-d671c862f3.png",
+      "image_sha256": "d671c862f33cba01eec02cd227e4cbc8a5e797cc827dae85577d142588faec79",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1956.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 9,
+              "bright_pixel_ratio": 0.292,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 14,
+              "bright_pixel_ratio": 0.3668,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 0,
+          "x_candidates": [],
+          "digit_candidates": []
+        }
+      }
+    },
+    {
+      "id": "20261009T204609173218-5697920c41",
+      "timestamp": "2026-10-09T20:46:09.173218+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        88,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609173218-5697920c41.png",
+      "image_sha256": "5697920c41c040037c16696ed5c9fa54e771a9869bb47ad5bf879f4052a7e7dd",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1956.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1325,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.7369,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 217,
+              "y": 17,
+              "w": 8,
+              "h": 53,
+              "digit": 1,
+              "score": 0.549
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261009T204609173517-99cf9f7721",
+      "timestamp": "2026-10-09T20:46:09.173517+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_60",
+      "card_name": "Адана-кебаб",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        88,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609173517-99cf9f7721.png",
+      "image_sha256": "99cf9f772143a9f447a6f51cf70ead2b10225be2d62178ec5b0006cc01f065fe",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1736.6,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 41,
+              "bright_pixel_ratio": 0.178,
+              "x_candidates_added": 3,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 3,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 190,
+              "y": 35,
+              "w": 9,
+              "h": 10,
+              "score": 0.496
+            },
+            {
+              "x": 178,
+              "y": 48,
+              "w": 9,
+              "h": 8,
+              "score": 0.466
+            },
+            {
+              "x": 182,
+              "y": 21,
+              "w": 11,
+              "h": 15,
+              "score": 0.415
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 144,
+              "y": 57,
+              "w": 5,
+              "h": 12,
+              "digit": 1,
+              "score": 0.683
+            },
+            {
+              "x": 147,
+              "y": 24,
+              "w": 5,
+              "h": 13,
+              "digit": 1,
+              "score": 0.569
+            },
+            {
+              "x": 182,
+              "y": 21,
+              "w": 11,
+              "h": 15,
+              "digit": 4,
+              "score": 0.451
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609173854-8a40234e2f",
+      "timestamp": "2026-10-09T20:46:09.173854+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_59",
+      "card_name": "Симит",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        88,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609173854-8a40234e2f.png",
+      "image_sha256": "8a40234e2f5b61634a925166c094f7e10dbe4a562acdf0d05ebc95b0f2a9f6e5",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1736.6,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 9,
+              "bright_pixel_ratio": 0.5237,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 10,
+              "bright_pixel_ratio": 0.6851,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 0,
+          "x_candidates": [],
+          "digit_candidates": []
+        }
+      }
+    },
+    {
+      "id": "20261009T204609174161-1d71d874fb",
+      "timestamp": "2026-10-09T20:46:09.174161+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_58",
+      "card_name": "Турецкий кофе",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        87,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609174161-1d71d874fb.png",
+      "image_sha256": "1d71d874fb634ed601ea0e947e517a9590f2c28fe59c0e743eacb4a2dc34c4d0",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1736.6,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 26,
+              "bright_pixel_ratio": 0.2124,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 26,
+              "bright_pixel_ratio": 0.4088,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 144,
+              "y": 15,
+              "w": 15,
+              "h": 14,
+              "score": 0.543
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 144,
+              "y": 14,
+              "w": 21,
+              "h": 56,
+              "digit": 1,
+              "score": 0.567
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609174418-7553d71b7d",
+      "timestamp": "2026-10-09T20:46:09.174418+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_53",
+      "card_name": "Керамбит",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        161,
+        69,
+        194,
+        282
+      ],
+      "source_screenshot_size": [
+        1280,
+        576
+      ],
+      "detector_input_size": [
+        194,
+        282
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609174418-7553d71b7d.png",
+      "image_sha256": "7553d71b7d000d40c6882f23e8b39e64db59ae5bfd2387455eb7a6d771a3e250",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1167.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            116,
+            2,
+            191,
+            56
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 24,
+              "bright_pixel_ratio": 0.0689,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 167,
+              "y": 13,
+              "w": 9,
+              "h": 10,
+              "score": 0.729
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 179,
+              "y": 7,
+              "w": 9,
+              "h": 20,
+              "digit": 2,
+              "score": 0.8
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609174688-7182b94ef4",
+      "timestamp": "2026-10-09T20:46:09.174688+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_52",
+      "card_name": "Париж, Франция",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        376,
+        70,
+        192,
+        281
+      ],
+      "source_screenshot_size": [
+        1280,
+        576
+      ],
+      "detector_input_size": [
+        192,
+        281
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609174688-7182b94ef4.png",
+      "image_sha256": "7182b94ef4e095e92111ca74fef400353a55fced11a2eb57bac8831a42c01d06",
+      "expected_quantity": 4,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1167.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            115,
+            2,
+            189,
+            56
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 10,
+              "bright_pixel_ratio": 0.0631,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 165,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.857
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 177,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 4,
+              "score": 0.661
+            },
+            {
+              "x": 115,
+              "y": 43,
+              "w": 5,
+              "h": 8,
+              "digit": 1,
+              "score": 0.628
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609174966-087c370627",
+      "timestamp": "2026-10-09T20:46:09.174966+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_51",
+      "card_name": "Чемпион YG",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        590,
+        70,
+        192,
+        281
+      ],
+      "source_screenshot_size": [
+        1280,
+        576
+      ],
+      "detector_input_size": [
+        192,
+        281
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609174966-087c370627.png",
+      "image_sha256": "087c3706270940180a3f26b9375f4d6dbe90b36165ad5c4d3a4189dc172ec873",
+      "expected_quantity": 4,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1167.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            115,
+            2,
+            189,
+            56
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 18,
+              "bright_pixel_ratio": 0.0723,
+              "x_candidates_added": 2,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 2,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 165,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.786
+            },
+            {
+              "x": 123,
+              "y": 12,
+              "w": 5,
+              "h": 7,
+              "score": 0.378
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 177,
+              "y": 6,
+              "w": 11,
+              "h": 20,
+              "digit": 4,
+              "score": 0.716
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609175231-478b27de44",
+      "timestamp": "2026-10-09T20:46:09.175231+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_50",
+      "card_name": "Чемпион 4T",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        805,
+        70,
+        191,
+        281
+      ],
+      "source_screenshot_size": [
+        1280,
+        576
+      ],
+      "detector_input_size": [
+        191,
+        281
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609175231-478b27de44.png",
+      "image_sha256": "478b27de44d3cff57c9bdef0c923a1427835bb01d314e8d63be4c560a5b21628",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1167.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            114,
+            2,
+            188,
+            56
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 12,
+              "bright_pixel_ratio": 0.0791,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 165,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.841
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 177,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 2,
+              "score": 0.711
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609175702-0ea1676c7c",
+      "timestamp": "2026-10-09T20:46:09.175702+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_67",
+      "card_name": "Шар Хвостатого Зверя",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        280,
+        120,
+        397,
+        542
+      ],
+      "source_screenshot_size": [
+        2400,
+        1080
+      ],
+      "detector_input_size": [
+        397,
+        542
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609175702-0ea1676c7c.png",
+      "image_sha256": "0ea1676c7c76b7cb3ed74c16ddd0d356540701f1520292e8c276c199db23d3be",
+      "expected_quantity": 3,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 3353.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            238,
+            5,
+            391,
+            108
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 37,
+              "bright_pixel_ratio": 0.1686,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 332,
+              "y": 32,
+              "w": 19,
+              "h": 19,
+              "score": 0.667
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 356,
+              "y": 22,
+              "w": 17,
+              "h": 36,
+              "digit": 3,
+              "score": 0.827
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609176220-885db35246",
+      "timestamp": "2026-10-09T20:46:09.176220+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_66",
+      "card_name": "Девятихвостый",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        692,
+        120,
+        385,
+        539
+      ],
+      "source_screenshot_size": [
+        2400,
+        1080
+      ],
+      "detector_input_size": [
+        385,
+        539
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609176220-885db35246.png",
+      "image_sha256": "885db352462227d554d854445421bd17edfc436e92258b5a859103171446b641",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 3353.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            231,
+            5,
+            379,
+            107
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 41,
+              "bright_pixel_ratio": 0.1749,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 34,
+              "bright_pixel_ratio": 0.2128,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 355,
+              "y": 44,
+              "w": 14,
+              "h": 26,
+              "digit": 1,
+              "score": 0.509
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261009T204609177011-df4916664d",
+      "timestamp": "2026-10-09T20:46:09.177011+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_35",
+      "card_name": "Техника Воскрешения",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        1108,
+        131,
+        358,
+        527
+      ],
+      "source_screenshot_size": [
+        2400,
+        1080
+      ],
+      "detector_input_size": [
+        358,
+        527
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609177011-df4916664d.png",
+      "image_sha256": "df4916664d7143cb629c272049547076d126272e884a6259baba411d917f5917",
+      "expected_quantity": 3,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 3353.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            214,
+            5,
+            352,
+            105
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 16,
+              "bright_pixel_ratio": 0.1651,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 307,
+              "y": 21,
+              "w": 19,
+              "h": 19,
+              "score": 0.678
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 331,
+              "y": 11,
+              "w": 17,
+              "h": 36,
+              "digit": 3,
+              "score": 0.812
+            },
+            {
+              "x": 214,
+              "y": 40,
+              "w": 25,
+              "h": 65,
+              "digit": 1,
+              "score": 0.739
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609177975-893720cc80",
+      "timestamp": "2026-10-09T20:46:09.177975+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_33",
+      "card_name": "Гамабунта",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1509,
+        131,
+        358,
+        527
+      ],
+      "source_screenshot_size": [
+        2400,
+        1080
+      ],
+      "detector_input_size": [
+        358,
+        527
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609177975-893720cc80.png",
+      "image_sha256": "893720cc80fabebdbe0914155ed736a157279d3954ef30d641919a9a7ce70518",
+      "expected_quantity": 3,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 3353.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            214,
+            5,
+            352,
+            105
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 13,
+              "bright_pixel_ratio": 0.0583,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 308,
+              "y": 21,
+              "w": 19,
+              "h": 19,
+              "score": 0.669
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 332,
+              "y": 11,
+              "w": 17,
+              "h": 36,
+              "digit": 3,
+              "score": 0.819
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609178533-481bfd0be1",
+      "timestamp": "2026-10-09T20:46:09.178533+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_68",
+      "card_name": "Сайтама и Генос",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        568,
+        32,
+        463,
+        659
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        463,
+        659
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609178533-481bfd0be1.png",
+      "image_sha256": "481bfd0be172f69aa022c9b508a0068326916400c418870d8dde55813a5ecb50",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1079.6,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            277,
+            6,
+            456,
+            131
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 45,
+              "bright_pixel_ratio": 0.0964,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 426,
+              "y": 83,
+              "w": 30,
+              "h": 48,
+              "score": 0.5
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 426,
+              "y": 83,
+              "w": 30,
+              "h": 48,
+              "digit": 1,
+              "score": 0.661
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609178759-24fb21ef72",
+      "timestamp": "2026-10-09T20:46:09.178759+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_52",
+      "card_name": "Париж, Франция",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        369,
+        72,
+        197,
+        288
+      ],
+      "source_screenshot_size": [
+        1280,
+        591
+      ],
+      "detector_input_size": [
+        197,
+        288
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609178759-24fb21ef72.png",
+      "image_sha256": "24fb21ef72d8e427f99e90ff750a5cb26b805b077681afecedc41da1f977ceff",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1190.3,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            118,
+            2,
+            194,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.062,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 170,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.856
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 182,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 2,
+              "score": 0.787
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609180187-8c765f4e1a",
+      "timestamp": "2026-10-09T20:46:09.180187+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_51",
+      "card_name": "Чемпион YG",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        589,
+        72,
+        197,
+        288
+      ],
+      "source_screenshot_size": [
+        1280,
+        591
+      ],
+      "detector_input_size": [
+        197,
+        288
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609180187-8c765f4e1a.png",
+      "image_sha256": "8c765f4e1a262f5192a6c0e70e25416fe19c7102a30d50c236e2dc3f8d311bab",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1190.3,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            118,
+            2,
+            194,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 7,
+              "bright_pixel_ratio": 0.0706,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 170,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.876
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 182,
+              "y": 6,
+              "w": 10,
+              "h": 20,
+              "digit": 2,
+              "score": 0.721
+            },
+            {
+              "x": 118,
+              "y": 13,
+              "w": 8,
+              "h": 17,
+              "digit": 1,
+              "score": 0.472
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609180473-c8e40dd197",
+      "timestamp": "2026-10-09T20:46:09.180473+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "card_50",
+      "card_name": "Чемпион 4T",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        809,
+        72,
+        197,
+        288
+      ],
+      "source_screenshot_size": [
+        1280,
+        591
+      ],
+      "detector_input_size": [
+        197,
+        288
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609180473-c8e40dd197.png",
+      "image_sha256": "c8e40dd197a8d75efc50bf29768cdc02553ee9486bdaacba27f240128fe4e9e9",
+      "expected_quantity": 5,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1190.3,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            118,
+            2,
+            194,
+            57
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0809,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 170,
+              "y": 12,
+              "w": 10,
+              "h": 10,
+              "score": 0.876
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 183,
+              "y": 6,
+              "w": 9,
+              "h": 20,
+              "digit": 5,
+              "score": 0.891
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609180769-5315346434",
+      "timestamp": "2026-10-09T20:46:09.180769+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        252,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609180769-5315346434.png",
+      "image_sha256": "53153464342c1aaddb45947ea577eefb10164840b71e503d7bb13185d0b1be72",
+      "expected_quantity": 3,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1996.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1403,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.778
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609181050-e94be5c0fa",
+      "timestamp": "2026-10-09T20:46:09.181050+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        252,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609181050-e94be5c0fa.png",
+      "image_sha256": "e94be5c0faf5948e713011a1ba67af9f65aafca65830b828ad1290a310886247",
+      "expected_quantity": 3,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1996.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1402,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.717
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609181321-e8d8b96d31",
+      "timestamp": "2026-10-09T20:46:09.181321+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        252,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609181321-e8d8b96d31.png",
+      "image_sha256": "e8d8b96d31c0795a51827a9372827b416e6c3afbdab2914fca85a7958f1c7f05",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1996.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1377,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.717
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609181570-4128794c3b",
+      "timestamp": "2026-10-09T20:46:09.181570+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        252,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609181570-4128794c3b.png",
+      "image_sha256": "4128794c3bcf545761682913d26cdaf145b7f8d3a9cbd54c7adae6a5af6fcd18",
+      "expected_quantity": 3,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1996.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1389,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.717
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609181875-83626a6e82",
+      "timestamp": "2026-10-09T20:46:09.181875+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        206,
+        75,
+        239,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        239,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609181875-83626a6e82.png",
+      "image_sha256": "83626a6e82b48e99a4cdb12ec906b969b19a971858174ffaa9c5c46d13b67dda",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1405.3,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            143,
+            3,
+            235,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1932,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817
+            },
+            {
+              "x": 219,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.778
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609182149-352acf11d1",
+      "timestamp": "2026-10-09T20:46:09.182149+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        75,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609182149-352acf11d1.png",
+      "image_sha256": "352acf11d1a621f736b5bf8a986f8df6dedc2653a173bb1087e5e57e28ed6bc6",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1405.3,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1449,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.717
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261009T204609182430-e558611d8b",
+      "timestamp": "2026-10-09T20:46:09.182430+00:00",
+      "app_commit": "82df9073b4aae673db5fd9a03442362b19d8d8f2",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        75,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261009T204609182430-e558611d8b.png",
+      "image_sha256": "e558611d8bafede754491f3fe125b2b677b766134a1fd90563e1bb071165d400",
+      "expected_quantity": 5,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1405.3,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 8,
+              "bright_pixel_ratio": 0.2117,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 5,
+              "score": 0.881
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.717
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
     }
   ]
 }
