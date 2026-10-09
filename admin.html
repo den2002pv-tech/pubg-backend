@@ -63,7 +63,11 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
       <h2>Создание хешей</h2>
       <p class="muted">Текущий процесс оставлен: загрузи скриншот коллекции, проверь найденные карточки и сохрани их в card_hashes.json.</p>
       <input type="file" id="screenshotInput" accept="image/*">
-      <button id="scanBtn">Сканировать</button>
+      <div class="row">
+        <button id="scanBtn">Сканировать</button>
+        <button id="downloadScanLogsBtn" type="button" class="btn-secondary">⬇️ Скачать логи сканирования</button>
+      </div>
+      <div id="logsStatus" class="muted"></div>
       <div id="status"></div>
     </div>
     <div id="resultsBox" class="box" style="display:none">
@@ -467,6 +471,34 @@ function renderResults(cards){
 }
 
 document.getElementById('scanBtn').onclick=scan;
+
+document.getElementById('downloadScanLogsBtn').onclick=async()=>{
+  const button=document.getElementById('downloadScanLogsBtn');
+  const info=document.getElementById('logsStatus');
+  button.disabled=true;
+  info.className='muted';
+  info.textContent='Подготавливаем файл логов...';
+  try{
+    const response=await api('/admin/scan-logs');
+    if(!response.ok)throw new Error(await readError(response));
+    const blob=await response.blob();
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download='pubg-scan-logs.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    info.className='ok';
+    info.textContent='Логи скачаны. Файл содержит последние 100 сканирований текущего процесса.';
+  }catch(error){
+    info.className='err';
+    info.textContent='Не удалось скачать логи: '+error.message;
+  }finally{
+    button.disabled=false;
+  }
+};
 
 async function saveCard(i){
   const el=document.querySelectorAll('#scanResults .item')[i];
