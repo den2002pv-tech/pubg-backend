@@ -783,7 +783,8 @@ function getFilteredAndSortedInventory() {
     const isDesired = desiredIds.has(c.id);
 
     // Filter Chips
-    if (currentFilter === 'desired') return isDesired;
+    if (currentFilter === 'not_desired') return q === 0 && !isDesired;
+    if (currentFilter === 'desired') return q === 0 && isDesired;
     if (currentFilter === 'duplicates') return q > 1;
     if (currentFilter === 'owned') return q > 0;
     if (currentFilter === 'missing') return q === 0;
@@ -792,14 +793,12 @@ function getFilteredAndSortedInventory() {
 
   list.sort((a, b) => {
     const aq = num(a.quantity), bq = num(b.quantity);
-    const ad = Math.max(0, aq - 1), bd = Math.max(0, bq - 1);
-    const aDes = desiredIds.has(a.id) ? 1 : 0;
-    const bDes = desiredIds.has(b.id) ? 1 : 0;
-
+    const aDes = (aq === 0 && desiredIds.has(a.id)) ? 1 : 0;
+    const bDes = (bq === 0 && desiredIds.has(b.id)) ? 1 : 0;
+    const aNotDes = (aq === 0 && !desiredIds.has(a.id)) ? 1 : 0;
+    const bNotDes = (bq === 0 && !desiredIds.has(b.id)) ? 1 : 0;
+    if (sortMode === 'not_desired') return (bNotDes - aNotDes) || cardOrder(a) - cardOrder(b);
     if (sortMode === 'desired') return (bDes - aDes) || cardOrder(a) - cardOrder(b);
-    if (sortMode === 'duplicates') return (bd - ad) || cardOrder(a) - cardOrder(b);
-    if (sortMode === 'missing') return (aq > 0) - (bq > 0) || cardOrder(a) - cardOrder(b);
-    if (sortMode === 'owned') return (bq > 0) - (aq > 0) || cardOrder(a) - cardOrder(b);
     if (sortMode === 'quantity') return (bq - aq) || cardOrder(a) - cardOrder(b);
     if (sortMode === 'quantityAsc') return (aq - bq) || cardOrder(a) - cardOrder(b);
     if (sortMode === 'rarity') return (num(b.rarity) - num(a.rarity)) || cardOrder(a) - cardOrder(b);
@@ -811,11 +810,13 @@ function getFilteredAndSortedInventory() {
 }
 
 function updateStatsAndCounts() {
+  desiredIds.forEach(id => { if (inventoryQuantity(id) > 0) desiredIds.delete(id); });
   const total = inventoryCards.length;
   const owned = inventoryCards.filter(c => num(c.quantity) > 0).length;
   const duplicates = inventoryCards.reduce((s, c) => s + Math.max(0, num(c.quantity) - 1), 0);
   const desiredCount = desiredIds.size;
   const missingCount = Math.max(0, total - owned);
+  const notDesiredCount = inventoryCards.filter(c => num(c.quantity) === 0 && !desiredIds.has(c.id)).length;
 
   document.getElementById('ownedSummary').textContent = owned;
   document.getElementById('duplicateSummary').textContent = duplicates;
@@ -830,6 +831,7 @@ function updateStatsAndCounts() {
 
   // Filter Chip counts
   document.getElementById('chipAllCount').textContent = total;
+  document.getElementById('chipNotDesiredCount').textContent = notDesiredCount;
   document.getElementById('chipDesiredCount').textContent = desiredCount;
   document.getElementById('chipDupCount').textContent = inventoryCards.filter(c => num(c.quantity) > 1).length;
   document.getElementById('chipOwnedCount').textContent = owned;
@@ -849,9 +851,9 @@ function renderInventory() {
 
   const list = getFilteredAndSortedInventory();
   if (!list.length) {
-    const emptyMsg = currentFilter === 'desired'
-      ? 'Список «Ищу» пока пуст. Нажмите ⭐ на нужных карточках или кнопку «Добавить недостающие в «Ищу»» выше.'
-      : 'Карты не найдены по текущим фильтрам.';
+    let emptyMsg = 'Карты не найдены по текущим фильтрам.';
+    if (currentFilter === 'desired') emptyMsg = 'Список «Ищу» пока пуст. Выберите фильтр «🎯 Не в «Ищу»» или нажмите «Добавить недостающие в «Ищу»» выше.';
+    else if (currentFilter === 'not_desired') emptyMsg = '🎉 Все недостающие карты уже добавлены в список «Ищу»!';
     root.innerHTML = '<div class="empty" style="grid-column:1/-1">' + emptyMsg + '</div>';
     return;
   }
@@ -865,7 +867,7 @@ function renderInventory() {
 function createCardElement(c) {
   const qty = num(c.quantity);
   const dup = Math.max(0, qty - 1);
-  const desired = desiredIds.has(c.id);
+  const desired = (qty === 0) && desiredIds.has(c.id);
 
   const el = document.createElement('div');
   el.className = 'card' + (qty === 0 ? ' missing' : '') + (desired ? ' desired-active' : '');
@@ -880,12 +882,10 @@ function createCardElement(c) {
   else if (qty > 1) qtyBadgeClass += ' dup';
 
   const starsHtml = '⭐'.repeat(Math.max(1, Math.min(5, num(c.rarity, 3))));
-
+  const starBtnHtml = qty === 0 ? '<button class="star-btn ' + (desired ? 'active' : '') + '" title="' + (desired ? 'В списке «Ищу»' : 'Добавить в «Ищу»') + '" aria-label="Хочу получить">' + (desired ? '★' : '☆') + '</button>' : '';
   el.innerHTML =
     '<div class="art-box">' +
-      '<button class="star-btn ' + (desired ? 'active' : '') + '" title="Ищу эту карту" aria-label="Хочу получить">' +
-        (desired ? '★' : '☆') +
-      '</button>' +
+      starBtnHtml +
       artHtml +
       '<span class="' + qtyBadgeClass + '">×' + qty + '</span>' +
     '</div>' +
@@ -907,10 +907,7 @@ function createCardElement(c) {
     '</div>';
   // Event Listeners
   const starBtn = el.querySelector('.star-btn');
-  starBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleDesiredCard(c.id, el);
-  });
+  if (starBtn) starBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleDesiredCard(c.id, el); });
 
   const minusBtn = el.querySelector('.step-btn.minus');
   const plusBtn = el.querySelector('.step-btn.plus');
