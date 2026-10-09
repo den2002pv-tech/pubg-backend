@@ -246,6 +246,20 @@ class TelegramAuthSchema(BaseModel):
     init_data: str
 
 
+class CounterTestCaseSchema(BaseModel):
+    preview: str
+    expected_quantity: int
+    detected_quantity: int = 1
+    quantity_confidence: float = 0.0
+    card_id: str = ""
+    card_name: str = ""
+    row: int | None = None
+    col: int | None = None
+    box: list[int] | None = None
+    image_size: list[int] | None = None
+    counter_debug: dict[str, Any] = {}
+
+
 class CardSaveSchema(BaseModel):
     id: str = ""
     name: str
@@ -841,6 +855,189 @@ async def download_scan_logs(authorization: str | None = Header(default=None)):
         media_type="application/json; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+
+COUNTER_TEST_CASES_PATH = "tests/fixtures/counter/cases.json"
+COUNTER_TEST_IMAGES_PATH = "tests/fixtures/counter/images"
+
+
+def _counter_test_branch() -> str:
+    return os.getenv("COUNTER_TEST_BRANCH", "feature/card-counter").strip() or "feature/card-counter"
+
+
+def _github_read_text(path: str, branch: str) -> str | None:
+    token = os.getenv("GITHUB_TOKEN", "")
+    repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
+    if not token:
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+    url = f"https://api.github.com/repos/{repo}/contents/{quote(path, safe='/')}?ref={quote(branch, safe='')}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "pubg-card-admin",
+    }
+    try:
+        with urlopen(Request(url, headers=headers), timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        return base64.b64decode(payload.get("content", "")).decode("utf-8")
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"GitHub API: {exc.code} {detail[:300]}") from exc
+    except URLError as exc:
+        raise HTTPException(status_code=502, detail=f"GitHub API недоступен: {exc}") from exc
+
+
+def _github_commit_files(files: dict[str, bytes], message: str, branch: str) -> dict[str, str]:
+    """Commit only the supplied files to the explicitly selected working branch."""
+    token = os.getenv("GITHUB_TOKEN", "")
+    repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
+    if not token:
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+    api = f"https://api.github.com/repos/{repo}"
+    ref = _github_request("GET", f"{api}/git/ref/heads/{quote(branch, safe='')}", token)
+    parent_sha = ref["object"]["sha"]
+    parent = _github_request("GET", f"{api}/git/commits/{parent_sha}", token)
+    entries = []
+    for path, content in files.items():
+        blob = _github_request("POST", f"{api}/git/blobs", token, {
+            "content": base64.b64encode(content).decode("ascii"),
+            "encoding": "base64",
+        })
+        entries.append({"path": path, "mode": "100644", "type": "blob", "sha": blob["sha"]})
+    tree = _github_request("POST", f"{api}/git/trees", token, {
+        "base_tree": parent["tree"]["sha"],
+        "tree": entries,
+    })
+    commit = _github_request("POST", f"{api}/git/commits", token, {
+        "message": message,
+        "tree": tree["sha"],
+        "parents": [parent_sha],
+    })
+    _github_request("PATCH", f"{api}/git/refs/heads/{quote(branch, safe='')}", token, {
+        "sha": commit["sha"],
+        "force": False,
+    })
+    return {"sha": commit["sha"], "url": commit.get("html_url", ""), "branch": branch}
+
+
+@app.get("/admin/counter-tests")
+async def get_counter_tests(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        cases = json.loads(raw) if raw else {"version": 1, "cases": []}
+        if not isinstance(cases, dict) or not isinstance(cases.get("cases"), list):
+            cases = {"version": 1, "cases": []}
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Файл тестовых случаев в GitHub содержит некорректный JSON")
+    return {
+        "branch": branch,
+        "count": len(cases["cases"]),
+        "recent": [
+            {
+                "id": item.get("id"),
+                "timestamp": item.get("timestamp"),
+                "card_name": item.get("card_name"),
+                "expected_quantity": item.get("expected_quantity"),
+                "detected_quantity": item.get("detected_quantity"),
+                "correct": item.get("correct"),
+                "image_path": item.get("image_path"),
+                "commit_url": item.get("commit_url"),
+            }
+            for item in reversed(cases["cases"][-10:])
+        ],
+    }
+
+
+@app.post("/admin/counter-tests")
+async def save_counter_test(
+    data: CounterTestCaseSchema,
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    if data.expected_quantity < 1 or data.expected_quantity > 999:
+        raise HTTPException(status_code=400, detail="Реальное количество должно быть от 1 до 999")
+    # Accept only previews generated by this admin scanner; never accept arbitrary paths.
+    filename = Path(data.preview.split("?", 1)[0]).name
+    if not filename.startswith("scan-") or Path(filename).suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(status_code=400, detail="Выберите изображение, полученное последним сканированием")
+    image_path = TEMP_DIR / filename
+    if not image_path.is_file():
+        raise HTTPException(status_code=410, detail="Временное изображение уже удалено. Повторите сканирование.")
+    image_bytes = image_path.read_bytes()
+    if not image_bytes or len(image_bytes) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Размер тестового изображения должен быть меньше 8 МБ")
+
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        payload = json.loads(raw) if raw else {"version": 1, "cases": []}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Не удалось прочитать cases.json из рабочей ветки") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("cases"), list):
+        payload = {"version": 1, "cases": []}
+
+    image_sha = hashlib.sha256(image_bytes).hexdigest()
+    timestamp = datetime.now(timezone.utc)
+    case_id = f"{timestamp.strftime('%Y%m%dT%H%M%S')}-{image_sha[:10]}"
+    relative_image = f"{COUNTER_TEST_IMAGES_PATH}/{case_id}.jpg"
+    counter_debug = data.counter_debug if isinstance(data.counter_debug, dict) else {}
+    case = {
+        "id": case_id,
+        "timestamp": timestamp.isoformat(),
+        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "card_id": data.card_id,
+        "card_name": data.card_name,
+        "row": data.row,
+        "col": data.col,
+        "card_box_in_screenshot": data.box,
+        "source_image_size": data.image_size,
+        "image_path": relative_image,
+        "image_sha256": image_sha,
+        "expected_quantity": data.expected_quantity,
+        "detected_quantity": data.detected_quantity,
+        "correct": data.expected_quantity == data.detected_quantity,
+        "quantity_confidence": data.quantity_confidence,
+        "counter_debug": counter_debug,
+    }
+    payload.setdefault("version", 1)
+    payload["cases"].append(case)
+    payload["cases"] = payload["cases"][-500:]
+    message = f"Add counter test case {case_id} (expected {data.expected_quantity}, detected {data.detected_quantity})"
+    commit = _github_commit_files({
+        relative_image: image_bytes,
+        COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"),
+    }, message, branch)
+    case["commit_url"] = commit["url"]
+    # Add the resulting commit URL to the persisted record as well. A small follow-up
+    # update is avoided: the URL is returned to the admin and visible in recent tests.
+    log_entry = {
+        "timestamp": timestamp.isoformat(),
+        "event": "counter_test_labeled",
+        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "git_commit": commit["sha"],
+        "branch": branch,
+        "case_id": case_id,
+        "expected_quantity": data.expected_quantity,
+        "detected_quantity": data.detected_quantity,
+        "correct": case["correct"],
+        "image_path": relative_image,
+        "counter_debug": counter_debug,
+    }
+    SCAN_DIAGNOSTIC_LOGS.append(log_entry)
+    return {
+        "status": "saved",
+        "case": case,
+        "git_commit": commit["sha"],
+        "commit_url": commit["url"],
+        "branch": branch,
+        "count": len(payload["cases"]),
+    }
 
 
 @app.get("/admin/temp-files")
