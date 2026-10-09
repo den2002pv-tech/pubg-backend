@@ -297,8 +297,7 @@ input[type=file]{display:none}
   padding:16px;
   opacity:0;
   pointer-events:none;
-  transition:opacity .2s;
-}
+  transition:opacity .2s;}
 .modal-overlay.open{opacity:1;pointer-events:auto}
 .modal-card{
   background:var(--surface);
@@ -597,8 +596,7 @@ confirmBtn.addEventListener('click', confirmCollection);
 async function uploadImage() {
   const file = fileInput.files[0];
   if (!file) return;
-  statusText.textContent = '⏳ Сканирование скриншота...';
-  statusEl.textContent = 'Обработка изображения нейросетью/хешами...';
+  statusText.textContent = '⏳ Сканирование скриншота...';  statusEl.textContent = 'Обработка изображения нейросетью/хешами...';
   const fd = new FormData();
   fd.append('file', file);
   try {
@@ -897,7 +895,6 @@ function createCardElement(c) {
         '</div>' +
       '</div>' +
     '</div>';
-
   // Event Listeners
   const starBtn = el.querySelector('.star-btn');
   starBtn.addEventListener('click', (e) => {
@@ -998,3 +995,271 @@ async function flushPendingQuantities() {
       headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ cards: updates })
     });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Ошибка синхронизации количества');
+    inventoryCards = d.cards || inventoryCards;
+    showToast('✅ Количество сохранено');
+  } catch (e) {
+    showToast('❌ Ошибка сохранения: ' + e.message);
+  }
+}
+
+// Desired Cards (Wishlist) Operations
+function toggleDesiredCard(cardId, cardEl) {
+  triggerHaptic('medium');
+  if (desiredIds.has(cardId)) {
+    desiredIds.delete(cardId);
+  } else {
+    desiredIds.add(cardId);
+  }
+
+  const isDesired = desiredIds.has(cardId);
+  if (cardEl) {
+    cardEl.classList.toggle('desired-active', isDesired);
+    const starBtn = cardEl.querySelector('.star-btn');
+    if (starBtn) {
+      starBtn.classList.toggle('active', isDesired);
+      starBtn.textContent = isDesired ? '★' : '☆';
+    }
+    const tagsContainer = cardEl.querySelector('.card-tags');
+    if (tagsContainer) {
+      const cardObj = inventoryCards.find(x => x.id === cardId);
+      const qty = num(cardObj?.quantity);
+      const dup = Math.max(0, qty - 1);
+      const starsHtml = '⭐'.repeat(Math.max(1, Math.min(5, num(cardObj?.rarity, 3))));
+      tagsContainer.innerHTML =
+        '<span class="rarity-stars">' + starsHtml + '</span>' +
+        (dup > 0 ? '<span class="tag-dup">+' + dup + ' на обмен</span>' : (isDesired ? '<span class="tag-desired">Ищу ⭐</span>' : ''));
+    }
+  }
+
+  updateStatsAndCounts();
+  checkDesiredChanges();
+
+  // If in 'desired' filter tab, we might want to re-render if unstarred
+  if (currentFilter === 'desired' && !isDesired) {
+    // Keep it until filter re-selected or smoothly update
+  }
+}
+
+function checkDesiredChanges() {
+  const isDifferent = desiredIds.size !== savedDesiredIds.size || [...desiredIds].some(id => !savedDesiredIds.has(id));
+  const floatingBar = document.getElementById('floatingBar');
+  const floatingCount = document.getElementById('floatingCount');
+  const saveDesiredBtn = document.getElementById('saveDesiredBtn');
+
+  floatingCount.textContent = desiredIds.size;
+  saveDesiredBtn.textContent = '💾 Сохранить желаемые карты (' + desiredIds.size + ')';
+
+  if (isDifferent) {
+    floatingBar.classList.add('visible');
+    saveDesiredBtn.disabled = false;
+    if (tg?.MainButton) {
+      tg.MainButton.setText('💾 Сохранить список «Ищу» (' + desiredIds.size + ')');
+      tg.MainButton.show();
+      tg.MainButton.onClick(saveDesired);
+    }
+  } else {
+    floatingBar.classList.remove('visible');
+    if (tg?.MainButton && tg.MainButton.isVisible) {
+      tg.MainButton.hide();
+    }
+  }
+}
+
+async function saveDesired() {
+  const floatingBtn = document.getElementById('floatingSaveBtn');
+  const saveBtn = document.getElementById('saveDesiredBtn');
+  floatingBtn.disabled = true;
+  saveBtn.disabled = true;
+  floatingBtn.textContent = '⏳...';
+  saveBtn.textContent = '⏳ Сохранение...';
+
+  try {
+    const r = await fetch(API + '/me/desired-cards', {
+      method: 'PUT',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card_ids: [...desiredIds] })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Ошибка сохранения');
+    desiredIds = new Set((d.desired_cards || []).map(c => c.id));
+    savedDesiredIds = new Set(desiredIds);
+    checkDesiredChanges();
+    showToast('✅ Список «Ищу» сохранён (' + desiredIds.size + ' карт)');
+    triggerHaptic('success');
+    if (currentFilter === 'desired') renderInventory();
+  } catch (e) {
+    showToast('❌ ' + e.message);
+    triggerHaptic('error');
+  } finally {
+    floatingBtn.disabled = false;
+    saveBtn.disabled = false;
+    floatingBtn.textContent = '💾 Сохранить';
+    saveBtn.textContent = '💾 Сохранить желаемые карты (' + desiredIds.size + ')';
+  }
+}
+
+document.getElementById('floatingSaveBtn').addEventListener('click', saveDesired);
+document.getElementById('saveDesiredBtn').addEventListener('click', saveDesired);
+
+// Quick Wishlist Bulk Actions
+document.getElementById('addMissingToDesiredBtn').addEventListener('click', () => {
+  const missingCards = inventoryCards.filter(c => num(c.quantity) === 0);
+  if (!missingCards.length) {
+    showToast('У вас уже есть все карты инвентаря!');
+    return;
+  }
+  let added = 0;
+  missingCards.forEach(c => {
+    if (!desiredIds.has(c.id)) {
+      desiredIds.add(c.id);
+      added++;
+    }
+  });
+  triggerHaptic('medium');
+  renderInventory();
+  checkDesiredChanges();
+  showToast('⭐ Добавлено ' + added + ' недостающих карт в «Ищу»');
+});
+
+document.getElementById('clearDesiredBtn').addEventListener('click', () => {
+  if (desiredIds.size === 0) return;
+  desiredIds.clear();
+  triggerHaptic('light');
+  renderInventory();
+  checkDesiredChanges();
+  showToast('Сброшен выбор всех карт в «Ищу»');
+});
+
+// Clear Entire Inventory
+document.getElementById('clearInventoryBtn').addEventListener('click', async () => {
+  if (!telegramInitData) return;
+  const ok = tg?.showConfirm
+    ? await new Promise(resolve => tg.showConfirm('Обнулить количество всех карт в инвентаре? Список «Ищу» останется нетронутым.', resolve))
+    : window.confirm('Обнулить количество всех карт в инвентаре? Список «Ищу» останется нетронутым.');
+  if (!ok) return;
+
+  const btn = document.getElementById('clearInventoryBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Обнуление...';
+  try {
+    const r = await fetch(API + '/me/collection', { method: 'DELETE', headers: telegramHeaders() });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Ошибка обнуления');
+    inventoryCards = d.cards || inventoryCards;
+    renderInventory();
+    showToast('✅ Количество всех карт обнулено (×0)');
+    triggerHaptic('success');
+  } catch (e) {
+    showToast('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑️ Обнулить количество всех карт';
+  }
+});
+
+// Quick Quantity Modal Logic
+const qtyModal = document.getElementById('qtyModal');
+const modalQtyInput = document.getElementById('modalQtyInput');
+
+function openQuantityModal(cardId) {
+  activeModalCardId = cardId;
+  const cardObj = inventoryCards.find(x => x.id === cardId);
+  if (!cardObj) return;
+
+  document.getElementById('modalCardTitle').textContent = cardObj.name || 'Карта';
+  document.getElementById('modalCardSubtitle').textContent = 'Текущее количество в инвентаре: ×' + num(cardObj.quantity);
+  modalQtyInput.value = num(cardObj.quantity);
+
+  qtyModal.classList.add('open');
+  modalQtyInput.focus();
+  modalQtyInput.select();
+}
+
+function closeQuantityModal() {
+  qtyModal.classList.remove('open');
+  activeModalCardId = null;
+}
+
+document.querySelectorAll('.preset-btn[data-val]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    modalQtyInput.value = btn.dataset.val;
+  });
+});
+
+document.getElementById('modalMinusBtn').addEventListener('click', () => {
+  const v = Math.max(0, num(modalQtyInput.value) - 1);
+  modalQtyInput.value = v;
+});
+
+document.getElementById('modalPlusBtn').addEventListener('click', () => {
+  const v = Math.min(999, num(modalQtyInput.value) + 1);  modalQtyInput.value = v;
+});
+
+document.getElementById('modalCancelBtn').addEventListener('click', closeQuantityModal);
+qtyModal.addEventListener('click', (e) => {
+  if (e.target === qtyModal) closeQuantityModal();
+});
+
+document.getElementById('modalApplyBtn').addEventListener('click', () => {
+  if (!activeModalCardId) return;
+  const val = Math.max(0, Math.min(999, Math.trunc(num(modalQtyInput.value, 0))));
+  const cardEl = document.querySelector('.card[data-id="' + activeModalCardId + '"]');
+  updateCardQuantityOptimistic(activeModalCardId, val, cardEl);
+  closeQuantityModal();
+});
+
+// Filter Chips and Search Listeners
+document.getElementById('filterChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('#filterChips .chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  currentFilter = chip.dataset.filter;
+  triggerHaptic('light');
+  renderInventory();
+});
+
+// Stat Cards as Shortcuts
+document.getElementById('statOwnedCard').addEventListener('click', () => {
+  setFilter('owned');
+});
+document.getElementById('statDupCard').addEventListener('click', () => {
+  setFilter('duplicates');
+});
+document.getElementById('statDesiredCard').addEventListener('click', () => {
+  setFilter('desired');
+});
+
+function setFilter(filterName) {
+  currentFilter = filterName;
+  document.querySelectorAll('#filterChips .chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.filter === filterName);
+  });
+  triggerHaptic('light');
+  renderInventory();
+}
+
+const searchInput = document.getElementById('inventorySearch');
+const searchClearBtn = document.getElementById('searchClearBtn');
+
+searchInput.addEventListener('input', () => {
+  searchClearBtn.style.display = searchInput.value ? 'block' : 'none';
+  renderInventory();
+});
+
+searchClearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  searchClearBtn.style.display = 'none';
+  searchInput.focus();
+  renderInventory();
+});
+
+document.getElementById('inventorySort').addEventListener('change', renderInventory);
+
+// Initialize
+loadMyCollection();
+</script>
+</body>
+</html>
