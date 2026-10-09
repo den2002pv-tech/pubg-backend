@@ -228,14 +228,26 @@ def add_zero_cards(telegram_id: int, card_ids: list[str]) -> int:
 
 
 def sync_cards(cards: dict) -> int:
-    """Copy card metadata from card_hashes.json into PostgreSQL."""
+    """Synchronize PostgreSQL's master catalogue with card_hashes.json.
+
+    A non-empty, valid catalogue is authoritative: cards removed from the JSON
+    are removed from PostgreSQL too. Foreign keys cascade their obsolete
+    per-user inventory and wishlist rows. An empty/invalid catalogue is treated
+    as unavailable and never triggers mass deletion.
+    """
+    valid_cards = [
+        (str(card_id), info)
+        for card_id, info in cards.items()
+        if isinstance(info, dict)
+    ]
+    if not valid_cards:
+        return 0
+
     count = 0
+    active_ids = [card_id for card_id, _info in valid_cards]
     with get_connection() as conn:
         with conn.cursor() as cur:
-            for card_id, info in cards.items():
-                if not isinstance(info, dict):
-                    continue
-
+            for card_id, info in valid_cards:
                 name = str(info.get("name") or card_id)
                 try:
                     rarity = int(info.get("rarity", 1))
@@ -252,8 +264,13 @@ def sync_cards(cards: dict) -> int:
                         rarity = EXCLUDED.rarity,
                         icon = EXCLUDED.icon
                     """,
-                    (str(card_id), name, rarity, icon),
+                    (card_id, name, rarity, icon),
                 )
                 count += 1
+
+            cur.execute(
+                "DELETE FROM cards WHERE NOT (id = ANY(%s))",
+                (active_ids,),
+            )
         conn.commit()
     return count
