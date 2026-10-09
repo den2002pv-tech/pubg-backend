@@ -145,3 +145,33 @@ def test_match_card_does_not_match_when_hashes_are_missing():
     card_id, _distance = main._match_card(hashes, db)
 
     assert card_id is None
+
+
+
+def test_normalize_collection_updates_is_idempotent_and_deduplicates_card_ids():
+    updates = [
+        {"id": " card_1 ", "quantity": 2},
+        {"id": "card_2", "quantity": 1},
+        {"id": "card_1", "quantity": 4},
+        {"id": "card_1", "quantity": 3},
+        {"name": "missing ID", "quantity": 8},
+        {"id": "   ", "quantity": 9},
+    ]
+
+    first = main._normalize_collection_updates(updates)
+    second = main._normalize_collection_updates(updates)
+
+    assert first == [("card_1", 4), ("card_2", 1)]
+    assert second == first
+
+
+def test_normalize_collection_updates_clamps_quantity_and_rejects_invalid_values():
+    assert main._normalize_collection_updates([
+        {"id": "card_1", "quantity": -3},
+        {"id": "card_2", "quantity": 1500},
+    ]) == [("card_1", 0), ("card_2", 999)]
+
+    with pytest.raises(main.HTTPException) as exc:
+        main._normalize_collection_updates([{"id": "card_1", "quantity": "not-a-number"}])
+
+    assert exc.value.status_code == 400
