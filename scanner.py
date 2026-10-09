@@ -408,7 +408,10 @@ def _multiply_score(mask: np.ndarray) -> float:
     iou = float(intersection / union) if union else 0.0
 
     fill = float(candidate.mean())
-    return iou if 0.035 <= fill <= 0.45 else 0.0
+    # Filled external contours can make a thick/anti-aliased × glyph denser than 45%.
+    # Keep the X-template IoU threshold as the primary shape check, with a wider
+    # density ceiling so valid counters are not rejected before that check.
+    return iou if 0.035 <= fill <= 0.65 else 0.0
 
 
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
