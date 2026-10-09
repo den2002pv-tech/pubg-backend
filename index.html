@@ -73,6 +73,7 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .chip:active{transform:scale(0.95)}
 .chip.active{background:#223348;border-color:var(--accent);color:#fff}
 .chip.chip-gold.active{background:var(--gold-bg);border-color:var(--gold);color:var(--gold)}
+.chip.chip-not-desired.active{background:rgba(56,139,253,0.22);border-color:#58a6ff;color:#79c0ff}
 .chip .chip-count{background:rgba(255,255,255,0.1);padding:1px 6px;border-radius:10px;font-size:11px}
 
 /* Wishlist Quick Actions */
@@ -416,10 +417,11 @@ input[type=file]{display:none}
     <!-- Quick Filter Chips -->
     <div class="chips-container" id="filterChips">
       <button class="chip active" data-filter="all">Все <span class="chip-count" id="chipAllCount">0</span></button>
+      <button class="chip chip-not-desired" data-filter="not_desired">🎯 Не в «Ищу» <span class="chip-count" id="chipNotDesiredCount">0</span></button>
       <button class="chip chip-gold" data-filter="desired">⭐ Ищу <span class="chip-count" id="chipDesiredCount">0</span></button>
+      <button class="chip" data-filter="missing">❌ Нет (×0) <span class="chip-count" id="chipMissingCount">0</span></button>
       <button class="chip" data-filter="duplicates">🔄 Дубликаты <span class="chip-count" id="chipDupCount">0</span></button>
       <button class="chip" data-filter="owned">📦 Есть <span class="chip-count" id="chipOwnedCount">0</span></button>
-      <button class="chip" data-filter="missing">❌ Нет (×0) <span class="chip-count" id="chipMissingCount">0</span></button>
     </div>
 
     <!-- Quick Actions for Wishlist -->
@@ -441,10 +443,8 @@ input[type=file]{display:none}
       </div>
       <select id="inventorySort" class="sort-select">
         <option value="order">По игре</option>
+        <option value="not_desired">🎯 Сначала не в «Ищу»</option>
         <option value="desired">⭐ Сначала «Ищу»</option>
-        <option value="duplicates">🔄 Дубликаты ↓</option>
-        <option value="missing">❌ Отсутствующие</option>
-        <option value="owned">📦 Полученные</option>
         <option value="quantity">Количество ↓</option>
         <option value="quantityAsc">Количество ↑</option>
         <option value="rarity">Редкость ↓</option>
@@ -457,7 +457,6 @@ input[type=file]{display:none}
 
     <!-- Secondary Actions in Inventory Footer -->
     <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
-      <button id="saveDesiredBtn" class="trade" style="margin-bottom:8px">💾 Сохранить желаемые карты</button>
       <button id="clearInventoryBtn" class="danger">🗑️ Обнулить количество всех карт</button>
     </div>
   </div>
@@ -720,8 +719,19 @@ async function confirmCollection() {
     pendingCards = [];
     confirmBtn.style.display = 'none';
     inventoryCards = d.cards || inventoryCards;
+    let removedDesired = 0;
+    selected.forEach(c => {
+      if (num(c.quantity) > 0 && desiredIds.has(c.id)) {
+        desiredIds.delete(c.id);
+        removedDesired++;
+      }
+    });
+    if (removedDesired > 0) {
+      savedDesiredIds = new Set(desiredIds);
+      checkDesiredChanges();
+    }
     renderInventory();
-    showToast('✅ Инвентарь успешно обновлён');
+    showToast('✅ Инвентарь успешно обновлён' + (removedDesired > 0 ? ' (убрано из «Ищу»: ' + removedDesired + ')' : ''));
     switchTab('inventory');
   } catch (e) {
     showToast('❌ ' + e.message);
@@ -748,7 +758,7 @@ async function loadMyCollection() {
       '<div class="account-status">Подключён</div>';
 
     inventoryCards = d.cards || [];
-    desiredIds = new Set((d.desired_cards || []).map(c => c.id));
+    desiredIds = new Set((d.desired_cards || []).map(c => c.id).filter(id => inventoryQuantity(id) === 0));
     savedDesiredIds = new Set(desiredIds);
 
     renderInventory();
