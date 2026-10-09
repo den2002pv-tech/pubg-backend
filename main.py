@@ -7,6 +7,8 @@ import json
 import math
 import os
 import time
+from collections import deque
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -16,7 +18,7 @@ from urllib.request import Request, urlopen
 
 from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
@@ -55,6 +57,10 @@ CARDS_DIR.mkdir(parents=True, exist_ok=True)
 # Admin workflow previews are temporary. Render's free filesystem is ephemeral.
 TEMP_DIR = Path("temp_images")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+# Small in-memory ring buffer: bounded for Render's 0.1 CPU/free instance.
+# Logs contain detector diagnostics only, never credentials or source images.
+SCAN_DIAGNOSTIC_LOGS: deque[dict[str, Any]] = deque(maxlen=100)
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
@@ -771,17 +777,70 @@ async def scan_preview(
     authorization: str | None = Header(default=None),
 ):
     require_admin(authorization)
-    image = await _read_image(file)
-    result = scan_screenshot(image, save_previews=True)
-    for index, card in enumerate(result.get("cards", [])):
-        if card.get("preview"):
-            card["preview"] = _save_admin_preview(card["preview"], index)
-    db = load_db()
-    result["cards"] = _enrich_admin_scan(
-        result.get("cards", []),
-        db,
+    started = time.perf_counter()
+    log_entry: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event": "scan_preview",
+        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+    }
+    try:
+        image = await _read_image(file)
+        log_entry["image_size"] = [image.width, image.height]
+        result = scan_screenshot(image, save_previews=True)
+        for index, card in enumerate(result.get("cards", [])):
+            if card.get("preview"):
+                card["preview"] = _save_admin_preview(card["preview"], index)
+        db = load_db()
+        result["cards"] = _enrich_admin_scan(result.get("cards", []), db)
+        log_entry.update({
+            "status": "ok",
+            "detected_count": result.get("count", len(result.get("cards", []))),
+            "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+            "cards": [
+                {
+                    "row": card.get("row"),
+                    "col": card.get("col"),
+                    "box": card.get("box"),
+                    "matched": card.get("matched"),
+                    "card_id": card.get("id"),
+                    "name": card.get("name"),
+                    "quantity": card.get("quantity"),
+                    "quantity_confidence": card.get("quantity_confidence"),
+                    "counter": card.get("debug", {}).get("counter", card.get("counter_debug", {})),
+                }
+                for card in result.get("cards", [])
+            ],
+        })
+        SCAN_DIAGNOSTIC_LOGS.append(log_entry)
+        return result
+    except Exception as exc:
+        log_entry.update({
+            "status": "error",
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:500],
+            "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+        })
+        SCAN_DIAGNOSTIC_LOGS.append(log_entry)
+        raise
+
+
+@app.get("/admin/scan-logs")
+async def download_scan_logs(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    payload = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "retention": "Most recent 100 scan-preview requests in this running process; cleared on restart/redeploy.",
+        "count": len(SCAN_DIAGNOSTIC_LOGS),
+        "logs": list(SCAN_DIAGNOSTIC_LOGS),
+    }
+    body = json.dumps(payload, ensure_ascii=False, indent=2)
+    filename = f"pubg-scan-logs-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json"
+    return Response(
+        content=body,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-    return result
 
 
 @app.get("/admin/temp-files")
