@@ -73,9 +73,13 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     </div>
     <div id="resultsBox" class="box" style="display:none">
       <h2>Найденные карточки</h2>
-      <p class="muted">Укажи фактическое количество у нужных карт. Затем сохрани все отмеченные примеры одним commit, чтобы не запускать Render отдельно для каждой карты.</p>
-      <button id="saveCounterTestsBtn" type="button" class="btn-green">💾 Сохранить отмеченные тесты в рабочую ветку</button>
+      <p class="muted">После каждого сканирования введи реальные количества и добавь примеры в очередь. Очередь хранится в этом браузере; новые сканирования её не очищают. Render и GitHub не перезапускаются на каждом наборе из 4 карт.</p>
+      <div class="row">
+        <button id="queueCounterTestsBtn" type="button" class="btn-secondary">➕ Добавить отмеченные в очередь</button>
+        <button id="saveCounterTestsBtn" type="button" class="btn-green">💾 Отправить всю очередь одним commit</button>
+      </div>
       <div id="saveCounterTestsStatus" class="muted"></div>
+      <div id="counterQueueStatus" class="muted"></div>
       <div id="scanResults" class="card-grid"></div>
     </div>
   </section>
@@ -84,7 +88,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="counterTests" class="panel">
     <div class="box">
       <h2>Реальные тесты счётчика</h2>
-      <p class="muted">После сканирования введи фактическое количество карты (как в инвентаре пользователя) и сохрани тест. Карточка и диагностические данные сразу попадут в GitHub в рабочую ветку; значение станет эталоном для автоматического сравнения.</p>
+      <p class="muted">Сначала на вкладке «Хеши» добавляй результаты каждого сканирования в очередь. Когда закончишь тестирование, нажми «Отправить всю очередь одним commit». В GitHub попадут изображения, введённые эталонные количества и диагностика всех накопленных примеров за один commit. Очередь сохраняется в текущей вкладке браузера до отправки или очистки данных браузера.</p>
       <div class="row">
         <div class="stat"><span id="counterTestCount">—</span><small>Сохранено эталонных тестов</small></div>
         <div><label for="counterTestBranch">Рабочая ветка</label><div id="counterTestBranch" class="badge">feature/card-counter</div></div>
@@ -377,9 +381,25 @@ async function deleteCard(id){
 }
 
 
-async function saveCounterTestsBatch(){
-  const status=document.getElementById("saveCounterTestsStatus");
+const COUNTER_QUEUE_KEY = "pubgCounterTestQueueV1";
+function getCounterTestQueue(){
+  try{
+    const value=JSON.parse(sessionStorage.getItem(COUNTER_QUEUE_KEY)||"[]");
+    return Array.isArray(value)?value:[];
+  }catch(e){return []}
+}
+function setCounterTestQueue(queue){
+  sessionStorage.setItem(COUNTER_QUEUE_KEY,JSON.stringify(queue));
+  renderCounterQueueStatus();
+}
+function renderCounterQueueStatus(){
+  const queue=getCounterTestQueue();
+  const el=document.getElementById("counterQueueStatus");
+  if(el)el.textContent="В очереди: "+queue.length+" тест(ов). "+(queue.length?"Можно продолжать сканирование; commit пока не создаётся.":"Добавь отмеченные примеры после сканирования.");
   const button=document.getElementById("saveCounterTestsBtn");
+  if(button)button.textContent=queue.length?"💾 Отправить "+queue.length+" тест(ов) одним commit":"💾 Отправить всю очередь одним commit";
+}
+function collectCurrentCounterCases(){
   const cards=window.lastScan||[];
   const cases=[];
   cards.forEach((card,index)=>{
@@ -390,17 +410,41 @@ async function saveCounterTestsBatch(){
     if(!card.counter_fixture)throw new Error("Для карты "+(card.name||card.id||index+1)+" нет оригинального кропа. Повтори сканирование.");
     cases.push({preview:card.counter_fixture,expected_quantity:expected,detected_quantity:Number(card.quantity||1),quantity_confidence:Number(card.quantity_confidence||0),card_id:card.id||"",card_name:card.name||"",row:Number.isInteger(card.row)?card.row:null,col:Number.isInteger(card.col)?card.col:null,box:Array.isArray(card.box)?card.box:null,image_size:window.lastScanImageSize||null,scan_duration_ms:Number(window.lastScanDurationMs||0),counter_debug:card.debug?.counter||card.counter_debug||{}});
   });
+  return cases;
+}
+function addCurrentCounterCasesToQueue(){
+  const status=document.getElementById("saveCounterTestsStatus");
+  const cases=collectCurrentCounterCases();
   if(!cases.length){status.className="err";status.textContent="Сначала введи фактическое количество хотя бы для одной карты.";return}
-  button.disabled=true;button.textContent="Сохраняем одним commit...";status.className="muted";status.textContent="Сохраняем "+cases.length+" тест(ов), изображения и диагностику в рабочую ветку...";
+  const queue=getCounterTestQueue();
+  if(queue.length+cases.length>50){status.className="err";status.textContent="В очереди может быть максимум 50 тестов за один commit. Сейчас "+queue.length+", пытаешься добавить ещё "+cases.length+". Отправь текущую очередь, затем продолжай.";return}
+  const seen=new Set(queue.map(item=>item.preview));
+  const duplicates=cases.filter(item=>seen.has(item.preview));
+  if(duplicates.length){status.className="err";status.textContent="Часть этих примеров уже добавлена в очередь. Не добавляю повторно, чтобы не создавать дубликаты.";return}
+  setCounterTestQueue(queue.concat(cases));
+  const cards=window.lastScan||[];
+  cards.forEach((card,index)=>{const input=document.getElementById("counterExpected_"+index);if(input&&input.value.trim()!=="")input.value="";});
+  status.className="ok";
+  status.textContent="Добавлено в очередь: "+cases.length+". Всего накоплено: "+(queue.length+cases.length)+". Commit не создавался; можешь загружать следующий скриншот.";
+}
+async function saveCounterTestsBatch(){
+  const status=document.getElementById("saveCounterTestsStatus");
+  const button=document.getElementById("saveCounterTestsBtn");
+  const queue=getCounterTestQueue();
+  if(!queue.length){status.className="err";status.textContent="Очередь пуста. Сначала добавь результаты сканирования.";return}
+  if(!confirm("Отправить "+queue.length+" эталонных тест(ов) в GitHub одним commit? После этого Render может перезапуститься."))return;
+  button.disabled=true;button.textContent="Сохраняем одним commit...";
+  status.className="muted";status.textContent="Отправляем "+queue.length+" тест(ов), изображения и диагностику одним commit...";
   try{
-    const r=await api("/admin/counter-tests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cases})});
+    const r=await api("/admin/counter-tests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cases:queue})});
     const d=await r.json();if(!r.ok)throw new Error(d.detail||"Ошибка сохранения");
-    const savedKeys=new Set(cases.map(item=>item.card_id+"|"+item.row+"|"+item.col));
-    cards.forEach((card,index)=>{const input=document.getElementById("counterExpected_"+index);if(input&&input.value.trim()!==""&&savedKeys.has((card.id||"")+"|"+card.row+"|"+card.col))input.disabled=true;});
-    status.className="ok";status.textContent="Сохранено "+d.saved_count+" тест(ов); "+d.correct_count+" совпали с алгоритмом. Ветка "+d.branch+", commit "+String(d.git_commit).slice(0,10)+". Render может перезапуститься после commit.";
-    button.textContent="✅ Тесты сохранены";await loadCounterTests();
-  }catch(e){status.className="err";status.textContent="Не удалось сохранить: "+e.message;button.textContent="💾 Повторить сохранение";}
-  finally{button.disabled=false;}
+    setCounterTestQueue([]);
+    status.className="ok";
+    status.textContent="Сохранено "+d.saved_count+" тест(ов); "+d.correct_count+" совпали с алгоритмом. Ветка "+d.branch+", commit "+String(d.git_commit).slice(0,10)+". Render может перезапуститься один раз после этого commit.";
+    await loadCounterTests();
+  }catch(e){
+    status.className="err";status.textContent="Не удалось сохранить очередь: "+e.message+". Данные оставлены в очереди — можно повторить отправку.";
+  }finally{button.disabled=false;renderCounterQueueStatus();}
 }
 async function loadCounterTests(){
   const status=document.getElementById('counterTestsStatus');
@@ -421,11 +465,13 @@ async function loadCounterTests(){
         ${item.commit_url?'<a href="'+esc(item.commit_url)+'" target="_blank" rel="noopener">Открыть commit</a>':''}`;
       root.appendChild(el);
     });
-    status.className='ok';status.textContent='Тесты читаются из GitHub; новые эталоны сохраняются сразу в эту ветку.';
+    status.className='ok';status.textContent='Тесты читаются из GitHub. Новые примеры сначала накапливаются в очереди браузера и отправляются только по твоей кнопке.';
   }catch(e){status.className='err';status.textContent='Не удалось загрузить тесты: '+e.message}
 }
 document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
+document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCounterCasesToQueue()}catch(e){const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message}};
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
+renderCounterQueueStatus();
 
 async function scan(){
   const f=document.getElementById('screenshotInput').files[0];
