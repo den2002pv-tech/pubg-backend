@@ -984,9 +984,15 @@ async def save_counter_test(
 
     image_sha = hashlib.sha256(image_bytes).hexdigest()
     timestamp = datetime.now(timezone.utc)
-    case_id = f"{timestamp.strftime('%Y%m%dT%H%M%S')}-{image_sha[:10]}"
+    case_id = f"{timestamp.strftime('%Y%m%dT%H%M%S%f')}-{image_sha[:10]}"
     relative_image = f"{COUNTER_TEST_IMAGES_PATH}/{case_id}.jpg"
     counter_debug = data.counter_debug if isinstance(data.counter_debug, dict) else {}
+    try:
+        with Image.open(BytesIO(image_bytes)) as fixture_image:
+            detector_input_size = list(fixture_image.size)
+            detector_input_format = fixture_image.format
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Временное изображение теста повреждено") from exc
     case = {
         "id": case_id,
         "timestamp": timestamp.isoformat(),
@@ -996,7 +1002,9 @@ async def save_counter_test(
         "row": data.row,
         "col": data.col,
         "card_box_in_screenshot": data.box,
-        "source_image_size": data.image_size,
+        "source_screenshot_size": data.image_size,
+        "detector_input_size": detector_input_size,
+        "detector_input_format": detector_input_format,
         "image_path": relative_image,
         "image_sha256": image_sha,
         "expected_quantity": data.expected_quantity,
