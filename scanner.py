@@ -428,9 +428,15 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
 
     roi = arr[y1:y2, x1:x2]
     gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+    # PUBG's counter font is thin and anti-aliased. Thresholding alone can
+    # split one glyph into several tiny contours, causing both the quantity
+    # and the × sign to be missed. Join only nearby bright strokes before
+    # contour extraction; retain the original threshold mask for sign checks.
     bright = cv2.inRange(gray, 190, 255)
+    join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
 
-    contours, _ = cv2.findContours(bright, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     candidates: list[dict[str, Any]] = []
 
     roi_h, roi_w = gray.shape[:2]
