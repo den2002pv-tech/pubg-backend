@@ -608,7 +608,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 aspect = g_w / float(g_h)
                 if len(digits) == 1 and not (0.85 <= aspect <= 2.2):
                     continue
-                if len(digits) == 2 and not (1.4 <= aspect <= 3.2):
+                if len(digits) == 2 and not (1.10 <= aspect <= 3.2):
                     continue
 
                 pad_x, pad_y = max(2, int(g_h * 0.25)), max(2, int(g_h * 0.20))
@@ -625,7 +625,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 glyph_pixels = patch_gray[patch_gray >= 165]
                 glyph_mean = float(np.mean(glyph_pixels)) if glyph_pixels.size else 255.0
                 contrast = glyph_mean - bg_median
-                if contrast < 60.0 or bg_median > 140.0:
+                if contrast < 55.0 or bg_median > 155.0:
                     continue
 
                 digit_scores = [d["score"] for d in digits]
