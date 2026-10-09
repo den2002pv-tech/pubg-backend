@@ -382,11 +382,11 @@ async function saveCounterTest(index){
   const expected=Number(input?.value);
   if(!card){status.className='err';status.textContent='Сначала просканируй изображение.';return}
   if(!Number.isInteger(expected)||expected<1||expected>999){status.className='err';status.textContent='Введи фактическое количество от 1 до 999.';return}
-  if(!card.preview){status.className='err';status.textContent='Нет изображения карточки. Повтори сканирование.';return}
+  if(!card.counter_fixture){status.className='err';status.textContent='Нет оригинального кропа карты. Повтори сканирование.';return}
   button.disabled=true;button.textContent='Сохраняем в GitHub...';status.className='muted';status.textContent='Сохраняем эталон, изображение и диагностику в рабочую ветку...';
   try{
     const r=await api('/admin/counter-tests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      preview:card.preview,
+      preview:card.counter_fixture,
       expected_quantity:expected,
       detected_quantity:Number(card.quantity||1),
       quantity_confidence:Number(card.quantity_confidence||0),
