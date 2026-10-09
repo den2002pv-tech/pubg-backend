@@ -73,6 +73,9 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     </div>
     <div id="resultsBox" class="box" style="display:none">
       <h2>Найденные карточки</h2>
+      <p class="muted">Укажи фактическое количество у нужных карт. Затем сохрани все отмеченные примеры одним commit, чтобы не запускать Render отдельно для каждой карты.</p>
+      <button id="saveCounterTestsBtn" type="button" class="btn-green">💾 Сохранить отмеченные тесты в рабочую ветку</button>
+      <div id="saveCounterTestsStatus" class="muted"></div>
       <div id="scanResults" class="card-grid"></div>
     </div>
   </section>
@@ -374,37 +377,30 @@ async function deleteCard(id){
 }
 
 
-async function saveCounterTest(index){
-  const card=(window.lastScan||[])[index];
-  const input=document.getElementById('counterExpected_'+index);
-  const status=document.getElementById('counterTestCardStatus_'+index);
-  const button=document.getElementById('saveCounterTest_'+index);
-  const expected=Number(input?.value);
-  if(!card){status.className='err';status.textContent='Сначала просканируй изображение.';return}
-  if(!Number.isInteger(expected)||expected<1||expected>999){status.className='err';status.textContent='Введи фактическое количество от 1 до 999.';return}
-  if(!card.counter_fixture){status.className='err';status.textContent='Нет оригинального кропа карты. Повтори сканирование.';return}
-  button.disabled=true;button.textContent='Сохраняем в GitHub...';status.className='muted';status.textContent='Сохраняем эталон, изображение и диагностику в рабочую ветку...';
+async function saveCounterTestsBatch(){
+  const status=document.getElementById("saveCounterTestsStatus");
+  const button=document.getElementById("saveCounterTestsBtn");
+  const cards=window.lastScan||[];
+  const cases=[];
+  cards.forEach((card,index)=>{
+    const input=document.getElementById("counterExpected_"+index);
+    if(!input||input.value.trim()==="")return;
+    const expected=Number(input.value);
+    if(!Number.isInteger(expected)||expected<1||expected>999)throw new Error("Для карты "+(card.name||card.id||index+1)+" введи целое количество от 1 до 999.");
+    if(!card.counter_fixture)throw new Error("Для карты "+(card.name||card.id||index+1)+" нет оригинального кропа. Повтори сканирование.");
+    cases.push({preview:card.counter_fixture,expected_quantity:expected,detected_quantity:Number(card.quantity||1),quantity_confidence:Number(card.quantity_confidence||0),card_id:card.id||"",card_name:card.name||"",row:Number.isInteger(card.row)?card.row:null,col:Number.isInteger(card.col)?card.col:null,box:Array.isArray(card.box)?card.box:null,image_size:window.lastScanImageSize||null,scan_duration_ms:Number(window.lastScanDurationMs||0),counter_debug:card.debug?.counter||card.counter_debug||{}});
+  });
+  if(!cases.length){status.className="err";status.textContent="Сначала введи фактическое количество хотя бы для одной карты.";return}
+  button.disabled=true;button.textContent="Сохраняем одним commit...";status.className="muted";status.textContent="Сохраняем "+cases.length+" тест(ов), изображения и диагностику в рабочую ветку...";
   try{
-    const r=await api('/admin/counter-tests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      preview:card.counter_fixture,
-      expected_quantity:expected,
-      detected_quantity:Number(card.quantity||1),
-      quantity_confidence:Number(card.quantity_confidence||0),
-      card_id:card.id||'',
-      card_name:card.name||'',
-      row:Number.isInteger(card.row)?card.row:null,
-      col:Number.isInteger(card.col)?card.col:null,
-      box:Array.isArray(card.box)?card.box:null,
-      image_size:window.lastScanImageSize||null,
-      scan_duration_ms:Number(window.lastScanDurationMs||0),
-      counter_debug:card.debug?.counter||card.counter_debug||{}
-    })});
-    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
-    status.className='ok';
-    status.textContent=(d.case.correct?'✅':'⚠️')+` Сохранено: эталон ${expected}, алгоритм ${d.case.detected_quantity}. Ветка ${d.branch}, commit ${String(d.git_commit).slice(0,10)}.`;
-    input.disabled=true;button.textContent='✅ Сохранено в GitHub';
-    await loadCounterTests();
-  }catch(e){status.className='err';status.textContent='Не удалось сохранить: '+e.message;button.disabled=false;button.textContent='💾 Повторить сохранение'}
+    const r=await api("/admin/counter-tests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cases})});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||"Ошибка сохранения");
+    const savedKeys=new Set(cases.map(item=>item.card_id+"|"+item.row+"|"+item.col));
+    cards.forEach((card,index)=>{const input=document.getElementById("counterExpected_"+index);if(input&&input.value.trim()!==""&&savedKeys.has((card.id||"")+"|"+card.row+"|"+card.col))input.disabled=true;});
+    status.className="ok";status.textContent="Сохранено "+d.saved_count+" тест(ов); "+d.correct_count+" совпали с алгоритмом. Ветка "+d.branch+", commit "+String(d.git_commit).slice(0,10)+". Render может перезапуститься после commit.";
+    button.textContent="✅ Тесты сохранены";await loadCounterTests();
+  }catch(e){status.className="err";status.textContent="Не удалось сохранить: "+e.message;button.textContent="💾 Повторить сохранение";}
+  finally{button.disabled=false;}
 }
 async function loadCounterTests(){
   const status=document.getElementById('counterTestsStatus');
@@ -429,6 +425,7 @@ async function loadCounterTests(){
   }catch(e){status.className='err';status.textContent='Не удалось загрузить тесты: '+e.message}
 }
 document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
+document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
 
 async function scan(){
   const f=document.getElementById('screenshotInput').files[0];
@@ -539,17 +536,14 @@ function renderResults(cards){
       `;
     }
 
-    const testTools=document.createElement('div');
-    testTools.style.marginTop='12px';
+    const testTools=document.createElement("div");
+    testTools.style.marginTop="12px";
     testTools.innerHTML=`
       <hr>
       <label for="counterExpected_${i}">Фактическое количество в инвентаре</label>
       <input id="counterExpected_${i}" type="number" min="1" max="999" step="1" placeholder="Введи реальное количество" inputmode="numeric">
-      <button type="button" class="btn-green" id="saveCounterTest_${i}">💾 Сохранить эталон и лог в GitHub</button>
-      <div id="counterTestCardStatus_${i}" class="muted"></div>
     `;
     el.appendChild(testTools);
-    document.getElementById('saveCounterTest_'+i).onclick=()=>saveCounterTest(i);
     root.appendChild(el);
   });
 }
