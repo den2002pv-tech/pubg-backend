@@ -56,6 +56,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     <button class="tab" data-tab="icons">🖼️ Иконки</button>
     <button class="tab" data-tab="cards">🃏 Карты</button>
     <button class="tab" data-tab="temp">🗑️ Временные</button>
+    <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
   </div>
 
   <section id="scan" class="panel active">
@@ -73,6 +74,21 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     <div id="resultsBox" class="box" style="display:none">
       <h2>Найденные карточки</h2>
       <div id="scanResults" class="card-grid"></div>
+    </div>
+  </section>
+
+
+  <section id="counterTests" class="panel">
+    <div class="box">
+      <h2>Реальные тесты счётчика</h2>
+      <p class="muted">После сканирования введи фактическое количество карты (как в инвентаре пользователя) и сохрани тест. Карточка и диагностические данные сразу попадут в GitHub в рабочую ветку; значение станет эталоном для автоматического сравнения.</p>
+      <div class="row">
+        <div class="stat"><span id="counterTestCount">—</span><small>Сохранено эталонных тестов</small></div>
+        <div><label for="counterTestBranch">Рабочая ветка</label><div id="counterTestBranch" class="badge">feature/card-counter</div></div>
+        <button id="refreshCounterTestsBtn" type="button" class="btn-secondary">Обновить тесты</button>
+      </div>
+      <div id="counterTestsStatus" class="muted"></div>
+      <div id="counterTestsList" class="card-grid"></div>
     </div>
   </section>
 
@@ -357,6 +373,62 @@ async function deleteCard(id){
   }catch(e){alert('Ошибка: '+e.message)}
 }
 
+
+async function saveCounterTest(index){
+  const card=(window.lastScan||[])[index];
+  const input=document.getElementById('counterExpected_'+index);
+  const status=document.getElementById('counterTestCardStatus_'+index);
+  const button=document.getElementById('saveCounterTest_'+index);
+  const expected=Number(input?.value);
+  if(!card){status.className='err';status.textContent='Сначала просканируй изображение.';return}
+  if(!Number.isInteger(expected)||expected<1||expected>999){status.className='err';status.textContent='Введи фактическое количество от 1 до 999.';return}
+  if(!card.preview){status.className='err';status.textContent='Нет изображения карточки. Повтори сканирование.';return}
+  button.disabled=true;button.textContent='Сохраняем в GitHub...';status.className='muted';status.textContent='Сохраняем эталон, изображение и диагностику в рабочую ветку...';
+  try{
+    const r=await api('/admin/counter-tests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      preview:card.preview,
+      expected_quantity:expected,
+      detected_quantity:Number(card.quantity||1),
+      quantity_confidence:Number(card.quantity_confidence||0),
+      card_id:card.id||'',
+      card_name:card.name||'',
+      row:Number.isInteger(card.row)?card.row:null,
+      col:Number.isInteger(card.col)?card.col:null,
+      box:Array.isArray(card.box)?card.box:null,
+      image_size:card.image_size||null,
+      counter_debug:card.debug?.counter||card.counter_debug||{}
+    })});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка сохранения');
+    status.className='ok';
+    status.textContent=(d.case.correct?'✅':'⚠️')+` Сохранено: эталон ${expected}, алгоритм ${d.case.detected_quantity}. Ветка ${d.branch}, commit ${String(d.git_commit).slice(0,10)}.`;
+    input.disabled=true;button.textContent='✅ Сохранено в GitHub';
+    await loadCounterTests();
+  }catch(e){status.className='err';status.textContent='Не удалось сохранить: '+e.message;button.disabled=false;button.textContent='💾 Повторить сохранение'}
+}
+async function loadCounterTests(){
+  const status=document.getElementById('counterTestsStatus');
+  try{
+    status.className='muted';status.textContent='Загружаем тесты из GitHub...';
+    const r=await api('/admin/counter-tests');const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка загрузки тестов');
+    document.getElementById('counterTestCount').textContent=d.count;
+    document.getElementById('counterTestBranch').textContent=d.branch;
+    const root=document.getElementById('counterTestsList');root.innerHTML='';
+    if(!d.recent.length){root.innerHTML='<p class="muted">Эталонных тестов пока нет. Просканируй изображение и сохрани первый тест из карточки результата.</p>'}
+    d.recent.forEach(item=>{
+      const el=document.createElement('div');el.className='item';
+      const correct=item.correct===true;
+      el.innerHTML=`<h3>${esc(item.card_name||item.id||'Тест счётчика')}</h3>
+        <div>Эталон: <b>${esc(item.expected_quantity)}</b> · Алгоритм: <b>${esc(item.detected_quantity)}</b></div>
+        <div class="${correct?'ok':'err'}">${correct?'Совпало':'Ошибка распознавания'}</div>
+        <div class="muted">${esc(item.timestamp||'')}<br>${esc(item.image_path||'')}</div>
+        ${item.commit_url?'<a href="'+esc(item.commit_url)+'" target="_blank" rel="noopener">Открыть commit</a>':''}`;
+      root.appendChild(el);
+    });
+    status.className='ok';status.textContent='Тесты читаются из GitHub; новые эталоны сохраняются сразу в эту ветку.';
+  }catch(e){status.className='err';status.textContent='Не удалось загрузить тесты: '+e.message}
+}
+document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
+
 async function scan(){
   const f=document.getElementById('screenshotInput').files[0];
   if(!f){status('Сначала выбери изображение','err');return}
@@ -466,6 +538,17 @@ function renderResults(cards){
       `;
     }
 
+    const testTools=document.createElement('div');
+    testTools.style.marginTop='12px';
+    testTools.innerHTML=`
+      <hr>
+      <label for="counterExpected_${i}">Фактическое количество в инвентаре</label>
+      <input id="counterExpected_${i}" type="number" min="1" max="999" step="1" placeholder="Введи реальное количество" inputmode="numeric">
+      <button type="button" class="btn-green" id="saveCounterTest_${i}">💾 Сохранить эталон и лог в GitHub</button>
+      <div id="counterTestCardStatus_${i}" class="muted"></div>
+    `;
+    el.appendChild(testTools);
+    document.getElementById('saveCounterTest_'+i).onclick=()=>saveCounterTest(i);
     root.appendChild(el);
   });
 }
@@ -908,7 +991,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();
+  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();
 });
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 
