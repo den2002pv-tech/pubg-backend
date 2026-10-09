@@ -939,16 +939,28 @@ function updateCardQuantityOptimistic(cardId, newQuantity, cardEl) {
   newQuantity = Math.max(0, Math.min(999, Math.trunc(newQuantity)));
   const cardObj = inventoryCards.find(x => x.id === cardId);
   if (!cardObj) return;
-
+  const wasDesired = desiredIds.has(cardId);
   cardObj.quantity = newQuantity;
+  if (newQuantity > 0 && wasDesired) {
+    desiredIds.delete(cardId);
+    checkDesiredChanges();
+    showToast('Карта добавлена в инвентарь (×' + newQuantity + ') и удалена из «Ищу»');
+  }
 
   // Update specific Card DOM in place without flickering
   if (cardEl) {
     const qty = newQuantity;
     const dup = Math.max(0, qty - 1);
-    const desired = desiredIds.has(cardId);
-
+    const desired = (qty === 0) && desiredIds.has(cardId);
     cardEl.classList.toggle('missing', qty === 0);
+    cardEl.classList.toggle('desired-active', desired);
+    const starBtn = cardEl.querySelector('.star-btn');
+    if (starBtn) {
+      starBtn.style.display = qty > 0 ? 'none' : 'flex';
+      starBtn.classList.toggle('active', desired);
+      starBtn.textContent = desired ? '★' : '☆';
+      starBtn.title = desired ? 'В списке «Ищу»' : 'Добавить в «Ищу»';
+    }
 
     const badge = cardEl.querySelector('.badge-qty');
     if (badge) {
@@ -981,7 +993,7 @@ function updateCardQuantityOptimistic(cardId, newQuantity, cardEl) {
   // Update Dashboard
   updateStatsAndCounts();
 
-  // If currently filtering by duplicates, missing, or owned, refresh after slight delay or keep current
+  if ((currentFilter === 'desired' || currentFilter === 'not_desired') && newQuantity > 0) renderInventory();
   pendingQuantityUpdates.set(cardId, newQuantity);
   clearTimeout(quantitySaveTimeout);
   quantitySaveTimeout = setTimeout(flushPendingQuantities, 600);
@@ -1013,6 +1025,12 @@ async function flushPendingQuantities() {
 
 // Desired Cards (Wishlist) Operations
 function toggleDesiredCard(cardId, cardEl) {
+  const cardObj = inventoryCards.find(x => x.id === cardId);
+  if (cardObj && num(cardObj.quantity) > 0) {
+    showToast('Эта карта уже есть в инвентаре (×' + cardObj.quantity + ')');
+    triggerHaptic('warning');
+    return;
+  }
   triggerHaptic('medium');
   if (desiredIds.has(cardId)) {
     desiredIds.delete(cardId);
@@ -1027,16 +1045,12 @@ function toggleDesiredCard(cardId, cardEl) {
     if (starBtn) {
       starBtn.classList.toggle('active', isDesired);
       starBtn.textContent = isDesired ? '★' : '☆';
+      starBtn.title = isDesired ? 'В списке «Ищу»' : 'Добавить в «Ищу»';
     }
     const tagsContainer = cardEl.querySelector('.card-tags');
     if (tagsContainer) {
-      const cardObj = inventoryCards.find(x => x.id === cardId);
-      const qty = num(cardObj?.quantity);
-      const dup = Math.max(0, qty - 1);
       const starsHtml = '⭐'.repeat(Math.max(1, Math.min(5, num(cardObj?.rarity, 3))));
-      tagsContainer.innerHTML =
-        '<span class="rarity-stars">' + starsHtml + '</span>' +
-        (dup > 0 ? '<span class="tag-dup">+' + dup + ' на обмен</span>' : (isDesired ? '<span class="tag-desired">Ищу ⭐</span>' : ''));
+      tagsContainer.innerHTML = '<span class="rarity-stars">' + starsHtml + '</span>' + (isDesired ? '<span class="tag-desired">Ищу ⭐</span>' : '');
     }
   }
 
