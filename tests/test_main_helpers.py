@@ -62,20 +62,20 @@ def test_session_token_rejects_expired_timestamp(monkeypatch):
     monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
     monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
     token = main._make_session()
-    parts = token.split(".")
-    parts[1] = str(int(time.time()) - main.SESSION_MAX_AGE - 10)
+    now = time.time()
+    monkeypatch.setattr(main.time, "time", lambda: now + main.SESSION_MAX_AGE + 10)
 
-    assert main._valid_session(".".join(parts)) is False
+    assert main._valid_session(token) is False
 
 
 def test_session_token_rejects_future_timestamp(monkeypatch):
     monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
     monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
     token = main._make_session()
-    parts = token.split(".")
-    parts[1] = str(int(time.time()) + 120)
+    now = time.time()
+    monkeypatch.setattr(main.time, "time", lambda: now - 120)
 
-    assert main._valid_session(".".join(parts)) is False
+    assert main._valid_session(token) is False
 
 
 def test_load_db_returns_empty_dict_when_file_is_missing(monkeypatch, tmp_path):
