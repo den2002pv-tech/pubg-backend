@@ -16,6 +16,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+import sentry_sdk
+
 from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
@@ -26,6 +28,16 @@ from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
 from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+
+# Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
+SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+        # Avoid collecting request PII by default.
+        send_default_pii=False,
+    )
 
 app = FastAPI(title="PUBG Card Scanner")
 
