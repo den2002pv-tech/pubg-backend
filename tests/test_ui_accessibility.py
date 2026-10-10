@@ -91,3 +91,8 @@ def test_empty_states_offer_recovery_and_scanner_has_steps():
     assert 'data-empty-action="clear-search"' in HTML
     assert 'data-empty-action="scanner"' in HTML
     assert "Показано ' + list.length + ' из ' + inventoryCards.length" in HTML
+
+def test_closed_quantity_dialog_is_removed_from_keyboard_order():
+    assert 'id="qtyModal" class="modal-overlay" aria-hidden="true" inert' in HTML
+    assert "qtyModal.inert = false" in HTML
+    assert "qtyModal.inert = true" in HTML
