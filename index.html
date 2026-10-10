@@ -101,7 +101,7 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .search-input{width:100%;min-height:44px;background:var(--surface-raised);color:#fff;border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 40px 10px 34px;font-size:14px;outline:none}
 .search-input:focus{border-color:var(--border-focus)}
 .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:13px}
-.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:2px 6px;display:none}
+.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:2px 6px;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center}
 .sort-select{width:100%;min-height:44px;background:var(--surface-raised);color:#fff;border:1px solid var(--border);border-radius:var(--radius-md);padding:9px 10px;font-size:14px;font-weight:600;outline:none}
 
 /* Grid & Cards */
@@ -400,6 +400,7 @@ input[type=file]{display:none}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 .empty{color:var(--text-muted);text-align:center;padding:24px 8px;font-size:13px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--border-focus)!important;outline-offset:2px}
 </style>
 </head>
 <body>
@@ -408,7 +409,7 @@ input[type=file]{display:none}
 <p class="subtitle">Сканер скриншотов и удобное управление картами</p>
 
 <!-- Account Header -->
-<div id="account" class="panel account-badge">
+<div id="account" class="panel account-badge" aria-live="polite" aria-atomic="true">
   <div class="account-user">🔄 Проверка аккаунта Telegram...</div>
   <div id="accountTag" class="account-status" style="display:none">Подключён</div>
 </div>
@@ -481,12 +482,12 @@ input[type=file]{display:none}
 
     <!-- Quick Filter Chips -->
     <div class="chips-container" id="filterChips" role="group" aria-label="Фильтры инвентаря">
-      <button class="chip active" data-filter="all">Все <span class="chip-count" id="chipAllCount">0</span></button>
-      <button class="chip chip-not-desired" data-filter="not_desired">🎯 Не в «Ищу» <span class="chip-count" id="chipNotDesiredCount">0</span></button>
-      <button class="chip chip-gold" data-filter="desired">⭐ Ищу <span class="chip-count" id="chipDesiredCount">0</span></button>
-      <button class="chip" data-filter="missing">❌ Нет (×0) <span class="chip-count" id="chipMissingCount">0</span></button>
-      <button class="chip" data-filter="duplicates">🔄 Дубликаты <span class="chip-count" id="chipDupCount">0</span></button>
-      <button class="chip" data-filter="owned">📦 Есть <span class="chip-count" id="chipOwnedCount">0</span></button>
+      <button class="chip active" data-filter="all" aria-pressed="true">Все <span class="chip-count" id="chipAllCount">0</span></button>
+      <button class="chip chip-not-desired" data-filter="not_desired" aria-pressed="false">🎯 Не в «Ищу» <span class="chip-count" id="chipNotDesiredCount">0</span></button>
+      <button class="chip chip-gold" data-filter="desired" aria-pressed="false">⭐ Ищу <span class="chip-count" id="chipDesiredCount">0</span></button>
+      <button class="chip" data-filter="missing" aria-pressed="false">❌ Нет (×0) <span class="chip-count" id="chipMissingCount">0</span></button>
+      <button class="chip" data-filter="duplicates" aria-pressed="false">🔄 Дубликаты <span class="chip-count" id="chipDupCount">0</span></button>
+      <button class="chip" data-filter="owned" aria-pressed="false">📦 Есть <span class="chip-count" id="chipOwnedCount">0</span></button>
     </div>
 
     <!-- Quick Actions for Wishlist -->
@@ -746,6 +747,8 @@ async function uploadImage() {
 
   fileInput.disabled = true;
   confirmBtn.disabled = true;
+  pendingCards = [];
+  document.getElementById('results').style.display = 'none';
   statusText.textContent = '⏳ Проверяем подключение к серверу...';
   statusEl.textContent = 'Если сервер долго не использовался, его запуск может занять до минуты.';
   const fd = new FormData();
@@ -1130,7 +1133,7 @@ function renderInventory() {
       emptyMsg = 'В списке «Ищу» пока нет карт. Отметьте нужные карты звёздочкой или выберите недостающие.';
       action = '<button type="button" class="empty-action" data-empty-action="missing">Показать недостающие карты</button>';
     } else if (currentFilter === 'not_desired') {
-      emptyMsg = 'Все недостающие карты уже добавлены в список «Ищу».»';
+      emptyMsg = 'Все недостающие карты уже добавлены в список «Ищу».';
       action = '<button type="button" class="empty-action" data-empty-action="all">Показать все карты</button>';
     } else {
       emptyMsg = 'По выбранному фильтру карт нет. Попробуйте другой фильтр или покажите всю коллекцию.';
