@@ -544,7 +544,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </div>
 
 <!-- Quick Quantity Input Modal -->
-<div id="qtyModal" class="modal-overlay" aria-hidden="true">
+<div id="qtyModal" class="modal-overlay" aria-hidden="true" inert>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalCardTitle" aria-describedby="modalCardSubtitle" tabindex="-1">
     <div class="modal-title" id="modalCardTitle">Изменение количества</div>
     <div class="modal-desc" id="modalCardSubtitle">Выберите значение или введите вручную:</div>
@@ -1510,6 +1510,7 @@ function openQuantityModal(cardId) {
   document.getElementById('modalCardSubtitle').textContent = 'Текущее количество в инвентаре: ×' + num(cardObj.quantity);
   modalQtyInput.value = num(cardObj.quantity);
 
+  qtyModal.inert = false;
   qtyModal.setAttribute('aria-hidden', 'false');
   qtyModal.classList.add('open');
   modalQtyInput.focus();
@@ -1519,6 +1520,7 @@ function openQuantityModal(cardId) {
 function closeQuantityModal() {
   qtyModal.classList.remove('open');
   qtyModal.setAttribute('aria-hidden', 'true');
+  qtyModal.inert = true;
   activeModalCardId = null;
   if (quantityModalReturnFocus?.isConnected) quantityModalReturnFocus.focus();
   quantityModalReturnFocus = null;
