@@ -1,0 +1,52 @@
+name: Sentry smoke test
+
+on:
+  push:
+    branches:
+      - test/sentry-smoke
+    paths:
+      - .github/workflows/sentry-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  send-test-event:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Sentry SDK
+        run: python -m pip install --disable-pip-version-check sentry-sdk
+
+      - name: Send test event to Sentry
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          import sentry_sdk
+
+          dsn = os.environ.get("SENTRY_DSN", "").strip()
+          if not dsn:
+              print("ERROR: GitHub Actions secret SENTRY_DSN is missing or empty.")
+              sys.exit(1)
+
+          sentry_sdk.init(dsn=dsn, send_default_pii=False, traces_sample_rate=0)
+          event_id = sentry_sdk.capture_message(
+              "Sentry connectivity smoke test from GitHub Actions",
+              level="error",
+          )
+          sentry_sdk.flush(timeout=10)
+
+          if not event_id:
+              print("ERROR: Sentry SDK did not create an event.")
+              sys.exit(1)
+
+          print(f"Event submitted to Sentry. Event ID: {event_id}")
+          PY
