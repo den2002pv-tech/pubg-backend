@@ -229,10 +229,15 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .upload:active{background:rgba(61,131,168,0.12)}
 input[type=file]{display:none}
 .status{margin-top:10px;color:var(--text-muted);text-align:center;font-size:13px;min-height:18px}
-.compare{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
-.compare-box{min-width:0}
-.compare-label{color:var(--text-muted);font-size:9px;text-align:center;margin-bottom:3px}
-.compare img{width:100%;aspect-ratio:2/3;object-fit:contain;background:#0c0f12;border-radius:6px;display:block}
+/* Scan result card: scanned crop is the main image; reference is an inset. */
+.scan-card-art{position:relative;aspect-ratio:2/3;background:#0c0f12;border-radius:var(--radius-sm);overflow:hidden}
+.scan-card-image{width:100%;height:100%;display:block;object-fit:cover}
+.scan-detected-badge{position:absolute;top:6px;left:6px;z-index:3;max-width:calc(100% - 82px);padding:4px 7px;border:1px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(12,16,22,.9);color:#fff;font-size:11px;font-weight:800;line-height:1.2;backdrop-filter:blur(4px)}
+.scan-inventory-badge{position:absolute;left:6px;bottom:6px;z-index:3;max-width:calc(100% - 82px);padding:4px 7px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(12,16,22,.9);color:#d7e2ea;font-size:10px;font-weight:750;line-height:1.2;backdrop-filter:blur(4px)}
+.scan-inventory-badge.owned{background:rgba(16,48,27,.94);border-color:#2d8748;color:#a5f3b5}
+.scan-inventory-badge.not-owned{background:rgba(40,28,14,.94);border-color:#8a6428;color:#fcd58a}
+.scan-reference{position:absolute;right:6px;bottom:6px;z-index:2;width:31%;max-width:86px;aspect-ratio:2/3;padding:3px;border:1px solid rgba(255,255,255,.72);border-radius:7px;background:rgba(9,12,16,.94);box-shadow:0 2px 10px rgba(0,0,0,.6);object-fit:contain}
+.scan-reference-placeholder{position:absolute;right:6px;bottom:6px;z-index:2;width:31%;max-width:86px;aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;padding:3px;border:1px solid rgba(255,255,255,.3);border-radius:7px;background:rgba(9,12,16,.94);color:var(--text-muted);font-size:9px;text-align:center}
 .scan-row{display:flex;gap:8px;align-items:center;margin-top:8px}
 .scan-row label{display:flex;align-items:center;gap:6px;font-size:12px;color:#c9cdd1;cursor:pointer}
 .scan-row input[type=checkbox]{width:18px;height:18px}
@@ -686,18 +691,28 @@ function showResults(cards) {
     const detected = pending && pending.editQuantity != null ? pending.editQuantity : Math.max(1, num(c.quantity, 1));
     const owned = recognized ? inventoryQuantity(c.id) : 0;
     const duplicates = detected == null ? 0 : Math.max(0, detected - 1);
-    const compare = '<div class="compare">' +
-      '<div class="compare-box"><div class="compare-label">Скан</div>' + (c.preview ? '<img src="' + esc(assetUrl(c.preview)) + '" alt="Скан">' : '<div class="empty">Нет</div>') + '</div>' +
-      '<div class="compare-box"><div class="compare-label">Эталон</div>' + (c.icon ? '<img src="' + esc(assetUrl(c.icon)) + '" alt="Эталон">' : '<div class="empty">Нет</div>') + '</div>' +
-      '</div>';
+    const inventoryBadge = recognized
+      ? (owned > 0
+          ? '<span class="scan-inventory-badge owned">В инвентаре ×' + owned + '</span>'
+          : '<span class="scan-inventory-badge not-owned">Нет в инвентаре</span>')
+      : '<span class="scan-inventory-badge not-owned">Не распознана</span>';
+    const scanImage = c.preview
+      ? '<img class="scan-card-image" src="' + esc(assetUrl(c.preview)) + '" alt="Кроп сканированной карты">'
+      : '<div class="art-empty">Нет кропа скана</div>';
+    const referenceImage = c.icon
+      ? '<img class="scan-reference" src="' + esc(assetUrl(c.icon)) + '" alt="Эталон карты">'
+      : '<div class="scan-reference-placeholder">Нет эталона</div>';
 
     const el = document.createElement('div');
     el.className = 'card' + (pending?.selected ? ' desired-active' : '');
     el.innerHTML =
-      '<div class="art-box">' + compare + '<span class="badge-qty">скан ×' + (detected == null ? '—' : detected) + '</span></div>' +
+      '<div class="scan-card-art">' + scanImage +
+        '<span class="scan-detected-badge">Распознано ×' + (detected == null ? '—' : detected) + '</span>' +
+        inventoryBadge + referenceImage +
+      '</div>' +
       '<div class="card-info">' +
         '<div class="card-name">' + esc(c.name || 'Неизвестная карта') + '</div>' +
-        '<div class="tech">' + (recognized ? 'В инвентаре сейчас: <b>×' + owned + '</b>' : 'Не распознана') + '</div>' +
+        '<div class="tech">' + (recognized ? 'Текущее количество в инвентаре: <b>×' + owned + '</b>' : 'Карта не распознана') + '</div>' +
         (recognized
           ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '"></div><div class="tech scan-after">После сохранения: ×' + (detected == null ? '—' : detected) + ' · дуб: ' + duplicates + '</div>'
           : '<div class="tech">Эта карта не изменит инвентарь.</div>'
