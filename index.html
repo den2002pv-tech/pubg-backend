@@ -544,7 +544,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </div>
 
 <!-- Quick Quantity Input Modal -->
-<div id="qtyModal" class="modal-overlay">
+<div id="qtyModal" class="modal-overlay" aria-hidden="true">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalCardTitle" aria-describedby="modalCardSubtitle" tabindex="-1">
     <div class="modal-title" id="modalCardTitle">Изменение количества</div>
     <div class="modal-desc" id="modalCardSubtitle">Выберите значение или введите вручную:</div>
@@ -735,7 +735,7 @@ document.querySelector('[role="tablist"]').addEventListener('keydown', event => 
     (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
   tabs[next].focus();
   switchTab(tabs[next].dataset.tab);
-}
+});
 
 // Scanner Logic
 fileInput.addEventListener('change', uploadImage);
@@ -1167,7 +1167,7 @@ function createCardElement(c) {
   else if (qty > 1) qtyBadgeClass += ' dup';
 
   const starsHtml = '⭐'.repeat(Math.max(1, Math.min(5, num(c.rarity, 3))));
-  const starBtnHtml = qty === 0 ? '<button class="star-btn ' + (desired ? 'active' : '') + '" title="' + (desired ? 'В списке «Ищу»' : 'Добавить в «Ищу»') + '" aria-label="Хочу получить">' + (desired ? '★' : '☆') + '</button>' : '';
+  const starBtnHtml = qty === 0 ? '<button type="button" class="star-btn ' + (desired ? 'active' : '') + '" title="' + (desired ? 'В списке «Ищу»' : 'Добавить в «Ищу»') + '" aria-label="' + (desired ? 'Убрать карту ' + esc(c.name) + ' из списка «Ищу»' : 'Добавить карту ' + esc(c.name) + ' в список «Ищу»') + '" aria-pressed="' + String(desired) + '">' + (desired ? '★' : '☆') + '</button>' : '';
   el.innerHTML =
     '<div class="art-box">' +
       starBtnHtml +
@@ -1245,6 +1245,8 @@ function updateCardQuantityOptimistic(cardId, newQuantity, cardEl) {
       starBtn.classList.toggle('active', desired);
       starBtn.textContent = desired ? '★' : '☆';
       starBtn.title = desired ? 'В списке «Ищу»' : 'Добавить в «Ищу»';
+      starBtn.setAttribute('aria-label', desired ? 'Убрать карту ' + cardObj.name + ' из списка «Ищу»' : 'Добавить карту ' + cardObj.name + ' в список «Ищу»');
+      starBtn.setAttribute('aria-pressed', String(desired));
     }
 
     const badge = cardEl.querySelector('.badge-qty');
@@ -1361,6 +1363,8 @@ function toggleDesiredCard(cardId, cardEl) {
       starBtn.classList.toggle('active', isDesired);
       starBtn.textContent = isDesired ? '★' : '☆';
       starBtn.title = isDesired ? 'В списке «Ищу»' : 'Добавить в «Ищу»';
+      starBtn.setAttribute('aria-label', isDesired ? 'Убрать карту ' + (cardObj?.name || '') + ' из списка «Ищу»' : 'Добавить карту ' + (cardObj?.name || '') + ' в список «Ищу»');
+      starBtn.setAttribute('aria-pressed', String(isDesired));
     }
     const tagsContainer = cardEl.querySelector('.card-tags');
     if (tagsContainer) {
@@ -1506,6 +1510,7 @@ function openQuantityModal(cardId) {
   document.getElementById('modalCardSubtitle').textContent = 'Текущее количество в инвентаре: ×' + num(cardObj.quantity);
   modalQtyInput.value = num(cardObj.quantity);
 
+  qtyModal.setAttribute('aria-hidden', 'false');
   qtyModal.classList.add('open');
   modalQtyInput.focus();
   modalQtyInput.select();
@@ -1513,6 +1518,7 @@ function openQuantityModal(cardId) {
 
 function closeQuantityModal() {
   qtyModal.classList.remove('open');
+  qtyModal.setAttribute('aria-hidden', 'true');
   activeModalCardId = null;
   if (quantityModalReturnFocus?.isConnected) quantityModalReturnFocus.focus();
   quantityModalReturnFocus = null;
