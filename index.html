@@ -753,8 +753,8 @@ function showResults(cards) {
 }
 
 function renderScanCardQuantity(el, q) {
-  const badge = el.querySelector('.badge-qty');
-  if (badge) badge.textContent = 'скан ×' + (q == null ? '—' : q);
+  const badge = el.querySelector('.scan-detected-badge');
+  if (badge) badge.textContent = 'Распознано ×' + (q == null ? '—' : q);
   const tech = el.querySelector('.scan-after');
   if (tech) {
     tech.textContent = q == null ? 'Введите число' : 'После сохранения: ×' + q + ' · дуб: ' + Math.max(0, q - 1);
