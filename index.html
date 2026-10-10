@@ -801,8 +801,7 @@ async function confirmCollection() {
       checkDesiredChanges();
     }
     renderInventory();
-    showToast('✅ Инвентарь успешно обновлён' + (removedDesired > 0 ? ' (убрано из «Ищу»: ' + removedDesired + ')' : ''));
-    switchTab('inventory');
+    showToast('✅ Инвентарь обновлён — можно сканировать следующий скриншот' + (removedDesired > 0 ? ' (убрано из «Ищу»: ' + removedDesired + ')' : ''), 3000);
   } catch (e) {
     showToast('❌ ' + e.message);
     updateConfirmState();
