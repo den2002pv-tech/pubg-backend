@@ -93,28 +93,35 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .sort-select{width:100%;background:var(--surface-raised);color:#fff;border:1px solid var(--border);border-radius:var(--radius-md);padding:9px 8px;font-size:12px;font-weight:600;outline:none}
 
 /* Grid & Cards */
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:10px}
 @media(min-width:680px){.grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}
-@media(min-width:1000px){.grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(min-width:1000px){.grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}}
 
 .card{
   position:relative;
-  background:var(--surface);
+  min-width:0;
+  background:linear-gradient(155deg,rgba(255,255,255,.025),transparent 42%),var(--surface);
   border:1px solid var(--border);
   border-radius:var(--radius-md);
   padding:8px;
   display:flex;
   flex-direction:column;
   justify-content:space-between;
-  transition:border-color .2s,box-shadow .2s,transform .15s;
+  box-shadow:0 2px 8px rgba(0,0,0,.12);
+  transition:border-color .2s,box-shadow .2s,transform .15s,background .2s;
 }
-.card.missing{opacity:.68}
-.card.missing:hover,.card.desired-active{opacity:1}
-.card.desired-active{border-color:var(--gold);box-shadow:0 0 10px var(--gold-glow)}
+.card:focus-within{border-color:var(--border-focus);box-shadow:0 0 0 2px var(--accent-glow)}
+@media(hover:hover){
+  .card:hover{border-color:#465363;box-shadow:0 7px 18px rgba(0,0,0,.22);transform:translateY(-2px)}
+}
+.card.missing{opacity:.78}
+.card.missing:hover,.card.missing:focus-within,.card.desired-active{opacity:1}
+.card.desired-active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold-glow),0 4px 14px rgba(245,158,11,.08)}
 
 /* Card Media Box */
-.art-box{position:relative;aspect-ratio:2/3;background:#0c0f12;border-radius:var(--radius-sm);overflow:hidden}
-.art-img{width:100%;height:100%;object-fit:contain;display:block}
+.art-box{position:relative;aspect-ratio:2/3;background:radial-gradient(ellipse at 50% 35%,#171d25 0%,#0c0f12 72%);border:1px solid rgba(255,255,255,.035);border-radius:var(--radius-sm);overflow:hidden}
+.art-img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .25s ease}
+@media(hover:hover){.card:hover .art-img{transform:scale(1.025)}}
 .art-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:11px}
 
 /* Star Toggle Button (Wishlist) */
@@ -123,8 +130,8 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
   top:6px;
   right:6px;
   z-index:4;
-  width:36px;
-  height:36px;
+  width:40px;
+  height:40px;
   border-radius:50%;
   background:rgba(14,17,21,0.85);
   backdrop-filter:blur(6px);
@@ -244,14 +251,14 @@ input[type=file]{display:none}
 /* Side-by-side comparison of scanned crop and reference card. */
 .scan-compare-overlay{position:fixed;inset:0;z-index:1500;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.84);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);opacity:0;pointer-events:none;transition:opacity .18s}
 .scan-compare-overlay.open{opacity:1;pointer-events:auto}
-.scan-compare-dialog{position:relative;width:min(100%,720px);max-height:calc(100dvh - 28px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.7);transform:translateY(8px) scale(.99);transition:transform .18s}
+.scan-compare-dialog{position:relative;width:min(100%,760px);max-height:calc(100dvh - 28px);overflow:auto;background:linear-gradient(160deg,rgba(255,255,255,.035),transparent 45%),var(--surface);border:1px solid #3a424e;border-radius:var(--radius-lg);padding:16px;box-shadow:0 20px 64px rgba(0,0,0,.72);transform:translateY(8px) scale(.99);transition:transform .18s;outline:none}
 .scan-compare-overlay.open .scan-compare-dialog{transform:translateY(0) scale(1)}
 .scan-compare-close{position:absolute;top:8px;right:8px;z-index:2;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:rgba(12,16,22,.92);color:#fff;font-size:24px;line-height:1;cursor:pointer}
 .scan-compare-title{margin:2px 42px 14px 0;font-size:15px;font-weight:800}
 .scan-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .scan-compare-item{min-width:0}
 .scan-compare-label{margin-bottom:6px;color:var(--text-muted);font-size:12px;font-weight:700;text-align:center}
-.scan-compare-image-wrap{height:min(58dvh,520px);min-height:180px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius-sm);background:#090c10}
+.scan-compare-image-wrap{height:min(58dvh,520px);min-height:180px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid #303946;border-radius:var(--radius-sm);background:radial-gradient(ellipse at center,#151b23 0%,#090c10 75%)}
 .scan-compare-image{display:block;width:100%;height:100%;object-fit:contain}
 .scan-compare-missing{padding:12px;color:var(--text-muted);font-size:12px;text-align:center}
 @media(max-width:420px){.scan-compare-dialog{padding:12px}.scan-compare-grid{gap:7px}.scan-compare-image-wrap{height:min(52dvh,420px);min-height:150px}.scan-compare-label{font-size:11px}}
@@ -825,10 +832,12 @@ const scanCompareModal = document.getElementById('scanCompareModal');
 const scanCompareCrop = document.getElementById('scanCompareCrop');
 const scanCompareReference = document.getElementById('scanCompareReference');
 let scanComparePreviousFocus = null;
+let scanComparePreviousBodyOverflow = '';
 
 function openScanComparison(cropPath, referencePath, cardName) {
   if (!cropPath || !referencePath) return;
   scanComparePreviousFocus = document.activeElement;
+  scanComparePreviousBodyOverflow = document.body.style.overflow;
   scanCompareCrop.src = assetUrl(cropPath);
   scanCompareReference.src = assetUrl(referencePath);
   document.getElementById('scanCompareTitle').textContent = 'Сравнение: ' + cardName;
@@ -842,7 +851,7 @@ function closeScanComparison() {
   if (!scanCompareModal.classList.contains('open')) return;
   scanCompareModal.classList.remove('open');
   scanCompareModal.setAttribute('aria-hidden', 'true');
-  document.body.style.overflow = '';
+  document.body.style.overflow = scanComparePreviousBodyOverflow;
   scanCompareCrop.removeAttribute('src');
   scanCompareReference.removeAttribute('src');
   if (scanComparePreviousFocus && typeof scanComparePreviousFocus.focus === 'function') {
@@ -855,7 +864,28 @@ scanCompareModal.addEventListener('click', (event) => {
   if (event.target === scanCompareModal) closeScanComparison();
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeScanComparison();
+  if (!scanCompareModal.classList.contains('open')) return;
+  if (event.key === 'Escape') {
+    closeScanComparison();
+    return;
+  }
+  if (event.key === 'Tab') {
+    const focusable = scanCompareModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) {
+      event.preventDefault();
+      scanCompareModal.querySelector('.scan-compare-dialog').focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 });
 
 function renderScanCardQuantity(el, q) {
