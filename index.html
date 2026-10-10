@@ -232,12 +232,20 @@ input[type=file]{display:none}
 /* Scan result card: scanned crop is the main image; reference is an inset. */
 .scan-card-art{position:relative;aspect-ratio:2/3;background:#0c0f12;border-radius:var(--radius-sm);overflow:hidden}
 .scan-card-image{width:100%;height:100%;display:block;object-fit:cover}
-.scan-detected-badge{position:absolute;top:6px;left:6px;z-index:3;max-width:calc(100% - 82px);padding:4px 7px;border:1px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(12,16,22,.9);color:#fff;font-size:11px;font-weight:800;line-height:1.2;backdrop-filter:blur(4px)}
-.scan-inventory-badge{position:absolute;left:6px;bottom:6px;z-index:3;max-width:calc(100% - 82px);padding:4px 7px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(12,16,22,.9);color:#d7e2ea;font-size:10px;font-weight:750;line-height:1.2;backdrop-filter:blur(4px)}
+.scan-detected-badge{position:absolute;top:6px;left:6px;z-index:3;min-width:34px;padding:4px 7px;border:1px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(12,16,22,.9);color:#fff;font-size:12px;font-weight:800;line-height:1.2;text-align:center;backdrop-filter:blur(4px)}
+.scan-inventory-badge{position:absolute;left:6px;bottom:6px;z-index:3;min-width:34px;padding:4px 7px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(12,16,22,.9);color:#d7e2ea;font-size:11px;font-weight:800;line-height:1.2;text-align:center;backdrop-filter:blur(4px)}
 .scan-inventory-badge.owned{background:rgba(16,48,27,.94);border-color:#2d8748;color:#a5f3b5}
 .scan-inventory-badge.not-owned{background:rgba(40,28,14,.94);border-color:#8a6428;color:#fcd58a}
 .scan-reference{position:absolute;right:6px;bottom:6px;z-index:2;width:31%;max-width:86px;aspect-ratio:2/3;padding:3px;border:1px solid rgba(255,255,255,.72);border-radius:7px;background:rgba(9,12,16,.94);box-shadow:0 2px 10px rgba(0,0,0,.6);object-fit:contain}
 .scan-reference-placeholder{position:absolute;right:6px;bottom:6px;z-index:2;width:31%;max-width:86px;aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;padding:3px;border:1px solid rgba(255,255,255,.3);border-radius:7px;background:rgba(9,12,16,.94);color:var(--text-muted);font-size:9px;text-align:center}
+.scan-help{grid-column:1/-1;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-raised);padding:9px 11px;margin-bottom:10px;font-size:12px;color:var(--text-muted)}
+.scan-help summary{color:var(--text);font-weight:700;cursor:pointer;list-style:none}
+.scan-help summary::-webkit-details-marker{display:none}
+.scan-help summary::before{content:'ⓘ ';color:var(--accent)}
+.scan-help[open] summary{margin-bottom:8px}
+.scan-help-list{display:grid;gap:7px;line-height:1.4}
+.scan-help-item{display:flex;align-items:flex-start;gap:8px}
+.scan-help-symbol{flex:0 0 auto;min-width:38px;text-align:center;padding:2px 5px;border:1px solid var(--border);border-radius:5px;background:#10151b;color:#fff;font-weight:800}
 .scan-row{display:flex;gap:8px;align-items:center;margin-top:8px}
 .scan-row label{display:flex;align-items:center;gap:6px;font-size:12px;color:#c9cdd1;cursor:pointer}
 .scan-row input[type=checkbox]{width:18px;height:18px}
@@ -382,7 +390,17 @@ input[type=file]{display:none}
 
   <div id="results" class="panel" style="display:none">
     <h3 style="margin:2px 0 5px">Результаты распознавания</h3>
-    <div class="hint">Отредактируйте количество или снимите выбор с нежелательных карт. Сохранение обновит только выбранные карты.</div>
+    <div class="hint">Проверьте распознанные карты и количество. Сохранение обновит только выбранные карты.</div>
+    <details class="scan-help">
+      <summary>Справка по обозначениям</summary>
+      <div class="scan-help-list">
+        <div class="scan-help-item"><span class="scan-help-symbol">×N</span><span>Количество, найденное на скриншоте (слева сверху).</span></div>
+        <div class="scan-help-item"><span class="scan-help-symbol">✓ ×N</span><span>Карта уже есть в вашем инвентаре; число показывает текущее количество.</span></div>
+        <div class="scan-help-item"><span class="scan-help-symbol">×0</span><span>Этой карты пока нет в инвентаре.</span></div>
+        <div class="scan-help-item"><span class="scan-help-symbol">Миниатюра</span><span>Эталон карты для сравнения, в правом нижнем углу.</span></div>
+        <div class="scan-help-item"><span class="scan-help-symbol">✓ Выбрать</span><span>Отметьте карты, которые нужно сохранить. Поле с числом позволяет исправить количество; «дубл.» — лишние копии сверх одной.</span></div>
+      </div>
+    </details>
     <div id="scanSummary" class="summary"></div>
     <div id="cardsList" class="grid"></div>
     <button id="confirmBtn" class="trade" style="display:none">✅ Сохранить выбранные в инвентарь</button>
@@ -693,9 +711,9 @@ function showResults(cards) {
     const duplicates = detected == null ? 0 : Math.max(0, detected - 1);
     const inventoryBadge = recognized
       ? (owned > 0
-          ? '<span class="scan-inventory-badge owned">В инвентаре ×' + owned + '</span>'
-          : '<span class="scan-inventory-badge not-owned">Нет в инвентаре</span>')
-      : '<span class="scan-inventory-badge not-owned">Не распознана</span>';
+          ? '<span class="scan-inventory-badge owned" title="Уже есть в инвентаре: ×' + owned + '" aria-label="Уже есть в инвентаре: ' + owned + '">✓ ×' + owned + '</span>'
+          : '<span class="scan-inventory-badge not-owned" title="В инвентаре пока нет" aria-label="В инвентаре пока нет">×0</span>')
+      : '<span class="scan-inventory-badge not-owned" title="Карта не распознана" aria-label="Карта не распознана">?</span>';
     const scanImage = c.preview
       ? '<img class="scan-card-image" src="' + esc(assetUrl(c.preview)) + '" alt="Кроп сканированной карты">'
       : '<div class="art-empty">Нет кропа скана</div>';
@@ -707,14 +725,13 @@ function showResults(cards) {
     el.className = 'card' + (pending?.selected ? ' desired-active' : '');
     el.innerHTML =
       '<div class="scan-card-art">' + scanImage +
-        '<span class="scan-detected-badge">Распознано ×' + (detected == null ? '—' : detected) + '</span>' +
+        '<span class="scan-detected-badge" title="Количество на скриншоте" aria-label="Распознано: ' + (detected == null ? 'неизвестно' : detected) + '">×' + (detected == null ? '—' : detected) + '</span>' +
         inventoryBadge + referenceImage +
       '</div>' +
       '<div class="card-info">' +
         '<div class="card-name">' + esc(c.name || 'Неизвестная карта') + '</div>' +
-        '<div class="tech">' + (recognized ? 'Текущее количество в инвентаре: <b>×' + owned + '</b>' : 'Карта не распознана') + '</div>' +
         (recognized
-          ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '"></div><div class="tech scan-after">После сохранения: ×' + (detected == null ? '—' : detected) + ' · дуб: ' + duplicates + '</div>'
+          ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '" aria-label="Количество для сохранения" title="Количество для сохранения"></div><div class="tech scan-after">После: ×' + (detected == null ? '—' : detected) + ' · дубл.: ' + duplicates + '</div>'
           : '<div class="tech">Эта карта не изменит инвентарь.</div>'
         ) +
         '<div class="tech">' + (c.distance != null ? 'Различие: d=' + esc(c.distance) : '') + '</div>' +
@@ -754,7 +771,11 @@ function showResults(cards) {
 
 function renderScanCardQuantity(el, q) {
   const badge = el.querySelector('.scan-detected-badge');
-  if (badge) badge.textContent = 'Распознано ×' + (q == null ? '—' : q);
+  if (badge) {
+    badge.textContent = '×' + (q == null ? '—' : q);
+    badge.setAttribute('aria-label', 'Распознано: ' + (q == null ? 'неизвестно' : q));
+    badge.title = 'Количество на скриншоте';
+  }
   const tech = el.querySelector('.scan-after');
   if (tech) {
     tech.textContent = q == null ? 'Введите число' : 'После сохранения: ×' + q + ' · дуб: ' + Math.max(0, q - 1);
