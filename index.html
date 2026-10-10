@@ -59,21 +59,46 @@ const confirmBtn=document.getElementById('confirmBtn');
 let pendingCards=[];
 input.addEventListener('change',uploadImage);
 
+const BACKEND_WAKE_TIMEOUT_MS=60000;
+const SCAN_TIMEOUT_MS=120000;
+function delay(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function fetchWithTimeout(url,options={},timeoutMs=BACKEND_WAKE_TIMEOUT_MS){
+ const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),timeoutMs);
+ try{return await fetch(url,{...options,signal:controller.signal});}finally{clearTimeout(timeout);}
+}
+async function wakeBackend(){
+ let lastError;
+ for(let attempt=1;attempt<=2;attempt++){
+  try{const response=await fetchWithTimeout(API+'/health',{},BACKEND_WAKE_TIMEOUT_MS);if(response.ok)return;lastError=new Error('Сервер вернул HTTP '+response.status);}
+  catch(error){lastError=error;}
+  if(attempt<2){statusText.textContent='⏳ Сервер запускается после простоя. Повторная проверка...';await delay(1200);}
+ }
+ if(lastError?.name==='AbortError')throw new Error('Сервер долго запускается. Подождите немного и попробуйте ещё раз.');
+ throw new Error('Не удалось подключиться к серверу. Проверьте соединение и попробуйте ещё раз.');
+}
 function assetUrl(path){if(!path)return '';return path.startsWith('http')||path.startsWith('data:')?path:API+path;}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
 async function uploadImage(){
  const file=input.files[0]; if(!file)return;
- statusText.textContent='⏳ Сканирование...'; status.textContent='';
+ statusText.textContent='⏳ Проверяем подключение к серверу...';
+ status.textContent='Если сервер долго не использовался, его запуск может занять до минуты.';
  const fd=new FormData(); fd.append('file',file);
  try{
-  const r=await fetch(API+'/scan',{method:'POST',body:fd,headers:telegramHeaders()}); const d=await r.json();
+  await wakeBackend();
+  statusText.textContent='⏳ Сканирование...';
+  status.textContent='Обработка изображения. Это может занять некоторое время.';
+  const r=await fetchWithTimeout(API+'/scan',{method:'POST',body:fd,headers:telegramHeaders()},SCAN_TIMEOUT_MS);
+  const d=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(d.detail||'Ошибка сервера');
   statusText.textContent='📷 Выбрать другой скриншот';
   status.textContent='Найдено карточек: '+(d.count||0);
   pendingCards=(d.cards||[]).filter(c=>c.id);
   showResults(d.cards||[]);
- }catch(e){statusText.textContent='📷 Выбрать скриншот';status.textContent='❌ '+e.message;}
+ }catch(e){
+  statusText.textContent='📷 Выбрать скриншот';
+  status.textContent=e?.name==='AbortError'?'❌ Сервер не успел ответить. Попробуйте повторить сканирование.':'❌ '+(e.message||'Не удалось подключиться к серверу');
+ }
 }
 
 function showResults(cards){
