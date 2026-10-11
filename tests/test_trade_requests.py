@@ -198,3 +198,37 @@ def test_list_trade_requests_qualifies_ambiguous_id_column(monkeypatch):
 
     assert result == {"requests": [], "count": 0}
     assert "SELECT tr.id FROM trade_requests tr" in executed[0][0]
+
+
+
+def test_agreed_trade_requires_both_codes_before_completion_button():
+    request = {
+        "id": 23,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "sender_agreed_at": "now",
+        "recipient_agreed_at": "now",
+        "sender_completed_at": None,
+        "recipient_completed_at": None,
+        "sender_exchange_code": None,
+        "recipient_exchange_code": None,
+    }
+
+    recipient_actions = [
+        item["callback_data"]
+        for row in trades._keyboard(request, 200)["inline_keyboard"]
+        for item in row
+    ]
+    assert "tr:23:code_help" in recipient_actions
+    assert "tr:23:complete" not in recipient_actions
+
+    request["sender_exchange_code"] = "ABCD"
+    request["recipient_exchange_code"] = "EFGH"
+    recipient_actions = [
+        item["callback_data"]
+        for row in trades._keyboard(request, 200)["inline_keyboard"]
+        for item in row
+    ]
+    assert "tr:23:complete" in recipient_actions
+    assert "tr:23:code_help" not in recipient_actions
