@@ -409,7 +409,7 @@ def test_telegram_webhook_delivers_code_from_force_reply(monkeypatch):
                     "chat": {"id": 100, "type": "private"},
                     "from": {"id": 100},
                     "reply_to_message": {
-                        "text": "Введите код обмена для заявки #29 в ответ на это сообщение.\\n"
+                        "text": "Введите код обмена для заявки #29 в ответ на это сообщение.\n"
                         "Сначала создайте код в PUBG Mobile."
                     },
                 }
