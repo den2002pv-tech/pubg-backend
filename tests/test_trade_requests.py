@@ -291,7 +291,7 @@ def test_exchange_code_is_sent_only_once_to_recipient(monkeypatch):
         (200, "agreed", "ABC-123", 403),
         (100, "pending", "ABC-123", 409),
         (100, "agreed", "   ", 400),
-        (100, "agreed", "ABC\\n123", 400),
+        (100, "agreed", "ABC\n123", 400),
         (100, "agreed", "x" * 129, 400),
     ],
 )
