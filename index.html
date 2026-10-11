@@ -1679,7 +1679,7 @@ function renderTradeMatches(matches) {
   tradeMatchesEl.innerHTML = matches.map(match => {
     const displayName = [match.first_name, match.last_name].filter(Boolean).join(' ') || (match.username ? '@' + match.username : 'Игрок');
     const username = match.username ? '@' + match.username : '';
-    const contact = match.username ? '<a class="trade trade-contact" href="https://t.me/' + encodeURIComponent(match.username) + '" target="_blank" rel="noopener noreferrer">Написать в Telegram</a>' : '<div class="trade-count">У игрока не указан username Telegram. ID: ' + tradeEsc(match.telegram_id) + '</div>';
+    const contact = match.username ? '<a class="trade trade-contact" href="https://t.me/' + encodeURIComponent(match.username) + '" target="_blank" rel="noopener noreferrer">Написать в Telegram</a>' : '<button type="button" class="trade trade-contact" data-trade-target="' + tradeEsc(match.telegram_id) + '">Предложить обмен через бота</button>';
     const trades = match.trades.map(trade => {
       const giveIcon = trade.you_give.icon ? '<img loading="lazy" src="' + tradeEsc(trade.you_give.icon) + '" alt="">' : '';
       const getIcon = trade.you_get.icon ? '<img loading="lazy" src="' + tradeEsc(trade.you_get.icon) + '" alt="">' : '';
@@ -1688,6 +1688,36 @@ function renderTradeMatches(matches) {
     return '<article class="trade-match"><div class="trade-player">' + tradeEsc(displayName) + (username ? ' <span class="trade-count">' + tradeEsc(username) + '</span>' : '') + '</div>' + trades + contact + '</article>';
   }).join('');
 }
+
+tradeMatchesEl.addEventListener('click', async event => {
+  const button = event.target.closest('button[data-trade-target]');
+  if (!button || !tradeMatchesEl.contains(button)) return;
+
+  const targetId = button.dataset.tradeTarget;
+  if (!/^\\d+$/.test(targetId || '')) {
+    tradeStatusEl.textContent = 'Не удалось определить игрока для обмена.';
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Отправляем предложение…';
+  try {
+    const response = await fetch(API + '/me/trade-matches/' + encodeURIComponent(targetId) + '/contact', {
+      method: 'POST',
+      headers: telegramHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось отправить предложение');
+    button.textContent = '✓ Предложение отправлено';
+    button.setAttribute('aria-label', 'Предложение обмена отправлено');
+    tradeStatusEl.textContent = data.message || 'Предложение обмена отправлено через Telegram-бота.';
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Предложить обмен через бота';
+    tradeStatusEl.textContent = 'Не удалось отправить предложение: ' + (error.message || 'проверьте соединение');
+  }
+});
+
 async function loadTradeMatches() {
   if (!telegramInitData) {
     tradeStatusEl.textContent = 'Откройте приложение через Telegram, чтобы найти обмены.';
