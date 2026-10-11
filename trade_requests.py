@@ -269,7 +269,6 @@ def _notify_request(request: dict[str, Any], recipient_id: int, include_icons: b
         return False
 
 
-@router.on_event("startup")
 def init_trade_request_schema() -> None:
     with get_connection() as conn:
         with conn.cursor() as cur:
