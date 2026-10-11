@@ -305,6 +305,11 @@ input[type=file]{display:none}
 .trade{width:100%;border:0;border-radius:var(--radius-sm);padding:11px;margin-top:10px;font-weight:750;background:var(--success);color:#fff;cursor:pointer;font-size:14px;transition:background .15s}
 .trade:active{background:#268436}
 .trade:disabled{background:#2a313b;color:#6e7681;cursor:default}
+.exchange-code-form{display:grid;gap:7px;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.exchange-code-form label{font-size:13px;font-weight:750}
+.exchange-code-form input{width:100%;min-height:44px;background:var(--surface-raised);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.exchange-code-form small{color:var(--text-muted);font-size:12px;line-height:1.4}
+.exchange-code-status{font-size:12px;color:#7ee787;margin:10px 0 0}
 .danger{width:100%;border:1px solid #632525;border-radius:var(--radius-sm);padding:9px;font-weight:700;background:rgba(99,37,37,0.4);color:#ff7b72;cursor:pointer;font-size:12px;transition:all .15s}
 .danger:active{background:rgba(99,37,37,0.7)}
 .danger:disabled{opacity:.5;cursor:default}
@@ -1800,6 +1805,16 @@ function renderTradeRequests(requests) {
       const alreadyCompleted = isSender ? request.sender_completed_at : request.recipient_completed_at;
       if (!alreadyCompleted) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
     }
+    const requestId = tradeEsc(request.id);
+    const codeTransfer = request.status === 'agreed' && isSender && !request.exchange_code_sent_at
+      ? '<form class="exchange-code-form" data-exchange-code-form data-request-id="' + requestId + '">' +
+        '<label for="exchangeCode-' + requestId + '">Код из PUBG Mobile</label>' +
+        '<input id="exchangeCode-' + requestId + '" name="code" type="text" maxlength="128" autocomplete="off" autocapitalize="characters" spellcheck="false" required aria-describedby="exchangeCodeHelp-' + requestId + '">' +
+        '<small id="exchangeCodeHelp-' + requestId + '">Сначала создайте код в игре. Код не сохраняется в приложении и будет отправлен участнику в Telegram.</small>' +
+        '<button type="submit" class="trade">📨 Передать код игроку</button></form>'
+      : request.status === 'agreed' && request.exchange_code_sent_at
+        ? '<p class="exchange-code-status" role="status">📨 Код передан автором предложения в Telegram.</p>'
+        : '';
     if (['pending', 'accepted', 'agreed'].includes(request.status)) {
       actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="cancel">Отменить</button>');
     }
@@ -1807,6 +1822,7 @@ function renderTradeRequests(requests) {
       '<div class="trade-card-name">📤 Вы отдаёте: <b>' + tradeEsc(gives) + '</b></div>' +
       '<div class="trade-card-name" style="margin-top:6px">📥 Вы получаете: <b>' + tradeEsc(gets) + '</b></div>' +
       '<div class="trade-count" style="margin:8px 0">' + tradeEsc(requestStatusLabels[request.status] || request.status) + '</div>' +
+      codeTransfer +
       '<div class="quick-actions-bar">' + actions.join('') + '</div></article>';
   }).join('');
 }
@@ -1856,6 +1872,41 @@ tradeRequestsEl.addEventListener('click', async event => {
     button.disabled = false;
   }
 });
+
+tradeRequestsEl.addEventListener('submit', async event => {
+  const form = event.target.closest('form[data-exchange-code-form]');
+  if (!form || !tradeRequestsEl.contains(form)) return;
+  event.preventDefault();
+
+  const input = form.elements.code;
+  const code = String(input.value || '').trim();
+  if (!code) {
+    input.focus();
+    return;
+  }
+
+  const requestId = form.dataset.requestId;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  button.textContent = 'Передаём код…';
+  try {
+    const response = await fetch(API + '/me/trade-requests/' + encodeURIComponent(requestId) + '/exchange-code', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось передать код');
+    input.value = '';
+    await loadTradeRequests();
+    tradeRequestsStatusEl.textContent = '✅ Код передан игроку в Telegram.';
+  } catch (error) {
+    tradeRequestsStatusEl.textContent = 'Не удалось передать код: ' + (error.message || 'проверьте соединение');
+    button.disabled = false;
+    button.textContent = '📨 Передать код игроку';
+  }
+});
+
 document.querySelectorAll('[data-request-scope]').forEach(button => {
   button.addEventListener('click', () => {
     currentRequestScope = button.dataset.requestScope;

@@ -184,3 +184,301 @@ def test_list_my_trade_requests_qualifies_ambiguous_id_column(monkeypatch):
     assert result == {"requests": [{"id": 17, "viewer_id": 12345}], "count": 1}
     assert "SELECT tr.id FROM trade_requests tr" in captured["query"]
     assert captured["params"] == (12345, 12345, "all", "all", 12345, "all", 12345)
+
+
+def _exchange_code_request():
+    return {
+        "id": 29,
+        "status": "agreed",
+        "exchange_code_sent_at": None,
+        "offered_card_name": "Карта, которую получает получатель",
+        "requested_card_name": "Карта, которую отдаёт получатель",
+        "sender_telegram_id": 100,
+        "sender_first_name": "Автор",
+        "recipient_telegram_id": 200,
+    }
+
+
+def test_agreed_request_shows_code_button_only_to_sender():
+    request = {
+        "id": 29,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "sender_agreed_at": True,
+        "recipient_agreed_at": True,
+        "sender_completed_at": None,
+        "recipient_completed_at": None,
+        "exchange_code_sent_at": None,
+    }
+
+    sender_actions = [
+        button["callback_data"]
+        for row in trades._keyboard(request, 100)["inline_keyboard"]
+        for button in row
+    ]
+    recipient_actions = [
+        button["callback_data"]
+        for row in trades._keyboard(request, 200)["inline_keyboard"]
+        for button in row
+    ]
+
+    assert "tr:29:code" in sender_actions
+    assert "tr:29:code" not in recipient_actions
+
+
+def test_exchange_code_is_sent_only_once_to_recipient(monkeypatch):
+    state = _exchange_code_request()
+    sent = []
+    executed = []
+
+    class FakeCursor:
+        rowcount = 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params):
+            executed.append((query, params))
+            if query.lstrip().startswith("UPDATE trade_requests"):
+                state["exchange_code_sent_at"] = "sent"
+
+        def fetchone(self):
+            return dict(state)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(trades, "get_connection", FakeConnection)
+    monkeypatch.setattr(
+        trades,
+        "_telegram_call",
+        lambda method, payload: sent.append((method, payload)) or {"ok": True},
+    )
+
+    result = trades._deliver_exchange_code(29, 100, "  ABC-123  ")
+
+    assert result == {"status": "sent", "request_id": 29, "notification_delivered": True}
+    assert len(sent) == 1
+    assert sent[0][1]["chat_id"] == 200
+    assert "ABC-123" in sent[0][1]["text"]
+    assert "Карта, которую получает получатель" in sent[0][1]["text"]
+    assert all("ABC-123" not in str(params) for _query, params in executed)
+    assert state["exchange_code_sent_at"] == "sent"
+
+    with pytest.raises(HTTPException) as exc:
+        trades._deliver_exchange_code(29, 100, "ANOTHER-CODE")
+    assert exc.value.status_code == 409
+    assert len(sent) == 1
+
+
+@pytest.mark.parametrize(
+    ("actor_id", "status", "code", "expected_status"),
+    [
+        (200, "agreed", "ABC-123", 403),
+        (100, "pending", "ABC-123", 409),
+        (100, "agreed", "   ", 400),
+        (100, "agreed", "ABC\n123", 400),
+        (100, "agreed", "x" * 129, 400),
+    ],
+)
+def test_exchange_code_rejects_invalid_actor_state_or_code(
+    monkeypatch, actor_id, status, code, expected_status
+):
+    state = _exchange_code_request()
+    state["status"] = status
+    sent = []
+
+    class FakeCursor:
+        rowcount = 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params):
+            pass
+
+        def fetchone(self):
+            return dict(state)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(trades, "get_connection", FakeConnection)
+    monkeypatch.setattr(trades, "_telegram_call", lambda method, payload: sent.append(payload))
+
+    with pytest.raises(HTTPException) as exc:
+        trades._deliver_exchange_code(29, actor_id, code)
+
+    assert exc.value.status_code == expected_status
+    assert sent == []
+
+
+def test_exchange_code_delivery_failure_does_not_mark_code_sent(monkeypatch):
+    state = _exchange_code_request()
+
+    class FakeCursor:
+        rowcount = 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params):
+            pass
+
+        def fetchone(self):
+            return dict(state)
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(trades, "get_connection", FakeConnection)
+
+    def fail_send(_method, _payload):
+        raise HTTPException(status_code=502, detail="Telegram unavailable")
+
+    monkeypatch.setattr(trades, "_telegram_call", fail_send)
+
+    with pytest.raises(HTTPException) as exc:
+        trades._deliver_exchange_code(29, 100, "ABC-123")
+
+    assert exc.value.status_code == 502
+    assert state["exchange_code_sent_at"] is None
+
+
+def test_telegram_webhook_delivers_code_from_force_reply(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    delivered = []
+    sent = []
+    monkeypatch.setattr(
+        trades,
+        "_deliver_exchange_code",
+        lambda request_id, sender_id, code: delivered.append((request_id, sender_id, code))
+        or {"status": "sent", "request_id": request_id, "notification_delivered": True},
+    )
+    monkeypatch.setattr(
+        trades,
+        "_telegram_call",
+        lambda method, payload: sent.append((method, payload)) or {"ok": True},
+    )
+
+    result = asyncio.run(
+        trades.telegram_webhook(
+            {
+                "message": {
+                    "text": "ABC-123",
+                    "chat": {"id": 100, "type": "private"},
+                    "from": {"id": 100},
+                    "reply_to_message": {
+                        "text": "Введите код обмена для заявки #29 в ответ на это сообщение.\n"
+                        "Сначала создайте код в PUBG Mobile."
+                    },
+                }
+            },
+            secret="test-webhook-secret",
+        )
+    )
+
+    assert result == {"ok": True}
+    assert delivered == [(29, 100, "ABC-123")]
+    assert any("Код передан второму игроку" in payload["text"] for _method, payload in sent)
+
+
+def test_exchange_code_api_uses_authenticated_sender(monkeypatch):
+    captured = []
+    monkeypatch.setattr(trades, "_auth", lambda _init_data: (100, {}))
+    monkeypatch.setattr(
+        trades,
+        "_deliver_exchange_code",
+        lambda request_id, sender_id, code: captured.append((request_id, sender_id, code))
+        or {"status": "sent", "request_id": request_id, "notification_delivered": True},
+    )
+
+    result = asyncio.run(
+        trades.submit_exchange_code(
+            29,
+            trades.ExchangeCodeSubmit(code=" ABC-123 "),
+            init_data="valid-init-data",
+        )
+    )
+
+    assert result == {"status": "sent", "request_id": 29, "notification_delivered": True}
+    assert captured == [(29, 100, " ABC-123 ")]
+
+
+def test_code_callback_prompts_sender_to_reply_with_game_code(monkeypatch):
+    request = {
+        "id": 29,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "exchange_code_sent_at": None,
+    }
+    sent = []
+    answers = []
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    monkeypatch.setattr(trades, "get_trade_request", lambda request_id, actor_id: dict(request))
+    monkeypatch.setattr(
+        trades,
+        "_telegram_call",
+        lambda method, payload: sent.append((method, payload)) or {"ok": True},
+    )
+    monkeypatch.setattr(trades, "_answer_callback", lambda callback_id, text: answers.append((callback_id, text)))
+
+    result = asyncio.run(
+        trades.telegram_webhook(
+            {
+                "callback_query": {
+                    "id": "callback-1",
+                    "data": "tr:29:code",
+                    "from": {"id": 100},
+                }
+            },
+            secret="test-webhook-secret",
+        )
+    )
+
+    assert result == {"ok": True}
+    assert sent[0][1]["chat_id"] == 100
+    assert "создайте код в PUBG Mobile" in sent[0][1]["text"]
+    assert sent[0][1]["reply_markup"]["force_reply"] is True
+    assert answers == [("callback-1", "Ожидаю код обмена")]
