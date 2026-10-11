@@ -530,7 +530,12 @@ def test_final_completion_transfers_cards_atomically_and_clears_wishlist(monkeyp
         def commit(self):
             committed.append(True)
 
-    monkeypatch.setattr(trades, "get_trade_request", lambda request_id, viewer_id: {**request, "status": "completed"})
+    reads = []
+    def fake_get_trade_request(request_id, viewer_id):
+        reads.append((request_id, viewer_id))
+        return dict(request) if len(reads) == 1 else {**request, "status": "completed"}
+
+    monkeypatch.setattr(trades, "get_trade_request", fake_get_trade_request)
     monkeypatch.setattr(trades, "get_connection", FakeConnection)
 
     result = trades._transition(41, 100, "complete")
