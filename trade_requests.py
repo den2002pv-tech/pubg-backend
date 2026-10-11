@@ -513,6 +513,48 @@ async def telegram_webhook(
         raise HTTPException(status_code=503, detail="TELEGRAM_WEBHOOK_SECRET не задан на сервере")
     if not secret or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=403, detail="Forbidden")
+    message = update.get("message")
+    if isinstance(message, dict):
+        message_text = message.get("text")
+        chat = message.get("chat")
+        if isinstance(message_text, str) and isinstance(chat, dict):
+            command_token = message_text.strip().split(maxsplit=1)
+            command = command_token[0].split("@", 1)[0].lower() if command_token else ""
+            chat_id = chat.get("id")
+            if command in {"/start", "/help", "/app"} and isinstance(chat_id, int) and not isinstance(chat_id, bool):
+                app_keyboard = {
+                    "inline_keyboard": [[{
+                        "text": "🎴 Открыть PUBG Mobile",
+                        "web_app": {"url": "https://pubg-app-phi.vercel.app"},
+                    }]]
+                }
+                if command == "/start":
+                    reply_text = (
+                        "Привет! Это бот обмена карт PUBG Mobile. 🎴\n\n"
+                        "Откройте приложение, чтобы управлять коллекцией и создавать заявки на обмен. "
+                        "Уведомления о заявках и кнопки подтверждения будут приходить сюда."
+                    )
+                elif command == "/help":
+                    reply_text = (
+                        "Как пользоваться обменом карт PUBG Mobile:\n"
+                        "1. Откройте приложение и обновите свою коллекцию.\n"
+                        "2. Найдите подходящий обмен и отправьте предложение.\n"
+                        "3. Ответьте на уведомление здесь с помощью кнопок.\n\n"
+                        "Не завершайте обмен в приложении игры, пока не согласовали детали друг с другом."
+                    )
+                else:
+                    reply_text = "Нажмите кнопку ниже, чтобы открыть PUBG Mobile Mini App."
+                try:
+                    _telegram_call("sendMessage", {
+                        "chat_id": chat_id,
+                        "text": reply_text,
+                        "reply_markup": app_keyboard,
+                    })
+                except HTTPException:
+                    # A failed reply must not cause Telegram to retry the same update indefinitely.
+                    pass
+        return {"ok": True}
+
     callback = update.get("callback_query")
     if not isinstance(callback, dict):
         return {"ok": True}
