@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
 from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
-from trade_requests import create_trade_request_for_match, register_trade_request_routes
+from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -48,6 +48,7 @@ def startup_database() -> None:
     init_db()
     _migrate_frame_color_hashes()
     sync_cards(load_db())
+    init_trade_request_schema()
 
 app.add_middleware(
     CORSMiddleware,
