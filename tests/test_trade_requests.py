@@ -155,10 +155,11 @@ def test_exchange_code_message_identifies_the_card_being_given():
         "requested_card_name": "Карта получателя",
     }
 
-    message = trades._exchange_code_message(request, 100, "ABCD-1234")
+    message = trades._exchange_code_message(request, "ABCD-1234")
 
     assert "Денис" in message
-    assert "Карта: «Карта отправителя»" in message
+    assert "Вы отдаёте: «Карта получателя»" in message
+    assert "Вы получаете: «Карта отправителя»" in message
     assert "Код: ABCD-1234" in message
 
 
@@ -201,7 +202,7 @@ def test_list_trade_requests_qualifies_ambiguous_id_column(monkeypatch):
 
 
 
-def test_agreed_trade_requires_both_codes_before_completion_button():
+def test_agreed_trade_requires_requester_code_before_completion_button():
     request = {
         "id": 23,
         "status": "agreed",
@@ -211,20 +212,24 @@ def test_agreed_trade_requires_both_codes_before_completion_button():
         "recipient_agreed_at": "now",
         "sender_completed_at": None,
         "recipient_completed_at": None,
-        "sender_exchange_code": None,
-        "recipient_exchange_code": None,
+        "exchange_code": None,
     }
 
+    requester_actions = [
+        item["callback_data"]
+        for row in trades._keyboard(request, 100)["inline_keyboard"]
+        for item in row
+    ]
     recipient_actions = [
         item["callback_data"]
         for row in trades._keyboard(request, 200)["inline_keyboard"]
         for item in row
     ]
-    assert "tr:23:code_help" in recipient_actions
-    assert "tr:23:complete" not in recipient_actions
+    assert "tr:23:code_help" in requester_actions
+    assert "tr:23:complete" not in requester_actions
+    assert "tr:23:code_help" not in recipient_actions
 
-    request["sender_exchange_code"] = "ABCD"
-    request["recipient_exchange_code"] = "EFGH"
+    request["exchange_code"] = "ABCD"
     recipient_actions = [
         item["callback_data"]
         for row in trades._keyboard(request, 200)["inline_keyboard"]
