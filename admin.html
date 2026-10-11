@@ -62,7 +62,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="scan" class="panel active">
     <div class="box">
       <h2>Создание хешей</h2>
-      <p class="muted">Текущий процесс оставлен: загрузи скриншот коллекции, проверь найденные карточки и сохрани их в card_hashes.json.</p>
+      <p class="muted">Загрузи скриншот коллекции один раз. При добавлении новой карты хеши и постоянная иконка сохраняются из одного и того же изображения — повторно загружать его не нужно.</p>
       <input type="file" id="screenshotInput" accept="image/*">
       <div class="row">
         <button id="scanBtn">Сканировать</button>
@@ -73,7 +73,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     </div>
     <div id="resultsBox" class="box" style="display:none">
       <h2>Найденные карточки</h2>
-      <p class="muted">После каждого сканирования введи реальные количества и добавь примеры в очередь. Очередь хранится в этом браузере; новые сканирования её не очищают. Render и GitHub не перезапускаются на каждом наборе из 4 карт.</p>
+      <p class="muted">Добавляй карты со всех нужных скриншотов. Иконки и хеши сохраняются на сервере по мере подтверждения, но в GitHub ничего не отправляется автоматически. Когда закончишь добавлять все изображения, нажми «Отправить все изменения одним commit» на вкладке «Карты».</p>
       <div class="row">
         <button id="queueCounterTestsBtn" type="button" class="btn-secondary">➕ Добавить отмеченные в очередь</button>
         <button id="saveCounterTestsBtn" type="button" class="btn-green">💾 Отправить всю очередь одним commit</button>
@@ -102,7 +102,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="icons" class="panel">
     <div class="box">
       <h2>Иконки карт</h2>
-      <p class="muted">Можно загрузить несколько изображений. Каждая иконка сначала определяется, а сохранить или заменить её можно только после ручного подтверждения.</p>
+      <p class="muted">Для новых карт загружай скриншот только на вкладке «Хеши»: постоянная иконка сохранится из него автоматически. Эта вкладка нужна, если требуется вручную добавить или заменить иконку уже существующей карты.</p>
 
       <div class="row">
         <input type="file" id="iconInput" accept="image/*" multiple>
@@ -126,6 +126,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="cards" class="panel">
     <div class="box">
       <h2>База карт</h2>
+      <p class="muted">Все изменения карт и постоянных иконок накапливаются на сервере. Отправь их в рабочую ветку одним commit только после того, как закончишь сканировать и добавлять изображения.</p>
       <div class="row">
         <input id="search" placeholder="Поиск по ID или названию">
         <select id="filter">
@@ -138,7 +139,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
         <button id="refreshBtn" class="btn-secondary">Обновить</button>
         <button id="regenHashesBtn" class="btn-secondary">🔄 Перегенерировать хеши из сохранённых иконок</button>
         <button id="copyBtn">Скопировать JSON</button>
-        <button id="commitBtn" class="btn-green">💾 Сохранить изменения в GitHub</button>
+        <button id="commitBtn" class="btn-green">💾 Отправить все изменения одним commit</button>
       </div>
       <div id="regenStatus" class="muted"></div>
       <div class="progress-wrap" id="regenProgressWrap" style="display:none">
@@ -501,6 +502,9 @@ function renderResults(cards){
       const icon = c.icon
         ? `<img class="icon" src="${esc(assetUrl(c.icon))}" onerror="this.style.display='none'">`
         : `<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет постоянной иконки</div>`;
+      const iconAction = !c.icon
+        ? `<button class="btn-green" onclick="saveScannedIcon(${i})">Сохранить иконку из скриншота</button>`
+        : '';
 
       el.innerHTML=`
         <img src="${esc(previewUrl)}">
@@ -527,6 +531,7 @@ function renderResults(cards){
 
         <div style="margin-top:10px">
           ${icon}
+          ${iconAction}
         </div>
 
         <p class="muted">
@@ -672,14 +677,40 @@ async function saveCard(i){
     card.id=d.card_id||d.card?.id;
     card.name=name;
     card.rarity=rarity;
+    card.icon=d.card?.icon||'';
 
-    alert(`Карта сохранена: ${card.id}`);
+    alert(`Карта сохранена вместе с постоянной иконкой: ${card.id}`);
 
     await loadAll();
     renderResults(window.lastScan);
 
   }catch(e){
     alert('Ошибка сохранения: '+e.message);
+  }
+}
+
+async function saveScannedIcon(i){
+  const card=window.lastScan?.[i];
+  if(!card||!card.matched||!card.id||card.icon)return;
+
+  const label=card.name||card.id;
+  if(!confirm(`Сохранить постоянную иконку для "${label}" из этого же скриншота?`))return;
+
+  try{
+    const r=await api('/admin/save-icon-from-preview/'+encodeURIComponent(card.id),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({preview:card.preview})
+    });
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка сохранения иконки');
+
+    card.icon=d.icon;
+    await loadAll();
+    renderResults(window.lastScan);
+    status(`Иконка ${card.id} сохранена на сервере. GitHub commit будет создан только по отдельной кнопке.`,'ok');
+  }catch(e){
+    status('Не удалось сохранить иконку: '+e.message,'err');
   }
 }
 
@@ -1023,7 +1054,7 @@ document.getElementById('commitBtn').onclick=async()=>{
   const b=document.getElementById('commitBtn');b.disabled=true;b.textContent='Сохраняем...';
   try{
     const r=await api('/admin/github-commit',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка GitHub');
-    document.getElementById('commitStatus').innerHTML=`<span class="ok">✅ Commit создан: ${esc(d.commit.slice(0,10))}</span>`;
+    document.getElementById('commitStatus').innerHTML=`<span class="ok">✅ Commit создан: ${esc(d.commit.slice(0,10))} · ветка ${esc(d.branch||'feature/card-counter')} · карт: ${esc(d.cards)} · иконок: ${esc(d.icons)}</span>`;
   }catch(e){document.getElementById('commitStatus').innerHTML=`<span class="err">❌ ${esc(e.message)}</span>`}
   finally{b.disabled=false;b.textContent='💾 Сохранить изменения в GitHub'}
 };

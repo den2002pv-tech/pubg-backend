@@ -286,6 +286,10 @@ class CardSaveSchema(BaseModel):
     hashes: dict[str, str] | None = None
 
 
+class CardPreviewSchema(BaseModel):
+    preview: str
+
+
 def _hamming(a: str, b: str) -> int | None:
     try:
         return (int(a, 16) ^ int(b, 16)).bit_count()
@@ -758,6 +762,48 @@ def _extract_single_card(image: Image.Image) -> Image.Image:
     except Exception:
         pass
     return image
+
+
+def _load_admin_preview(preview: str) -> Image.Image:
+    """Load only a scanner-produced preview or an inline image for admin icon creation."""
+    if not preview:
+        raise HTTPException(status_code=400, detail="Нет изображения карточки для постоянной иконки")
+
+    try:
+        if preview.startswith("data:image/") and "," in preview:
+            encoded = preview.split(",", 1)[1]
+            payload = base64.b64decode(encoded, validate=True)
+        elif preview.startswith("/temp-images/"):
+            filename = preview[len("/temp-images/"):]
+            if not filename or Path(filename).name != filename:
+                raise HTTPException(status_code=400, detail="Некорректный путь временного изображения")
+            path = TEMP_DIR / filename
+            if not path.is_file() or path.resolve().parent != TEMP_DIR.resolve():
+                raise HTTPException(status_code=400, detail="Временное изображение не найдено; отсканируй скриншот ещё раз")
+            payload = path.read_bytes()
+        else:
+            raise HTTPException(status_code=400, detail="Можно использовать только изображение из текущего сканирования")
+
+        if not payload or len(payload) > 8 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Размер изображения для иконки должен быть меньше 8 МБ")
+        return Image.open(BytesIO(payload)).convert("RGB")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Не удалось прочитать изображение карточки") from exc
+
+
+def _save_permanent_icon(card_id: str, image: Image.Image) -> str:
+    """Persist a card crop as the canonical icon without a second browser upload."""
+    if not card_id or Path(card_id).name != card_id or card_id in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Некорректный ID карты для сохранения иконки")
+    CARDS_DIR.mkdir(parents=True, exist_ok=True)
+    path = CARDS_DIR / f"{card_id}.webp"
+    try:
+        _prepare_icon(image).save(path, "WEBP", quality=86, method=6)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Не удалось сохранить постоянную иконку") from exc
+    return f"/static/cards/{path.name}"
 
 
 @app.get("/")
@@ -1324,6 +1370,10 @@ async def save_card(
     if not hashes:
         raise HTTPException(status_code=400, detail="Не удалось получить валидные hashes")
 
+    # The scan preview is already cropped to the card. Reuse it as the
+    # permanent icon so adding a card never requires uploading the same image twice.
+    card_image = _load_admin_preview(data.preview)
+
     db = load_db()
     card_id = data.id.strip() if data.id else _next_card_id(db)
     old = db.get(card_id, {})
@@ -1334,9 +1384,9 @@ async def save_card(
         "rarity": data.rarity,
     }
 
-    # Preserve a previously saved permanent icon when editing the card.
-    if old.get("icon"):
-        record["icon"] = old["icon"]
+    # Preserve an existing icon when editing a card; otherwise derive it from
+    # the same scanned crop used to calculate hashes.
+    record["icon"] = old.get("icon") or _save_permanent_icon(card_id, card_image)
 
     db[card_id] = record
     save_db(db)
@@ -1429,6 +1479,24 @@ async def save_icon(
     }
 
 
+@app.post("/admin/save-icon-from-preview/{card_id}")
+async def save_icon_from_preview(
+    card_id: str,
+    data: CardPreviewSchema,
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    db = load_db()
+    if card_id not in db:
+        raise HTTPException(status_code=404, detail="Карта не найдена")
+
+    image = _load_admin_preview(data.preview)
+    icon_url = _save_permanent_icon(card_id, image)
+    db[card_id]["icon"] = icon_url
+    save_db(db)
+    return {"status": "ok", "card_id": card_id, "icon": icon_url}
+
+
 @app.delete("/admin/delete-icon/{card_id}")
 async def delete_icon(
     card_id: str,
@@ -1491,10 +1559,20 @@ def _github_request(method: str, url: str, token: str, payload: dict[str, Any] |
         raise HTTPException(status_code=502, detail=f"GitHub API недоступен: {exc}") from exc
 
 
+def _github_commit_branch() -> str:
+    branch = os.getenv("GITHUB_BRANCH", "feature/card-counter").strip() or "feature/card-counter"
+    if branch == "main":
+        raise HTTPException(
+            status_code=409,
+            detail="Админка не может отправлять данные в main. Установи GITHUB_BRANCH=feature/card-counter.",
+        )
+    return branch
+
+
 def _github_commit() -> dict[str, Any]:
     token = os.getenv("GITHUB_TOKEN", "")
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
-    branch = os.getenv("GITHUB_BRANCH", "main")
+    branch = _github_commit_branch()
 
     if not token:
         raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
@@ -1582,6 +1660,7 @@ def _github_commit() -> dict[str, Any]:
         "url": new_commit.get("html_url", ""),
         "cards": len(load_db()),
         "icons": len(local_icons),
+        "branch": branch,
     }
 
 

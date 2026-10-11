@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 
@@ -175,3 +176,53 @@ def test_normalize_collection_updates_clamps_quantity_and_rejects_invalid_values
         main._normalize_collection_updates([{"id": "card_1", "quantity": "not-a-number"}])
 
     assert exc.value.status_code == 400
+
+
+
+def test_save_card_reuses_scanned_preview_as_permanent_icon(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
+    monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
+    monkeypatch.setattr(main, "DB_FILE", tmp_path / "card_hashes.json")
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path / "temp_images")
+    monkeypatch.setattr(main, "CARDS_DIR", tmp_path / "static" / "cards")
+    main.TEMP_DIR.mkdir(parents=True)
+
+    preview_path = main.TEMP_DIR / "scan-card.jpg"
+    main.Image.new("RGB", (120, 180), (240, 30, 30)).save(preview_path, "JPEG")
+    token = main._make_session()
+
+    result = asyncio.run(main.save_card(
+        main.CardSaveSchema(
+            name="Test card",
+            rarity=2,
+            preview="/temp-images/scan-card.jpg",
+            hashes={"full_dhash": "abcd", "full_phash": "1234"},
+        ),
+        authorization=f"Bearer {token}",
+    ))
+
+    assert result["card_id"] == "card_1"
+    assert result["card"]["icon"] == "/static/cards/card_1.webp"
+    assert (main.CARDS_DIR / "card_1.webp").is_file()
+    assert main.load_db()["card_1"]["icon"] == "/static/cards/card_1.webp"
+
+
+def test_admin_preview_rejects_paths_outside_temp_images(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path / "temp_images")
+    main.TEMP_DIR.mkdir(parents=True)
+
+    with pytest.raises(main.HTTPException) as exc:
+        main._load_admin_preview("/static/cards/card_1.webp")
+
+    assert exc.value.status_code == 400
+
+
+def test_github_commit_defaults_to_working_branch_and_refuses_main(monkeypatch):
+    monkeypatch.delenv("GITHUB_BRANCH", raising=False)
+    assert main._github_commit_branch() == "feature/card-counter"
+
+    monkeypatch.setenv("GITHUB_BRANCH", "main")
+    with pytest.raises(main.HTTPException) as exc:
+        main._github_commit_branch()
+
+    assert exc.value.status_code == 409
