@@ -1694,7 +1694,7 @@ tradeMatchesEl.addEventListener('click', async event => {
   if (!button || !tradeMatchesEl.contains(button)) return;
 
   const targetId = button.dataset.tradeTarget;
-  if (!/^\\d+$/.test(targetId || '')) {
+  if (!/^\d+$/.test(targetId || '')) {
     tradeStatusEl.textContent = 'Не удалось определить игрока для обмена.';
     return;
   }
