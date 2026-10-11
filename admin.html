@@ -1056,7 +1056,7 @@ document.getElementById('commitBtn').onclick=async()=>{
     const r=await api('/admin/github-commit',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка GitHub');
     document.getElementById('commitStatus').innerHTML=`<span class="ok">✅ Commit создан: ${esc(d.commit.slice(0,10))} · ветка ${esc(d.branch||'feature/card-counter')} · карт: ${esc(d.cards)} · иконок: ${esc(d.icons)}</span>`;
   }catch(e){document.getElementById('commitStatus').innerHTML=`<span class="err">❌ ${esc(e.message)}</span>`}
-  finally{b.disabled=false;b.textContent='💾 Сохранить изменения в GitHub'}
+  finally{b.disabled=false;b.textContent='💾 Отправить все изменения одним commit'}
 };
 
 document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
