@@ -33,14 +33,23 @@ def test_contact_trade_match_sends_bot_message_without_username(monkeypatch):
 
     response = MagicMock()
     response.__enter__.return_value.read.return_value = b'{"ok": true, "result": {}}'
-    monkeypatch.setattr(main, "urlopen", lambda request, timeout: response)
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["chat_id"] = json.loads(request.data.decode("utf-8"))["chat_id"]
+        captured["text"] = json.loads(request.data.decode("utf-8"))["text"]
+        captured["timeout"] = timeout
+        return response
+
+    monkeypatch.setattr(main, "urlopen", fake_urlopen)
     result = asyncio.run(main.contact_trade_match(200, init_data="signed-test-data"))
 
-    request = main.urlopen.__self__ if hasattr(main.urlopen, "__self__") else None
     assert result["status"] == "sent"
-    assert "отправлено" in result["message"].lower()
-    # The message is sent to the matched player's Telegram ID, not a username.
-    assert response.__enter__.return_value.read.called
+    assert captured["chat_id"] == 200
+    assert captured["timeout"] == 8
+    assert "Тестовый Отправитель" in captured["text"]
+    assert "Карта А" in captured["text"]
+    assert "Карта Б" in captured["text"]
 
 
 def test_contact_trade_match_rejects_unmatched_telegram_id(monkeypatch):
