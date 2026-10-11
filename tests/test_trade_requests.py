@@ -420,3 +420,64 @@ def test_telegram_webhook_delivers_code_from_force_reply(monkeypatch):
     assert result == {"ok": True}
     assert delivered == [(29, 100, "ABC-123")]
     assert any("Код передан второму игроку" in payload["text"] for _method, payload in sent)
+
+
+def test_exchange_code_api_uses_authenticated_sender(monkeypatch):
+    captured = []
+    monkeypatch.setattr(trades, "_auth", lambda _init_data: (100, {}))
+    monkeypatch.setattr(
+        trades,
+        "_deliver_exchange_code",
+        lambda request_id, sender_id, code: captured.append((request_id, sender_id, code))
+        or {"status": "sent", "request_id": request_id, "notification_delivered": True},
+    )
+
+    result = asyncio.run(
+        trades.submit_exchange_code(
+            29,
+            trades.ExchangeCodeSubmit(code=" ABC-123 "),
+            init_data="valid-init-data",
+        )
+    )
+
+    assert result == {"status": "sent", "request_id": 29, "notification_delivered": True}
+    assert captured == [(29, 100, " ABC-123 ")]
+
+
+def test_code_callback_prompts_sender_to_reply_with_game_code(monkeypatch):
+    request = {
+        "id": 29,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "exchange_code_sent_at": None,
+    }
+    sent = []
+    answers = []
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    monkeypatch.setattr(trades, "get_trade_request", lambda request_id, actor_id: dict(request))
+    monkeypatch.setattr(
+        trades,
+        "_telegram_call",
+        lambda method, payload: sent.append((method, payload)) or {"ok": True},
+    )
+    monkeypatch.setattr(trades, "_answer_callback", lambda callback_id, text: answers.append((callback_id, text)))
+
+    result = asyncio.run(
+        trades.telegram_webhook(
+            {
+                "callback_query": {
+                    "id": "callback-1",
+                    "data": "tr:29:code",
+                    "from": {"id": 100},
+                }
+            },
+            secret="test-webhook-secret",
+        )
+    )
+
+    assert result == {"ok": True}
+    assert sent[0][1]["chat_id"] == 100
+    assert "создайте код в PUBG Mobile" in sent[0][1]["text"]
+    assert sent[0][1]["reply_markup"]["force_reply"] is True
+    assert answers == [("callback-1", "Ожидаю код обмена")]
