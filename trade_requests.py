@@ -505,8 +505,8 @@ async def update_my_trade_request(
 def _deliver_exchange_code(request_id: int, sender_telegram_id: int, code: str) -> dict[str, Any]:
     """Deliver a PUBG-generated exchange code without persisting the code itself."""
     clean_code = code.strip()
-    if not clean_code or len(clean_code) > 128:
-        raise HTTPException(status_code=400, detail="Введите код длиной от 1 до 128 символов")
+    if not clean_code or len(clean_code) > 128 or any(ord(char) < 32 for char in clean_code):
+        raise HTTPException(status_code=400, detail="Введите код длиной от 1 до 128 символов без переносов строк")
 
     with get_connection() as conn:
         with conn.cursor() as cur:
