@@ -451,9 +451,72 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                     f"""UPDATE trade_requests SET {field}=COALESCE({field}, NOW()),
                         status=CASE WHEN (CASE WHEN %s THEN recipient_completed_at IS NOT NULL ELSE sender_completed_at IS NOT NULL END)
                                     THEN 'completed' ELSE 'agreed' END,
-                        updated_at=NOW() WHERE id=%s AND status='agreed'""",
+                        updated_at=NOW() WHERE id=%s AND status='agreed'
+                        RETURNING status""",
                     (actor_id == sender_id, request_id),
                 )
+                updated = cur.fetchone()
+                if not updated:
+                    raise HTTPException(status_code=409, detail="Статус заявки уже изменился")
+
+                # Only the confirmation that transitions the request to completed
+                # transfers cards. Keep the status update and both inventory changes
+                # in the same transaction so retries cannot duplicate the transfer.
+                if updated["status"] == "completed":
+                    cur.execute(
+                        """UPDATE user_cards
+                           SET quantity = quantity - 1
+                           WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
+                             AND card_id = %s AND quantity > 0""",
+                        (sender_id, str(request["offered_card_id"])),
+                    )
+                    if cur.rowcount != 1:
+                        raise HTTPException(
+                            status_code=409,
+                            detail="Обмен не завершён: у отправителя больше нет передаваемой карты",
+                        )
+
+                    cur.execute(
+                        """UPDATE user_cards
+                           SET quantity = quantity - 1
+                           WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
+                             AND card_id = %s AND quantity > 0""",
+                        (recipient_id, str(request["requested_card_id"])),
+                    )
+                    if cur.rowcount != 1:
+                        raise HTTPException(
+                            status_code=409,
+                            detail="Обмен не завершён: у получателя больше нет передаваемой карты",
+                        )
+
+                    cur.execute(
+                        """INSERT INTO user_cards (user_id, card_id, quantity)
+                           SELECT id, %s, 1 FROM users WHERE telegram_id = %s
+                           ON CONFLICT (user_id, card_id)
+                           DO UPDATE SET quantity = user_cards.quantity + 1""",
+                        (str(request["requested_card_id"]), sender_id),
+                    )
+                    cur.execute(
+                        """INSERT INTO user_cards (user_id, card_id, quantity)
+                           SELECT id, %s, 1 FROM users WHERE telegram_id = %s
+                           ON CONFLICT (user_id, card_id)
+                           DO UPDATE SET quantity = user_cards.quantity + 1""",
+                        (str(request["offered_card_id"]), recipient_id),
+                    )
+                    # A received card must no longer appear in the recipient's
+                    # "I am looking for" list (and likewise for the sender).
+                    cur.execute(
+                        """DELETE FROM desired_cards
+                           WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
+                             AND card_id = %s""",
+                        (sender_id, str(request["requested_card_id"])),
+                    )
+                    cur.execute(
+                        """DELETE FROM desired_cards
+                           WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
+                             AND card_id = %s""",
+                        (recipient_id, str(request["offered_card_id"])),
+                    )
             elif action == "cancel":
                 if request["status"] not in {"pending", "accepted", "agreed"}:
                     raise HTTPException(status_code=409, detail="Эту заявку уже нельзя отменить")
