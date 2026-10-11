@@ -341,7 +341,7 @@ async def list_my_trade_requests(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id FROM trade_requests tr
+                SELECT tr.id FROM trade_requests tr
                 JOIN users sender ON sender.id = tr.sender_user_id
                 JOIN users recipient ON recipient.id = tr.recipient_user_id
                 WHERE (sender.telegram_id = %s OR recipient.telegram_id = %s)
