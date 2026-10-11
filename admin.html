@@ -29,6 +29,9 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
 .progress-wrap{margin-top:12px;background:#111;border-radius:8px;overflow:hidden;height:24px}
 .progress-bar{height:100%;width:0;background:#2ecc71;transition:width .2s}
 .progress-text{margin-top:8px}
+.users-table th,.users-table td{vertical-align:top}.users-table tbody tr:hover{background:#292929}
+.presence-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#777}.presence-dot.online{background:#2ecc71}
+.user-link{background:transparent;color:#ffb84d;padding:2px;margin:0;text-align:left;width:auto}
 </style>
 </head>
 <body>
@@ -57,8 +60,18 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     <button class="tab" data-tab="cards">🃏 Карты</button>
     <button class="tab" data-tab="temp">🗑️ Временные</button>
     <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
+    <button class="tab" data-tab="users">👥 Пользователи</button>
   </div>
 
+  <section id="users" class="panel"><div class="box">
+    <h2>Пользователи и активность</h2><p class="muted">Онлайн означает активность Telegram Mini App за последние 90 секунд. Список обновляется автоматически.</p>
+    <div class="row"><div class="stat"><span id="usersTotal">—</span><small>Всего пользователей</small></div><div class="stat"><span id="usersOnline">—</span><small>Сейчас онлайн</small></div><div class="stat"><span id="usersShown">—</span><small>В выборке</small></div></div>
+    <div class="row"><input id="usersSearch" type="search" placeholder="Поиск по Telegram ID, имени или username" autocomplete="off"><select id="usersPresence"><option value="all">Все пользователи</option><option value="online">Только онлайн</option><option value="offline">Только не в сети</option></select><button id="refreshUsersBtn" class="btn-secondary" type="button">Обновить</button></div>
+    <div id="usersStatus" class="muted" role="status" aria-live="polite"></div><div style="overflow-x:auto"><table class="users-table" style="width:100%;border-collapse:collapse;margin-top:12px;min-width:780px"><thead><tr>
+    <th style="text-align:left;padding:10px;border-bottom:1px solid #444">Статус</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Пользователь</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Telegram ID</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Регистрация</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Последний визит</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Карты</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Дубликаты</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Ищу</th>
+    </tr></thead><tbody id="usersTableBody"><tr><td colspan="8" class="muted" style="padding:16px">Загрузка…</td></tr></tbody></table></div>
+    <div class="row" style="margin-top:12px"><button id="usersPrevBtn" class="btn-secondary" type="button">← Назад</button><div id="usersPageInfo" class="muted" style="text-align:center;padding:12px">Страница 1</div><button id="usersNextBtn" class="btn-secondary" type="button">Вперёд →</button></div><div id="userDetail" class="item" style="display:none;margin-top:12px"></div>
+  </div></section>
   <section id="scan" class="panel active">
     <div class="box">
       <h2>Создание хешей</h2>
@@ -304,6 +317,25 @@ document.getElementById('password').addEventListener('keydown',(e)=>{
 });
 
 async function loadAll(){await loadCards();await loadStatus();await loadTemp()}
+let usersPageOffset=0,usersSearchTimer=null;const USERS_PAGE_SIZE=50;
+function formatUserDate(value){if(!value)return 'Никогда';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString()}
+async function loadUsers(){
+ const status=document.getElementById('usersStatus'),body=document.getElementById('usersTableBody');status.className='muted';status.textContent='Загружаем пользователей…';
+ try{
+  const params=new URLSearchParams({search:document.getElementById('usersSearch').value.trim(),limit:String(USERS_PAGE_SIZE),offset:String(usersPageOffset),online_seconds:'90'});
+  const r=await api('/admin/users?'+params);if(r.status===401){clearToken();location.reload();return}if(!r.ok)throw new Error(await readError(r));const d=await r.json();
+  document.getElementById('usersTotal').textContent=d.total;document.getElementById('usersOnline').textContent=d.online;
+  const presence=document.getElementById('usersPresence').value,rows=d.users.filter(u=>presence==='all'||(presence==='online'?u.is_online:!u.is_online));document.getElementById('usersShown').textContent=rows.length;body.innerHTML='';
+  if(!rows.length)body.innerHTML='<tr><td colspan="8" class="muted" style="padding:16px">Пользователи не найдены.</td></tr>';
+  for(const u of rows){const tr=document.createElement('tr'),name=[u.first_name,u.last_name].filter(Boolean).join(' ')||(u.username?'@'+u.username:'Без имени');
+   tr.innerHTML=`<td style="padding:10px;border-bottom:1px solid #333"><span class="presence-dot ${u.is_online?'online':''}"></span>${u.is_online?'Онлайн':'Не в сети'}</td><td style="padding:10px;border-bottom:1px solid #333"><button class="user-link" data-telegram-id="${esc(u.telegram_id)}" type="button">${esc(name)}</button><div class="muted">${u.username?'@'+esc(u.username):'username отсутствует'}</div></td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.telegram_id)}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(formatUserDate(u.created_at))}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(formatUserDate(u.last_seen_at||u.last_activity_at))}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.owned_cards)}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.duplicates)}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.wanted_cards)}</td>`;body.appendChild(tr)}
+  body.querySelectorAll('[data-telegram-id]').forEach(b=>b.addEventListener('click',()=>loadUserDetail(b.dataset.telegramId)));
+  document.getElementById('usersPageInfo').textContent=`Страница ${Math.floor(usersPageOffset/USERS_PAGE_SIZE)+1} · ${d.total} пользователей`;document.getElementById('usersPrevBtn').disabled=usersPageOffset===0;document.getElementById('usersNextBtn').disabled=usersPageOffset+USERS_PAGE_SIZE>=d.total;status.textContent='Обновлено '+new Date().toLocaleTimeString();
+ }catch(e){status.className='err';status.textContent='Не удалось загрузить пользователей: '+e.message;body.innerHTML='<tr><td colspan="8" class="err" style="padding:16px">Ошибка загрузки данных.</td></tr>'}
+}
+async function loadUserDetail(id){const p=document.getElementById('userDetail');p.style.display='block';p.className='item';p.textContent='Загрузка…';try{const r=await api('/admin/users/'+encodeURIComponent(id));if(!r.ok)throw new Error(await readError(r));const u=await r.json();p.innerHTML=`<h3>Профиль пользователя</h3><p>${esc([u.first_name,u.last_name].filter(Boolean).join(' ')||'Без имени')} ${u.username?'(@'+esc(u.username)+')':''}</p><p>Telegram ID: <b>${esc(u.telegram_id)}</b></p><p>Регистрация: ${esc(formatUserDate(u.created_at))}</p><p>Последняя активность: ${esc(formatUserDate(u.last_activity_at))}</p><p>Карты: ${esc(u.owned_cards)} · Дубликаты: ${esc(u.duplicates)} · Ищу: ${esc(u.wanted_cards)}</p>`}catch(e){p.className='item err';p.textContent='Не удалось загрузить профиль: '+e.message}}
+document.getElementById('refreshUsersBtn').addEventListener('click',loadUsers);document.getElementById('usersSearch').addEventListener('input',()=>{clearTimeout(usersSearchTimer);usersSearchTimer=setTimeout(()=>{usersPageOffset=0;loadUsers()},250)});document.getElementById('usersPresence').addEventListener('change',loadUsers);document.getElementById('usersPrevBtn').addEventListener('click',()=>{usersPageOffset=Math.max(0,usersPageOffset-USERS_PAGE_SIZE);loadUsers()});document.getElementById('usersNextBtn').addEventListener('click',()=>{usersPageOffset+=USERS_PAGE_SIZE;loadUsers()});setInterval(()=>{if(document.getElementById('app').style.display!=='none'&&document.getElementById('users').classList.contains('active'))loadUsers()},30000);
+
 
 async function loadStatus(){
   const r=await api('/admin/status');
@@ -1063,7 +1095,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();
+  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='users')loadUsers();
 });
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 

@@ -636,6 +636,20 @@ const API = 'https://pubg-backend-3rtc.onrender.com';
 const telegramInitData = tg?.initData || '';
 const telegramHeaders = () => telegramInitData ? { 'X-Telegram-Init-Data': telegramInitData } : {};
 
+// Heartbeat keeps online presence fresh while the Telegram Mini App is open.
+let activityHeartbeatTimer = null;
+async function sendActivityHeartbeat(){
+  if(!telegramInitData || document.visibilityState === 'hidden') return;
+  try{ await fetch(API + '/me/activity', {method:'POST',headers:{...telegramHeaders()},cache:'no-store',keepalive:true}); }
+  catch(_error){ /* Presence errors must not block inventory usage. */ }
+}
+if(telegramInitData){
+  sendActivityHeartbeat();
+  activityHeartbeatTimer=window.setInterval(sendActivityHeartbeat,30000);
+  document.addEventListener('visibilitychange',sendActivityHeartbeat);
+  window.addEventListener('pagehide',()=>{if(activityHeartbeatTimer)window.clearInterval(activityHeartbeatTimer)},{once:true});
+}
+
 const fileInput = document.getElementById('fileInput');
 const statusText = document.getElementById('statusText');
 const statusEl = document.getElementById('status');

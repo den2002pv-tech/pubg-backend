@@ -27,7 +27,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
@@ -840,6 +840,31 @@ async def admin_status(authorization: str | None = Header(default=None)):
         "icons": sum(1 for x in load_db().values() if x.get("icon")),
         "temporary_files": sum(1 for p in TEMP_DIR.iterdir() if p.is_file()),
     }
+
+
+@app.get("/admin/users")
+async def admin_users(authorization: str | None = Header(default=None), search: str = "", online_seconds: int = 90, limit: int = 50, offset: int = 0):
+    require_admin(authorization)
+    return get_admin_users(search=search, online_seconds=online_seconds, limit=limit, offset=offset)
+
+
+@app.get("/admin/users/{telegram_id}")
+async def admin_user_detail(telegram_id: int, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    user = get_admin_user(telegram_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return user
+
+
+@app.post("/me/activity")
+async def record_my_activity(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    """Authenticated heartbeat for Telegram Mini App online presence."""
+    auth = _validate_telegram_init_data(init_data)
+    user = auth["user"]
+    saved = get_or_create_user(auth["id"], username=str(user.get("username") or ""),
+        first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
+    return {"status": "ok", "telegram_id": saved["telegram_id"]}
 
 
 @app.post("/admin/login")

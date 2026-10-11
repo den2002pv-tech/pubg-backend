@@ -33,12 +33,17 @@ def init_db() -> None:
                     username TEXT NOT NULL DEFAULT '',
                     first_name TEXT NOT NULL DEFAULT '',
                     last_name TEXT NOT NULL DEFAULT '',
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    last_seen_at TIMESTAMPTZ,
+                    last_activity_at TIMESTAMPTZ
                 );
 
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT '';
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT NOT NULL DEFAULT '';
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT NOT NULL DEFAULT '';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+                CREATE INDEX IF NOT EXISTS idx_users_last_activity_at ON users (last_activity_at DESC);
 
                 CREATE TABLE IF NOT EXISTS cards (
                     id TEXT PRIMARY KEY,
@@ -84,19 +89,84 @@ def get_or_create_user(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO users (telegram_id, username, first_name, last_name)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO users (telegram_id, username, first_name, last_name, last_seen_at, last_activity_at)
+                VALUES (%s, %s, %s, %s, NOW(), NOW())
                 ON CONFLICT (telegram_id) DO UPDATE SET
                     username = COALESCE(NULLIF(EXCLUDED.username, ''), users.username),
                     first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
-                    last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), users.last_name)
-                RETURNING id, telegram_id, username, first_name, last_name, created_at
+                    last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), users.last_name),
+                    last_seen_at = NOW(),
+                    last_activity_at = NOW()
+                RETURNING id, telegram_id, username, first_name, last_name, created_at,
+                          last_seen_at, last_activity_at
                 """,
                 (telegram_id, username.strip().lstrip("@"), first_name.strip(), last_name.strip()),
             )
             user = cur.fetchone()
         conn.commit()
     return dict(user)
+
+
+def get_admin_users(search: str = "", online_seconds: int = 90, limit: int = 50, offset: int = 0) -> dict:
+    """Return a paginated, searchable user directory with activity and collection stats."""
+    search = (search or "").strip()[:200]
+    online_seconds = max(30, min(int(online_seconds), 600))
+    limit, offset = max(1, min(int(limit), 100)), max(0, int(offset))
+    pattern = f"%{search}%"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT COUNT(*) AS total,
+                          COUNT(*) FILTER (WHERE last_activity_at >= NOW() - (%s * INTERVAL '1 second')) AS online
+                   FROM users
+                   WHERE (%s = '' OR telegram_id::text ILIKE %s OR username ILIKE %s OR first_name ILIKE %s OR last_name ILIKE %s)""",
+                (online_seconds, search, pattern, pattern, pattern, pattern),
+            )
+            summary = cur.fetchone()
+            cur.execute(
+                """SELECT u.id, u.telegram_id, u.username, u.first_name, u.last_name,
+                          u.created_at, u.last_seen_at, u.last_activity_at,
+                          (u.last_activity_at >= NOW() - (%s * INTERVAL '1 second')) AS is_online,
+                          COALESCE(uc.owned_cards, 0) AS owned_cards,
+                          COALESCE(uc.duplicates, 0) AS duplicates,
+                          COALESCE(dc.wanted_cards, 0) AS wanted_cards
+                   FROM users u
+                   LEFT JOIN (SELECT user_id, COUNT(DISTINCT card_id) FILTER (WHERE quantity > 0) AS owned_cards,
+                                     SUM(GREATEST(quantity - 1, 0)) AS duplicates
+                              FROM user_cards GROUP BY user_id) uc ON uc.user_id = u.id
+                   LEFT JOIN (SELECT user_id, COUNT(DISTINCT card_id) AS wanted_cards
+                              FROM desired_cards GROUP BY user_id) dc ON dc.user_id = u.id
+                   WHERE (%s = '' OR u.telegram_id::text ILIKE %s OR u.username ILIKE %s OR u.first_name ILIKE %s OR u.last_name ILIKE %s)
+                   ORDER BY u.last_activity_at DESC NULLS LAST, u.created_at DESC, u.id DESC
+                   LIMIT %s OFFSET %s""",
+                (online_seconds, search, pattern, pattern, pattern, pattern, limit, offset),
+            )
+            users = [dict(row) for row in cur.fetchall()]
+    return {"users": users, "total": int(summary["total"]), "online": int(summary["online"]),
+            "limit": limit, "offset": offset, "online_seconds": online_seconds}
+
+
+def get_admin_user(telegram_id: int) -> dict | None:
+    """Return one user and aggregate collection stats without join multiplication."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT u.id, u.telegram_id, u.username, u.first_name, u.last_name,
+                          u.created_at, u.last_seen_at, u.last_activity_at,
+                          COALESCE(uc.owned_cards, 0) AS owned_cards,
+                          COALESCE(uc.duplicates, 0) AS duplicates,
+                          COALESCE(dc.wanted_cards, 0) AS wanted_cards
+                   FROM users u
+                   LEFT JOIN (SELECT user_id, COUNT(DISTINCT card_id) FILTER (WHERE quantity > 0) AS owned_cards,
+                                     SUM(GREATEST(quantity - 1, 0)) AS duplicates
+                              FROM user_cards GROUP BY user_id) uc ON uc.user_id = u.id
+                   LEFT JOIN (SELECT user_id, COUNT(DISTINCT card_id) AS wanted_cards
+                              FROM desired_cards GROUP BY user_id) dc ON dc.user_id = u.id
+                   WHERE u.telegram_id = %s""",
+                (telegram_id,),
+            )
+            row = cur.fetchone()
+    return dict(row) if row else None
 
 
 def set_user_card_quantity(telegram_id: int, card_id: str, quantity: int) -> None:
