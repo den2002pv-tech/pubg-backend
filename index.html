@@ -1812,13 +1812,13 @@ function renderTradeRequests(requests) {
         '<form data-request-code-form data-request-id="' + tradeEsc(request.id) + '">' +
           '<label>' + (ownCode ? 'Новый код карты «' : 'Код вашей карты «') + tradeEsc(ownCard) + '»' +
           '<input name="code" type="text" maxlength="64" autocomplete="off" required placeholder="Введите код из игры"></label>' +
-          '<button type="submit" class="trade">' + (ownCode ? 'Обновить код у партнёра' : 'Передать код партнёру') + '</button></form>'
+          '<button type="submit" class="trade">' + (ownCode ? 'Обновить код у партнёра' : 'Передать код партнёру') + '</button></form>' +
         (partnerCode
           ? '<div><b>Код партнёра для карты «' + tradeEsc(partnerCard) + '»</b><div class="trade-code-value"><code>' + tradeEsc(partnerCode) + '</code></div></div>'
           : '<div class="trade-count">Ожидаем код партнёра для карты «' + tradeEsc(partnerCard) + '».</div>') +
         '</section>';
       const alreadyCompleted = isSender ? request.sender_completed_at : request.recipient_completed_at;
-      if (!alreadyCompleted) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
+      if (!alreadyCompleted && ownCode && partnerCode) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
     }
     if (['pending', 'accepted', 'agreed'].includes(request.status)) {
       actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="cancel">Отменить</button>');
