@@ -356,10 +356,51 @@ async def list_my_trade_requests(
     return {"requests": requests, "count": len(requests)}
 
 
+def _trade_still_available(request: dict[str, Any]) -> bool:
+    """Re-check both duplicate inventories and the recipient's wishlist before agreeing."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM users sender
+                    JOIN users recipient ON recipient.telegram_id = %s
+                    JOIN user_cards sender_cards
+                      ON sender_cards.user_id = sender.id
+                     AND sender_cards.card_id = %s
+                     AND sender_cards.quantity > 1
+                    JOIN user_cards recipient_cards
+                      ON recipient_cards.user_id = recipient.id
+                     AND recipient_cards.card_id = %s
+                     AND recipient_cards.quantity > 1
+                    JOIN desired_cards wanted
+                      ON wanted.user_id = recipient.id
+                     AND wanted.card_id = %s
+                    WHERE sender.telegram_id = %s
+                ) AS available
+                """,
+                (
+                    int(request["recipient_telegram_id"]),
+                    str(request["offered_card_id"]),
+                    str(request["requested_card_id"]),
+                    str(request["offered_card_id"]),
+                    int(request["sender_telegram_id"]),
+                ),
+            )
+            row = cur.fetchone()
+    return bool(row and row["available"])
+
+
 def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
     request = get_trade_request(request_id, actor_id)
     sender_id = int(request["sender_telegram_id"])
     recipient_id = int(request["recipient_telegram_id"])
+    if action in {"accept", "agree"} and not _trade_still_available(request):
+        raise HTTPException(
+            status_code=409,
+            detail="Обмен больше не актуален: одна из карт или список «Ищу» изменились",
+        )
     with get_connection() as conn:
         with conn.cursor() as cur:
             if action == "accept":
