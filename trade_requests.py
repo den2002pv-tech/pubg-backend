@@ -340,13 +340,16 @@ async def list_my_trade_requests(
                 SELECT id FROM trade_requests tr
                 JOIN users sender ON sender.id = tr.sender_user_id
                 JOIN users recipient ON recipient.id = tr.recipient_user_id
-                WHERE (%s = 'all')
-                   OR (%s = 'incoming' AND recipient.telegram_id = %s)
-                   OR (%s = 'outgoing' AND sender.telegram_id = %s)
+                WHERE (sender.telegram_id = %s OR recipient.telegram_id = %s)
+                  AND (
+                    %s = 'all'
+                    OR (%s = 'incoming' AND recipient.telegram_id = %s)
+                    OR (%s = 'outgoing' AND sender.telegram_id = %s)
+                  )
                 ORDER BY tr.created_at DESC
                 LIMIT 100
                 """,
-                (scope, scope, viewer_id, scope, viewer_id),
+                (viewer_id, viewer_id, scope, scope, viewer_id, scope, viewer_id),
             )
             ids = [int(row["id"]) for row in cur.fetchall()]
     requests = [get_trade_request(request_id, viewer_id) for request_id in ids]
