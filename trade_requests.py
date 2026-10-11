@@ -650,6 +650,7 @@ async def telegram_webhook(
                 and isinstance(sender_id, int)
                 and sender_id == chat_id
                 and isinstance(message_text, str)
+                and not message_text.strip().startswith("/")
             ):
                 try:
                     result = _deliver_exchange_code(int(code_prompt.group(1)), chat_id, message_text)
