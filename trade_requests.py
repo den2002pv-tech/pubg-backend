@@ -525,12 +525,8 @@ async def telegram_webhook(
     try:
         request = get_trade_request(request_id, actor_id)
         if action == "details":
-            _telegram_call("sendMessage", {
-                "chat_id": actor_id,
-                "text": _request_text(request, actor_id),
-                "reply_markup": _keyboard(request, actor_id),
-            })
-            _answer_callback(callback_id, "Статус заявки отправлен")
+            _notify_request(request, actor_id)
+            _answer_callback(callback_id, "Карты и статус заявки отправлены")
             return {"ok": True}
         if action == "accept":
             if actor_id != int(request["recipient_telegram_id"]) or request["status"] != "pending":
