@@ -27,7 +27,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -1167,8 +1167,8 @@ async def delete_temp_files(authorization: str | None = Header(default=None)):
 @app.get("/me/cards")
 async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
     auth = _validate_telegram_init_data(init_data)
-    get_or_create_user(auth["id"])
     user = auth["user"]
+    get_or_create_user(auth["id"], username=str(user.get("username") or ""), first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
     return {
         "registered": True,
         "telegram_id": auth["id"],
@@ -1196,6 +1196,16 @@ async def update_desired_cards(
     get_or_create_user(auth["id"])
     desired = set_desired_cards(auth["id"], card_ids)
     return {"status": "ok", "desired_cards": desired}
+
+
+@app.get("/me/trade-matches")
+async def get_my_trade_matches(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    """Return reciprocal trade suggestions for the authenticated Telegram user."""
+    auth = _validate_telegram_init_data(init_data)
+    user = auth["user"]
+    get_or_create_user(auth["id"], username=str(user.get("username") or ""), first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
+    matches = get_trade_matches(auth["id"])
+    return {"matches": matches, "count": len(matches)}
 
 
 @app.delete("/me/desired-cards/{card_id}")
