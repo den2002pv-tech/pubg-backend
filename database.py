@@ -30,8 +30,15 @@ def init_db() -> None:
                 CREATE TABLE IF NOT EXISTS users (
                     id BIGSERIAL PRIMARY KEY,
                     telegram_id BIGINT UNIQUE NOT NULL,
+                    username TEXT NOT NULL DEFAULT '',
+                    first_name TEXT NOT NULL DEFAULT '',
+                    last_name TEXT NOT NULL DEFAULT '',
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
+
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT '';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT NOT NULL DEFAULT '';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT NOT NULL DEFAULT '';
 
                 CREATE TABLE IF NOT EXISTS cards (
                     id TEXT PRIMARY KEY,
@@ -66,17 +73,26 @@ def init_db() -> None:
         conn.commit()
 
 
-def get_or_create_user(telegram_id: int) -> dict:
+def get_or_create_user(
+    telegram_id: int,
+    username: str = "",
+    first_name: str = "",
+    last_name: str = "",
+) -> dict:
+    """Create a user and refresh their public Telegram profile when available."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO users (telegram_id)
-                VALUES (%s)
-                ON CONFLICT (telegram_id) DO UPDATE SET telegram_id = EXCLUDED.telegram_id
-                RETURNING id, telegram_id, created_at
+                INSERT INTO users (telegram_id, username, first_name, last_name)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (telegram_id) DO UPDATE SET
+                    username = COALESCE(NULLIF(EXCLUDED.username, ''), users.username),
+                    first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
+                    last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), users.last_name)
+                RETURNING id, telegram_id, username, first_name, last_name, created_at
                 """,
-                (telegram_id,),
+                (telegram_id, username.strip().lstrip("@"), first_name.strip(), last_name.strip()),
             )
             user = cur.fetchone()
         conn.commit()
@@ -274,3 +290,68 @@ def sync_cards(cards: dict) -> int:
             )
         conn.commit()
     return count
+
+
+
+def get_trade_matches(telegram_id: int, limit: int = 50) -> list[dict]:
+    """Find users with at least one reciprocal card trade; first copy is reserved."""
+    limit = max(1, min(int(limit), 100))
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH me AS (SELECT id FROM users WHERE telegram_id = %s),
+                my_wants AS (
+                    SELECT dc.card_id FROM desired_cards dc JOIN me ON me.id = dc.user_id
+                    LEFT JOIN user_cards uc ON uc.user_id = dc.user_id AND uc.card_id = dc.card_id
+                    WHERE COALESCE(uc.quantity, 0) = 0
+                ),
+                my_offers AS (
+                    SELECT uc.card_id, GREATEST(uc.quantity - 1, 0) AS quantity
+                    FROM user_cards uc JOIN me ON me.id = uc.user_id WHERE uc.quantity > 1
+                ),
+                other_wants AS (
+                    SELECT dc.user_id, dc.card_id FROM desired_cards dc JOIN me ON dc.user_id <> me.id
+                    LEFT JOIN user_cards uc ON uc.user_id = dc.user_id AND uc.card_id = dc.card_id
+                    WHERE COALESCE(uc.quantity, 0) = 0
+                ),
+                other_offers AS (
+                    SELECT uc.user_id, uc.card_id, GREATEST(uc.quantity - 1, 0) AS quantity
+                    FROM user_cards uc JOIN me ON uc.user_id <> me.id WHERE uc.quantity > 1
+                )
+                SELECT u.telegram_id, u.username, u.first_name, u.last_name,
+                    mine.id AS receive_card_id, mine.name AS receive_card_name, mine.icon AS receive_card_icon,
+                    theirs.id AS give_card_id, theirs.name AS give_card_name, theirs.icon AS give_card_icon,
+                    LEAST(my_offer.quantity, 999) AS my_available,
+                    LEAST(other_offer.quantity, 999) AS their_available
+                FROM me
+                JOIN my_offers my_offer ON TRUE
+                JOIN other_wants ow ON ow.card_id = my_offer.card_id
+                JOIN users u ON u.id = ow.user_id
+                JOIN cards mine ON mine.id = my_offer.card_id
+                JOIN other_offers other_offer ON other_offer.user_id = u.id
+                JOIN my_wants mw ON mw.card_id = other_offer.card_id
+                JOIN cards theirs ON theirs.id = other_offer.card_id
+                ORDER BY u.username, u.first_name, u.telegram_id, mine.id, theirs.id
+                """,
+                (telegram_id,),
+            )
+            rows = [dict(row) for row in cur.fetchall()]
+    grouped: dict[int, dict] = {}
+    for row in rows:
+        other_id = int(row["telegram_id"])
+        match = grouped.setdefault(other_id, {
+            "telegram_id": other_id, "username": row.get("username") or "",
+            "first_name": row.get("first_name") or "", "last_name": row.get("last_name") or "", "trades": [],
+        })
+        trade = {
+            "you_give": {"id": row["receive_card_id"], "name": row["receive_card_name"],
+                         "icon": row["receive_card_icon"] or "", "available": int(row["my_available"])},
+            "you_get": {"id": row["give_card_id"], "name": row["give_card_name"],
+                        "icon": row["give_card_icon"] or "", "available": int(row["their_available"])},
+        }
+        if not any(x["you_give"]["id"] == trade["you_give"]["id"] and x["you_get"]["id"] == trade["you_get"]["id"] for x in match["trades"]):
+            match["trades"].append(trade)
+    result = list(grouped.values())
+    result.sort(key=lambda x: (-len(x["trades"]), (x["username"] or "").lower(), x["telegram_id"]))
+    return result[:limit]
