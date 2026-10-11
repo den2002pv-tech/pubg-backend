@@ -1,3 +1,8 @@
+import asyncio
+
+import pytest
+from fastapi import HTTPException
+
 import trade_requests as trades
 
 
@@ -63,3 +68,74 @@ def test_request_message_and_icon_media_keep_recipient_direction(monkeypatch):
     assert "Вы отдаёте: Карта Б" in albums[0][1][0]["caption"]
     assert "Вы получаете: Карта А" in albums[0][1][1]["caption"]
     assert message["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == "tr:17:accept"
+
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_fragment"),
+    [
+        ("/start@pubg_card_trade_bot", "Привет!"),
+        ("/help", "Как пользоваться"),
+        ("/app", "открыть PUBG Mobile Mini App"),
+    ],
+)
+def test_telegram_commands_reply_with_mini_app_button(monkeypatch, text, expected_fragment):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    sent = []
+    monkeypatch.setattr(
+        trades,
+        "_telegram_call",
+        lambda method, payload: sent.append((method, payload)) or {"ok": True},
+    )
+
+    result = asyncio.run(
+        trades.telegram_webhook(
+            {
+                "message": {
+                    "text": text,
+                    "chat": {"id": 12345, "type": "private"},
+                    "from": {"id": 12345},
+                }
+            },
+            secret="test-webhook-secret",
+        )
+    )
+
+    assert result == {"ok": True}
+    assert len(sent) == 1
+    method, payload = sent[0]
+    assert method == "sendMessage"
+    assert payload["chat_id"] == 12345
+    assert expected_fragment in payload["text"]
+    button = payload["reply_markup"]["inline_keyboard"][0][0]
+    assert button["web_app"]["url"] == "https://pubg-app-phi.vercel.app"
+
+
+def test_telegram_webhook_ignores_unknown_messages(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    sent = []
+    monkeypatch.setattr(trades, "_telegram_call", lambda method, payload: sent.append(payload))
+
+    result = asyncio.run(
+        trades.telegram_webhook(
+            {"message": {"text": "hello", "chat": {"id": 12345}}},
+            secret="test-webhook-secret",
+        )
+    )
+
+    assert result == {"ok": True}
+    assert sent == []
+
+
+def test_telegram_webhook_rejects_invalid_secret(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            trades.telegram_webhook(
+                {"message": {"text": "/start", "chat": {"id": 12345}}},
+                secret="wrong-secret",
+            )
+        )
+
+    assert exc.value.status_code == 403
