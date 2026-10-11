@@ -40,7 +40,7 @@ def test_tab_controls_are_associated_with_their_panels():
     parser = inspect_markup()
     by_id = {attrs.get("id"): (tag, attrs) for tag, attrs in parser.elements if attrs.get("id")}
     tabs = [(tag, attrs) for tag, attrs in parser.elements if attrs.get("role") == "tab"]
-    assert len(tabs) == 2
+    assert len(tabs) == 3
     assert all(attrs.get("aria-selected") in {"true", "false"} for _, attrs in tabs)
     for _, attrs in tabs:
         panel_id = attrs.get("aria-controls")
