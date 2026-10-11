@@ -576,6 +576,7 @@ def _deliver_exchange_code(request_id: int, sender_telegram_id: int, code: str) 
             cur.execute(
                 """
                 SELECT tr.id, tr.status, tr.exchange_code_sent_at,
+                       tr.sender_completed_at, tr.recipient_completed_at,
                        tr.offered_card_name, tr.requested_card_name,
                        sender.telegram_id AS sender_telegram_id,
                        sender.first_name AS sender_first_name,
@@ -606,10 +607,12 @@ def _deliver_exchange_code(request_id: int, sender_telegram_id: int, code: str) 
                 f"Код обмена: {clean_code}\n\n"
                 "Откройте PUBG Mobile и используйте этот код. После обмена оба игрока должны подтвердить завершение в боте."
             )
+            notification_request = {**dict(request), "exchange_code_sent_at": "pending"}
             try:
                 _telegram_call("sendMessage", {
                     "chat_id": int(request["recipient_telegram_id"]),
                     "text": message,
+                    "reply_markup": _keyboard(notification_request, int(request["recipient_telegram_id"])),
                 })
             except HTTPException as exc:
                 raise HTTPException(status_code=502, detail="Не удалось передать код получателю. Попробуйте ещё раз.") from exc
@@ -625,6 +628,18 @@ def _deliver_exchange_code(request_id: int, sender_telegram_id: int, code: str) 
             if cur.rowcount != 1:
                 raise HTTPException(status_code=409, detail="Заявка изменилась; обновите список заявок")
         conn.commit()
+
+    # The proposer also needs the completion button when the code was sent
+    # from the Mini App rather than through the Telegram bot.
+    try:
+        sender_request = get_trade_request(request_id, sender_telegram_id)
+        _telegram_call("sendMessage", {
+            "chat_id": sender_telegram_id,
+            "text": f"✅ Код обмена по заявке #{request_id} передан второму игроку. После обмена подтвердите завершение кнопкой ниже.",
+            "reply_markup": _keyboard(sender_request, sender_telegram_id),
+        })
+    except HTTPException:
+        pass
 
     return {"status": "sent", "request_id": request_id, "notification_delivered": True}
 
@@ -716,11 +731,7 @@ async def telegram_webhook(
                 and not message_text.strip().startswith("/")
             ):
                 try:
-                    result = _deliver_exchange_code(int(code_prompt.group(1)), chat_id, message_text)
-                    _telegram_call("sendMessage", {
-                        "chat_id": chat_id,
-                        "text": f"✅ Код передан второму игроку по заявке #{result['request_id']}. После обмена подтвердите завершение в боте.",
-                    })
+                    _deliver_exchange_code(int(code_prompt.group(1)), chat_id, message_text)
                 except HTTPException as exc:
                     try:
                         _telegram_call("sendMessage", {"chat_id": chat_id, "text": str(exc.detail)})
