@@ -1303,7 +1303,6 @@ async def contact_trade_match(
 
     trade_lines = []
     media: list[dict[str, str]] = []
-    base_url = os.getenv("PUBLIC_BASE_URL", "https://pubg-backend-3rtc.onrender.com").strip().rstrip("/")
     for trade in match.get("trades", [])[:5]:
         sender_gives = trade.get("you_give") or {}
         sender_gets = trade.get("you_get") or {}
