@@ -644,3 +644,48 @@ def test_completion_keyboard_is_available_for_both_players_after_code_sent():
         for button in row
     )
 
+def test_trade_command_resends_completion_keyboard_for_existing_request(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    request = {
+        "id": 3,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "sender_first_name": "Lord",
+        "recipient_first_name": "Игрок",
+        "offered_card_name": "Мелодия",
+        "requested_card_name": "Неистовая страсть",
+        "sender_completed_at": None,
+        "recipient_completed_at": None,
+        "exchange_code_sent_at": "already-sent",
+    }
+    sent = []
+    monkeypatch.setattr(trades, "get_trade_request", lambda request_id, viewer_id: dict(request))
+    monkeypatch.setattr(
+        trades,
+        "_telegram_call",
+        lambda method, payload: sent.append((method, payload)) or {"ok": True},
+    )
+
+    result = asyncio.run(
+        trades.telegram_webhook(
+            {
+                "message": {
+                    "text": "/trade 3",
+                    "chat": {"id": 100, "type": "private"},
+                    "from": {"id": 100},
+                }
+            },
+            secret="test-webhook-secret",
+        )
+    )
+
+    assert result == {"ok": True}
+    assert len(sent) == 1
+    assert sent[0][1]["chat_id"] == 100
+    assert any(
+        button["callback_data"] == "tr:3:complete"
+        for row in sent[0][1]["reply_markup"]["inline_keyboard"]
+        for button in row
+    )
+
