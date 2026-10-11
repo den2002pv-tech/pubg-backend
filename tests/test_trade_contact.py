@@ -22,7 +22,7 @@ def _match():
     }
 
 
-def test_contact_trade_match_sends_bot_message_without_username(monkeypatch):
+def test_contact_trade_match_creates_persistent_request_without_username(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
     monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {
         "id": 100,
@@ -30,36 +30,21 @@ def test_contact_trade_match_sends_bot_message_without_username(monkeypatch):
     })
     monkeypatch.setattr(main, "get_or_create_user", lambda *args, **kwargs: {})
     monkeypatch.setattr(main, "get_trade_matches", lambda _telegram_id: [_match()])
+    captured = {}
 
-    response = MagicMock()
-    response.__enter__.return_value.read.return_value = b'{"ok": true, "result": {}}'
-    captured = []
+    def create_request(sender_id, target_id, match):
+        captured.update(sender_id=sender_id, target_id=target_id, match=match)
+        return {"id": 42, "notification_delivered": False}
 
-    def fake_urlopen(request, timeout):
-        payload = json.loads(request.data.decode("utf-8"))
-        captured.append({
-            "url": request.full_url,
-            "payload": payload,
-            "timeout": timeout,
-        })
-        return response
-
-    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+    monkeypatch.setattr(main, "create_trade_request_for_match", create_request)
     result = asyncio.run(main.contact_trade_match(200, init_data="signed-test-data"))
 
-    assert result["status"] == "sent"
-    media_call = next(call for call in captured if call["url"].endswith("/sendMediaGroup"))
-    message_call = next(call for call in captured if call["url"].endswith("/sendMessage"))
-    assert media_call["payload"]["chat_id"] == 200
-    assert media_call["timeout"] == 8
-    media = media_call["payload"]["media"]
-    assert len(media) == 2
-    assert media[0]["media"] == "https://pubg-backend-3rtc.onrender.com/static/cards/card_2.webp"
-    assert "Вы отдаёте: Карта Б" in media[0]["caption"]
-    assert "Вы получаете: Карта А" in media[1]["caption"]
-    assert "Тестовый Отправитель" in message_call["payload"]["text"]
-    assert "Карта А" in message_call["payload"]["text"]
-    assert "Карта Б" in message_call["payload"]["text"]
+    assert result["status"] == "created"
+    assert result["request_id"] == 42
+    assert result["notification_delivered"] is False
+    assert captured["sender_id"] == 100
+    assert captured["target_id"] == 200
+    assert captured["match"]["telegram_id"] == 200
 
 
 def test_contact_trade_match_rejects_unmatched_telegram_id(monkeypatch):
