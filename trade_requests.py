@@ -464,6 +464,8 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
             elif action == "complete":
                 if request["status"] != "agreed":
                     raise HTTPException(status_code=409, detail="Оба игрока должны подтвердить договорённость")
+                if not request.get("sender_exchange_code") or not request.get("recipient_exchange_code"):
+                    raise HTTPException(status_code=409, detail="Сначала оба игрока должны передать коды обмена")
                 field = "sender_completed_at" if actor_id == sender_id else "recipient_completed_at"
                 cur.execute(
                     f"""UPDATE trade_requests SET {field}=COALESCE({field}, NOW()),
@@ -497,6 +499,52 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                 )
         conn.commit()
     return get_trade_request(request_id, actor_id)
+
+
+
+@router.post("/me/trade-requests/{request_id}/code")
+async def submit_exchange_code(
+    request_id: int,
+    data: TradeCodeSubmit,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    viewer_id, _ = _auth(init_data)
+    request = get_trade_request(request_id, viewer_id)
+    if request["status"] != "agreed":
+        raise HTTPException(status_code=409, detail="Сначала оба игрока должны подтвердить обмен")
+
+    code = data.code.strip()
+    if not code or "\n" in code or "\r" in code:
+        raise HTTPException(status_code=400, detail="Введите корректный код обмена")
+
+    is_sender = viewer_id == int(request["sender_telegram_id"])
+    own_field = "sender_exchange_code" if is_sender else "recipient_exchange_code"
+    other_id = int(request["recipient_telegram_id"] if is_sender else request["sender_telegram_id"])
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""UPDATE trade_requests SET {own_field}=%s, updated_at=NOW()
+                    WHERE id=%s AND status='agreed'""",
+                (code, request_id),
+            )
+            if cur.rowcount != 1:
+                raise HTTPException(status_code=409, detail="Статус заявки изменился; обновите страницу")
+        conn.commit()
+
+    request = get_trade_request(request_id, viewer_id)
+    notification_delivered = True
+    try:
+        _telegram_call("sendMessage", {
+            "chat_id": other_id,
+            "text": _exchange_code_message(request, viewer_id, code),
+        })
+    except HTTPException:
+        notification_delivered = False
+    return {
+        "status": "submitted",
+        "notification_delivered": notification_delivered,
+        "request": request,
+    }
 
 
 @router.post("/me/trade-requests/{request_id}/{action}")
