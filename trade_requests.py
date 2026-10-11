@@ -258,9 +258,12 @@ def _keyboard(request: dict[str, Any], viewer_id: int) -> dict[str, Any]:
         if viewer_id == recipient_id and not request.get("recipient_agreed_at"):
             rows.append([{"text": "🤝 Подтвердить обмен", "callback_data": f"tr:{request_id}:agree"}])
     elif status == "agreed":
-        completed_field = "sender_completed_at" if viewer_id == sender_id else "recipient_completed_at"
-        if not request.get(completed_field):
-            rows.append([{"text": "✅ Подтвердить завершение", "callback_data": f"tr:{request_id}:complete"}])
+        if request.get("sender_exchange_code") and request.get("recipient_exchange_code"):
+            completed_field = "sender_completed_at" if viewer_id == sender_id else "recipient_completed_at"
+            if not request.get(completed_field):
+                rows.append([{"text": "✅ Подтвердить завершение", "callback_data": f"tr:{request_id}:complete"}])
+        else:
+            rows.append([{"text": "🔑 Передать код в приложении", "callback_data": f"tr:{request_id}:code_help"}])
     if status in {"pending", "accepted", "agreed"}:
         rows.append([{"text": "🔎 Посмотреть карты и статус", "callback_data": f"tr:{request_id}:details"}])
         rows.append([{"text": "Отменить обмен", "callback_data": f"tr:{request_id}:cancel"}])
@@ -659,6 +662,20 @@ async def telegram_webhook(
         if action == "details":
             _notify_request(request, actor_id)
             _answer_callback(callback_id, "Карты и статус заявки отправлены")
+            return {"ok": True}
+        if action == "code_help":
+            _telegram_call("sendMessage", {
+                "chat_id": actor_id,
+                "text": (
+                    "Чтобы передать код: откройте PUBG Mobile, создайте код для карты, которую отдаёте, "
+                    "затем вставьте его в карточку заявки в приложении. Каждый участник передаёт свой код."
+                ),
+                "reply_markup": {"inline_keyboard": [[{
+                    "text": "🎴 Открыть приложение",
+                    "web_app": {"url": "https://pubg-app-phi.vercel.app"},
+                }]]},
+            })
+            _answer_callback(callback_id, "Инструкция отправлена")
             return {"ok": True}
         if action == "accept":
             if actor_id != int(request["recipient_telegram_id"]) or request["status"] != "pending":
