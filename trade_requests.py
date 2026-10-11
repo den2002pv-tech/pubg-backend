@@ -92,8 +92,14 @@ def _create_request_record(
                       ON inventory.user_id = recipient.id
                      AND inventory.card_id = requested.id
                     WHERE wanted.user_id = recipient.id
-                      AND wanted.card_id = requested.id
-                      AND COALESCE(inventory.quantity, 0) = 0
+                      AND wanted.card_id = offered.id
+                      AND COALESCE(
+                          (SELECT offered_inventory.quantity
+                           FROM user_cards offered_inventory
+                           WHERE offered_inventory.user_id = recipient.id
+                             AND offered_inventory.card_id = requested.id),
+                          0
+                      ) > 1
                   )
                 RETURNING id, status, created_at
                 """,
@@ -495,3 +501,25 @@ async def telegram_webhook(
     except HTTPException as exc:
         _answer_callback(callback_id, exc.detail[:180])
     return {"ok": True}
+
+
+def create_trade_request_for_match(
+    sender_telegram_id: int,
+    recipient_telegram_id: int,
+    match: dict[str, Any],
+) -> dict[str, Any]:
+    """Persist the first currently matched pair, then notify without losing the request on delivery failure."""
+    trades = match.get("trades") or []
+    if not trades:
+        raise HTTPException(status_code=409, detail="Подходящий обмен больше не актуален")
+    trade = trades[0]
+    offered = trade.get("you_give") or {}
+    requested = trade.get("you_get") or {}
+    offered_id = str(offered.get("id") or "")
+    requested_id = str(requested.get("id") or "")
+    if not offered_id or not requested_id:
+        raise HTTPException(status_code=409, detail="Вариант обмена не содержит идентификаторы карт")
+    request = _create_request_record(sender_telegram_id, recipient_telegram_id, offered_id, requested_id)
+    delivered = _notify_request(request, recipient_telegram_id)
+    request["notification_delivered"] = delivered
+    return request
