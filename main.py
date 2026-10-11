@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
 from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+from trade_requests import create_trade_request_for_match, register_trade_request_routes
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -1274,7 +1275,7 @@ async def contact_trade_match(
     target_telegram_id: int,
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
-    """Notify a reciprocal trade partner through the bot, even without a username."""
+    """Create a persistent trade request and notify the recipient through the bot."""
     if target_telegram_id <= 0:
         raise HTTPException(status_code=400, detail="Некорректный Telegram ID")
 
@@ -1286,8 +1287,6 @@ async def contact_trade_match(
         first_name=str(sender.get("first_name") or ""),
         last_name=str(sender.get("last_name") or ""),
     )
-
-    # Do not allow this endpoint to be used to message arbitrary Telegram IDs.
     match = next(
         (item for item in get_trade_matches(auth["id"]) if int(item["telegram_id"]) == target_telegram_id),
         None,
@@ -1295,57 +1294,17 @@ async def contact_trade_match(
     if match is None:
         raise HTTPException(status_code=404, detail="Подходящий обмен с этим игроком не найден")
 
-    sender_name = " ".join(
-        part.strip() for part in (sender.get("first_name"), sender.get("last_name")) if part and part.strip()
-    )
-    if not sender_name:
-        sender_name = f"@{sender['username']}" if sender.get("username") else "Игрок PUBG Mobile"
-
-    trade_lines = []
-    media: list[dict[str, str]] = []
-    for trade in match.get("trades", [])[:5]:
-        sender_gives = trade.get("you_give") or {}
-        sender_gets = trade.get("you_get") or {}
-        # For the recipient, the sender's requested card is what they give;
-        # the sender's duplicate is what they receive.
-        recipient_gives_name = str(sender_gets.get("name") or "карта")
-        recipient_gets_name = str(sender_gives.get("name") or "карта")
-        trade_lines.append(
-            f"• Вы отдаёте «{recipient_gives_name}» ↔ получаете «{recipient_gets_name}»"
-        )
-
-        give_icon = _card_icon_public_url(sender_gets.get("icon"))
-        get_icon = _card_icon_public_url(sender_gives.get("icon"))
-        if give_icon and get_icon and len(media) <= 8:
-            media.extend([
-                {
-                    "type": "photo",
-                    "media": give_icon,
-                    "caption": f"📤 Вы отдаёте: {recipient_gives_name}",
-                },
-                {
-                    "type": "photo",
-                    "media": get_icon,
-                    "caption": f"📥 Вы получаете: {recipient_gets_name}",
-                },
-            ])
-    if not trade_lines:
-        raise HTTPException(status_code=409, detail="Подходящий обмен больше не актуален")
-
-    message = (
-        f"🔄 Вам предлагают обмен картами PUBG Mobile!\n"
-        f"Игрок: {sender_name}\n\n"
-        f"Варианты обмена:\n" + "\n".join(trade_lines) +
-        "\n\nОткройте бота PUBG Card Exchange, чтобы проверить свои карты и договориться об обмене."
-    )
-    # A broken/missing icon must not prevent a text notification from arriving.
-    if len(media) >= 2:
-        try:
-            _send_telegram_media_group(target_telegram_id, media)
-        except HTTPException:
-            pass
-    _send_telegram_message(target_telegram_id, message)
-    return {"status": "sent", "message": "Предложение обмена отправлено через Telegram-бота"}
+    request = create_trade_request_for_match(auth["id"], target_telegram_id, match)
+    return {
+        "status": "created",
+        "request_id": request["id"],
+        "notification_delivered": bool(request.get("notification_delivered")),
+        "message": (
+            "Заявка сохранена и уведомление отправлено"
+            if request.get("notification_delivered")
+            else "Заявка сохранена. Игрок увидит её в разделе «Обмены», когда откроет приложение"
+        ),
+    }
 
 
 @app.get("/me/trade-matches")
@@ -1912,3 +1871,13 @@ async def regenerate_hashes_progress(authorization: str | None = Header(default=
 async def github_commit(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     return _github_commit()
+
+
+register_trade_request_routes(
+    app,
+    _validate_telegram_init_data,
+    get_or_create_user,
+    get_trade_matches,
+    _send_telegram_media_group,
+    _card_icon_public_url,
+)
