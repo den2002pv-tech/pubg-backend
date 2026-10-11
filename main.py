@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
 from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -47,6 +48,7 @@ def startup_database() -> None:
     init_db()
     _migrate_frame_color_hashes()
     sync_cards(load_db())
+    init_trade_request_schema()
 
 app.add_middleware(
     CORSMiddleware,
@@ -1233,12 +1235,48 @@ def _send_telegram_message(chat_id: int, text: str) -> None:
         )
 
 
+def _card_icon_public_url(icon: Any) -> str:
+    """Return a public URL only for card icons hosted by this application."""
+    path = str(icon or "").strip()
+    if not path.startswith("/static/cards/") or ".." in path.split("/"):
+        return ""
+    base_url = os.getenv("PUBLIC_BASE_URL", "https://pubg-backend-3rtc.onrender.com").strip().rstrip("/")
+    return f"{base_url}{path}"
+
+
+def _send_telegram_media_group(chat_id: int, media: list[dict[str, str]]) -> None:
+    """Send card icons as a Telegram album. The caller may fall back to text-only."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
+    if not 2 <= len(media) <= 10:
+        return
+
+    payload = json.dumps({"chat_id": chat_id, "media": media}, ensure_ascii=False).encode("utf-8")
+    request = Request(
+        f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=8) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось отправить изображения карт через Telegram.",
+        ) from exc
+    if not isinstance(result, dict) or not result.get("ok"):
+        raise HTTPException(status_code=502, detail="Telegram не смог отправить изображения карт")
+
+
 @app.post("/me/trade-matches/{target_telegram_id}/contact")
 async def contact_trade_match(
     target_telegram_id: int,
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
-    """Notify a reciprocal trade partner through the bot, even without a username."""
+    """Create a persistent trade request and notify the recipient through the bot."""
     if target_telegram_id <= 0:
         raise HTTPException(status_code=400, detail="Некорректный Telegram ID")
 
@@ -1250,8 +1288,6 @@ async def contact_trade_match(
         first_name=str(sender.get("first_name") or ""),
         last_name=str(sender.get("last_name") or ""),
     )
-
-    # Do not allow this endpoint to be used to message arbitrary Telegram IDs.
     match = next(
         (item for item in get_trade_matches(auth["id"]) if int(item["telegram_id"]) == target_telegram_id),
         None,
@@ -1259,28 +1295,17 @@ async def contact_trade_match(
     if match is None:
         raise HTTPException(status_code=404, detail="Подходящий обмен с этим игроком не найден")
 
-    sender_name = " ".join(
-        part.strip() for part in (sender.get("first_name"), sender.get("last_name")) if part and part.strip()
-    )
-    if not sender_name:
-        sender_name = f"@{sender['username']}" if sender.get("username") else "Игрок PUBG Mobile"
-
-    trade_lines = []
-    for trade in match.get("trades", [])[:5]:
-        give_name = str((trade.get("you_give") or {}).get("name") or "карта")
-        get_name = str((trade.get("you_get") or {}).get("name") or "карта")
-        trade_lines.append(f"• «{give_name}» ↔ «{get_name}»")
-    if not trade_lines:
-        raise HTTPException(status_code=409, detail="Подходящий обмен больше не актуален")
-
-    message = (
-        f"🔄 Вам предлагают обмен картами PUBG Mobile!\n"
-        f"Игрок: {sender_name}\n\n"
-        f"Подходящие варианты:\n" + "\n".join(trade_lines) +
-        "\n\nОткройте бота PUBG Card Exchange, чтобы проверить свои карты и договориться об обмене."
-    )
-    _send_telegram_message(target_telegram_id, message)
-    return {"status": "sent", "message": "Предложение обмена отправлено через Telegram-бота"}
+    request = create_trade_request_for_match(auth["id"], target_telegram_id, match)
+    return {
+        "status": "created",
+        "request_id": request["id"],
+        "notification_delivered": bool(request.get("notification_delivered")),
+        "message": (
+            "Заявка сохранена и уведомление отправлено"
+            if request.get("notification_delivered")
+            else "Заявка сохранена. Игрок увидит её в разделе «Обмены», когда откроет приложение"
+        ),
+    }
 
 
 @app.get("/me/trade-matches")
@@ -1847,3 +1872,13 @@ async def regenerate_hashes_progress(authorization: str | None = Header(default=
 async def github_commit(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     return _github_commit()
+
+
+register_trade_request_routes(
+    app,
+    _validate_telegram_init_data,
+    get_or_create_user,
+    get_trade_matches,
+    _send_telegram_media_group,
+    _card_icon_public_url,
+)

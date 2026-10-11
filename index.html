@@ -555,6 +555,16 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     <button id="refreshTradesBtn" class="trade" type="button">Найти обмены</button>
     <div id="tradeStatus" class="status" role="status" aria-live="polite"></div>
     <div id="tradeMatches" class="trade-matches"></div>
+    <hr style="border:0;border-top:1px solid var(--border);margin:18px 0">
+    <h3 style="margin:0 0 8px">📬 Мои заявки</h3>
+    <div class="quick-actions-bar" role="group" aria-label="Фильтр заявок">
+      <button type="button" class="quick-btn active" data-request-scope="all" aria-pressed="true">Все</button>
+      <button type="button" class="quick-btn" data-request-scope="incoming" aria-pressed="false">Входящие</button>
+      <button type="button" class="quick-btn" data-request-scope="outgoing" aria-pressed="false">Исходящие</button>
+    </div>
+    <button id="refreshRequestsBtn" class="trade" type="button">Обновить заявки</button>
+    <div id="tradeRequestsStatus" class="status" role="status" aria-live="polite"></div>
+    <div id="tradeRequestsList" class="trade-matches"></div>
   </div>
 </section>
 
@@ -750,6 +760,7 @@ function switchTab(name) {
     checkDesiredChanges();
   } else if (isTrades) {
     loadTradeMatches();
+    loadTradeRequests();
   }
 }
 
@@ -1679,13 +1690,15 @@ function renderTradeMatches(matches) {
   tradeMatchesEl.innerHTML = matches.map(match => {
     const displayName = [match.first_name, match.last_name].filter(Boolean).join(' ') || (match.username ? '@' + match.username : 'Игрок');
     const username = match.username ? '@' + match.username : '';
-    const contact = match.username ? '<a class="trade trade-contact" href="https://t.me/' + encodeURIComponent(match.username) + '" target="_blank" rel="noopener noreferrer">Написать в Telegram</a>' : '<button type="button" class="trade trade-contact" data-trade-target="' + tradeEsc(match.telegram_id) + '">Предложить обмен через бота</button>';
+    const directContact = match.username ? '<a class="trade trade-contact" href="https://t.me/' + encodeURIComponent(match.username) + '" target="_blank" rel="noopener noreferrer">Написать напрямую</a>' : '';
     const trades = match.trades.map(trade => {
       const giveIcon = trade.you_give.icon ? '<img loading="lazy" src="' + tradeEsc(trade.you_give.icon) + '" alt="">' : '';
       const getIcon = trade.you_get.icon ? '<img loading="lazy" src="' + tradeEsc(trade.you_get.icon) + '" alt="">' : '';
-      return '<div class="trade-pair"><div class="trade-card">' + giveIcon + '<div class="trade-card-name"><b>Вы отдаёте</b><br>' + tradeEsc(trade.you_give.name) + '</div><div class="trade-count">Дубликатов: ' + tradeEsc(trade.you_give.available) + '</div></div><div class="trade-arrow" aria-hidden="true">⇄</div><div class="trade-card">' + getIcon + '<div class="trade-card-name"><b>Вы получаете</b><br>' + tradeEsc(trade.you_get.name) + '</div><div class="trade-count">У игрока: ' + tradeEsc(trade.you_get.available) + '</div></div></div>';
+      const pair = '<div class="trade-pair"><div class="trade-card">' + giveIcon + '<div class="trade-card-name"><b>Вы отдаёте</b><br>' + tradeEsc(trade.you_give.name) + '</div><div class="trade-count">Дубликатов: ' + tradeEsc(trade.you_give.available) + '</div></div><div class="trade-arrow" aria-hidden="true">⇄</div><div class="trade-card">' + getIcon + '<div class="trade-card-name"><b>Вы получаете</b><br>' + tradeEsc(trade.you_get.name) + '</div><div class="trade-count">У игрока: ' + tradeEsc(trade.you_get.available) + '</div></div></div>';
+      const offer = '<button type="button" class="trade trade-contact" data-trade-target="' + tradeEsc(match.telegram_id) + '" data-offered-card-id="' + tradeEsc(trade.you_give.id) + '" data-requested-card-id="' + tradeEsc(trade.you_get.id) + '">Предложить этот обмен</button>';
+      return pair + offer;
     }).join('<div style="height:8px"></div>');
-    return '<article class="trade-match"><div class="trade-player">' + tradeEsc(displayName) + (username ? ' <span class="trade-count">' + tradeEsc(username) + '</span>' : '') + '</div>' + trades + contact + '</article>';
+    return '<article class="trade-match"><div class="trade-player">' + tradeEsc(displayName) + (username ? ' <span class="trade-count">' + tradeEsc(username) + '</span>' : '') + '</div>' + trades + directContact + '</article>';
   }).join('');
 }
 
@@ -1702,18 +1715,27 @@ tradeMatchesEl.addEventListener('click', async event => {
   button.disabled = true;
   button.textContent = 'Отправляем предложение…';
   try {
-    const response = await fetch(API + '/me/trade-matches/' + encodeURIComponent(targetId) + '/contact', {
+    const offeredCardId = button.dataset.offeredCardId;
+    const requestedCardId = button.dataset.requestedCardId;
+    if (!offeredCardId || !requestedCardId) throw new Error('Не удалось определить карты для обмена');
+    const response = await fetch(API + '/me/trade-requests', {
       method: 'POST',
-      headers: telegramHeaders(),
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_telegram_id: Number(targetId),
+        offered_card_id: offeredCardId,
+        requested_card_id: requestedCardId,
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || 'Не удалось отправить предложение');
     button.textContent = '✓ Предложение отправлено';
     button.setAttribute('aria-label', 'Предложение обмена отправлено');
-    tradeStatusEl.textContent = data.message || 'Предложение обмена отправлено через Telegram-бота.';
+    tradeStatusEl.textContent = data.message || 'Заявка сохранена.';
+    await loadTradeRequests();
   } catch (error) {
     button.disabled = false;
-    button.textContent = 'Предложить обмен через бота';
+    button.textContent = 'Предложить этот обмен';
     tradeStatusEl.textContent = 'Не удалось отправить предложение: ' + (error.message || 'проверьте соединение');
   }
 });
@@ -1740,6 +1762,112 @@ async function loadTradeMatches() {
   }
 }
 document.getElementById('refreshTradesBtn').addEventListener('click', loadTradeMatches);
+
+const tradeRequestsEl = document.getElementById('tradeRequestsList');
+const tradeRequestsStatusEl = document.getElementById('tradeRequestsStatus');
+let currentRequestScope = 'all';
+const requestStatusLabels = {
+  pending: '🟡 Ожидает ответа',
+  accepted: '🟢 Предложение принято',
+  agreed: '🤝 Обмен подтверждён обоими игроками',
+  completed: '✅ Обмен завершён',
+  declined: '❌ Предложение отклонено',
+  cancelled: '❌ Обмен отменён',
+};
+function renderTradeRequests(requests) {
+  if (!requests.length) {
+    tradeRequestsEl.innerHTML = '<div class="trade-empty">Заявок пока нет. Создайте предложение в списке подходящих обменов.</div>';
+    return;
+  }
+  const currentId = Number(tg?.initDataUnsafe?.user?.id || 0);
+  tradeRequestsEl.innerHTML = requests.map(request => {
+    const isSender = Number(request.sender_telegram_id) === currentId;
+    const otherName = isSender
+      ? [request.recipient_first_name, request.recipient_last_name].filter(Boolean).join(' ') || 'Игрок'
+      : [request.sender_first_name, request.sender_last_name].filter(Boolean).join(' ') || 'Игрок';
+    const gives = isSender ? request.offered_card_name : request.requested_card_name;
+    const gets = isSender ? request.requested_card_name : request.offered_card_name;
+    const actions = [];
+    if (request.status === 'pending' && !isSender) {
+      actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="accept">✅ Принять</button>');
+      actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="decline">❌ Отклонить</button>');
+    }
+    if (request.status === 'accepted') {
+      const alreadyAgreed = isSender ? request.sender_agreed_at : request.recipient_agreed_at;
+      if (!alreadyAgreed) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="agree">🤝 Подтвердить обмен</button>');
+    }
+    if (request.status === 'agreed') {
+      const alreadyCompleted = isSender ? request.sender_completed_at : request.recipient_completed_at;
+      if (!alreadyCompleted) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
+    }
+    if (['pending', 'accepted', 'agreed'].includes(request.status)) {
+      actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="cancel">Отменить</button>');
+    }
+    return '<article class="trade-match"><div class="trade-player">Заявка #' + tradeEsc(request.id) + ' · ' + tradeEsc(otherName) + '</div>' +
+      '<div class="trade-card-name">📤 Вы отдаёте: <b>' + tradeEsc(gives) + '</b></div>' +
+      '<div class="trade-card-name" style="margin-top:6px">📥 Вы получаете: <b>' + tradeEsc(gets) + '</b></div>' +
+      '<div class="trade-count" style="margin:8px 0">' + tradeEsc(requestStatusLabels[request.status] || request.status) + '</div>' +
+      '<div class="quick-actions-bar">' + actions.join('') + '</div></article>';
+  }).join('');
+}
+async function loadTradeRequests() {
+  if (!telegramInitData) {
+    tradeRequestsStatusEl.textContent = 'Откройте приложение через Telegram, чтобы посмотреть заявки.';
+    tradeRequestsEl.innerHTML = '';
+    return;
+  }
+  tradeRequestsStatusEl.textContent = 'Загружаем заявки…';
+  try {
+    const response = await fetch(API + '/me/trade-requests?scope=' + encodeURIComponent(currentRequestScope), {
+      headers: telegramHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось загрузить заявки');
+    const requests = Array.isArray(data.requests) ? data.requests : [];
+    renderTradeRequests(requests);
+    tradeRequestsStatusEl.textContent = 'Заявок: ' + requests.length;
+  } catch (error) {
+    tradeRequestsStatusEl.textContent = 'Ошибка загрузки заявок: ' + (error.message || 'проверьте соединение');
+  }
+}
+tradeRequestsEl.addEventListener('click', async event => {
+  const button = event.target.closest('button[data-request-action]');
+  if (!button || !tradeRequestsEl.contains(button)) return;
+  const action = button.dataset.requestAction;
+  const requestId = button.dataset.requestId;
+  const confirmations = {
+    accept: 'Вы согласны на этот обмен? Убедитесь, что готовы передать указанную карту.',
+    complete: 'Подтвердить, что обмен фактически завершён? Это действие нельзя отменить.',
+    cancel: 'Отменить эту заявку на обмен?',
+    decline: 'Отклонить предложение обмена?',
+  };
+  if (confirmations[action] && !window.confirm(confirmations[action])) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(API + '/me/trade-requests/' + encodeURIComponent(requestId) + '/' + action, {
+      method: 'POST',
+      headers: telegramHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось изменить заявку');
+    await loadTradeRequests();
+  } catch (error) {
+    tradeRequestsStatusEl.textContent = 'Ошибка: ' + (error.message || 'проверьте соединение');
+    button.disabled = false;
+  }
+});
+document.querySelectorAll('[data-request-scope]').forEach(button => {
+  button.addEventListener('click', () => {
+    currentRequestScope = button.dataset.requestScope;
+    document.querySelectorAll('[data-request-scope]').forEach(item => {
+      const selected = item === button;
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-pressed', String(selected));
+    });
+    loadTradeRequests();
+  });
+});
+document.getElementById('refreshRequestsBtn').addEventListener('click', loadTradeRequests);
 
 // Initialize
 loadMyCollection();

@@ -15,14 +15,14 @@ def _match():
         "last_name": "Игрок",
         "trades": [
             {
-                "you_give": {"name": "Карта А"},
-                "you_get": {"name": "Карта Б"},
+                "you_give": {"name": "Карта А", "icon": "/static/cards/card_1.webp"},
+                "you_get": {"name": "Карта Б", "icon": "/static/cards/card_2.webp"},
             }
         ],
     }
 
 
-def test_contact_trade_match_sends_bot_message_without_username(monkeypatch):
+def test_contact_trade_match_creates_persistent_request_without_username(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
     monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {
         "id": 100,
@@ -30,26 +30,21 @@ def test_contact_trade_match_sends_bot_message_without_username(monkeypatch):
     })
     monkeypatch.setattr(main, "get_or_create_user", lambda *args, **kwargs: {})
     monkeypatch.setattr(main, "get_trade_matches", lambda _telegram_id: [_match()])
-
-    response = MagicMock()
-    response.__enter__.return_value.read.return_value = b'{"ok": true, "result": {}}'
     captured = {}
 
-    def fake_urlopen(request, timeout):
-        captured["chat_id"] = json.loads(request.data.decode("utf-8"))["chat_id"]
-        captured["text"] = json.loads(request.data.decode("utf-8"))["text"]
-        captured["timeout"] = timeout
-        return response
+    def create_request(sender_id, target_id, match):
+        captured.update(sender_id=sender_id, target_id=target_id, match=match)
+        return {"id": 42, "notification_delivered": False}
 
-    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+    monkeypatch.setattr(main, "create_trade_request_for_match", create_request)
     result = asyncio.run(main.contact_trade_match(200, init_data="signed-test-data"))
 
-    assert result["status"] == "sent"
-    assert captured["chat_id"] == 200
-    assert captured["timeout"] == 8
-    assert "Тестовый Отправитель" in captured["text"]
-    assert "Карта А" in captured["text"]
-    assert "Карта Б" in captured["text"]
+    assert result["status"] == "created"
+    assert result["request_id"] == 42
+    assert result["notification_delivered"] is False
+    assert captured["sender_id"] == 100
+    assert captured["target_id"] == 200
+    assert captured["match"]["telegram_id"] == 200
 
 
 def test_contact_trade_match_rejects_unmatched_telegram_id(monkeypatch):
