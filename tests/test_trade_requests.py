@@ -139,3 +139,62 @@ def test_telegram_webhook_rejects_invalid_secret(monkeypatch):
         )
 
     assert exc.value.status_code == 403
+
+
+
+def test_exchange_code_message_identifies_the_card_being_given():
+    request = {
+        "id": 17,
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "sender_first_name": "Денис",
+        "sender_last_name": "",
+        "recipient_first_name": "Лорд",
+        "recipient_last_name": "",
+        "offered_card_name": "Карта отправителя",
+        "requested_card_name": "Карта получателя",
+    }
+
+    message = trades._exchange_code_message(request, 100, "ABCD-1234")
+
+    assert "Денис" in message
+    assert "Карта: «Карта отправителя»" in message
+    assert "Код: ABCD-1234" in message
+
+
+def test_list_trade_requests_qualifies_ambiguous_id_column(monkeypatch):
+    executed = []
+
+    class Cursor:
+        rowcount = 0
+
+        def execute(self, query, params):
+            executed.append((query, params))
+
+        def fetchall(self):
+            return []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class Connection:
+        def cursor(self):
+            return Cursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(trades, "_validate_init_data", lambda value: {"id": 123, "user": {}})
+    monkeypatch.setattr(trades, "_get_or_create_user", lambda *args, **kwargs: None)
+    monkeypatch.setattr(trades, "get_connection", lambda: Connection())
+
+    result = asyncio.run(trades.list_my_trade_requests(scope="all", init_data="valid-test-init-data"))
+
+    assert result == {"requests": [], "count": 0}
+    assert "SELECT tr.id FROM trade_requests tr" in executed[0][0]
