@@ -272,17 +272,28 @@ def test_exchange_code_is_sent_only_once_to_recipient(monkeypatch):
     result = trades._deliver_exchange_code(29, 100, "  ABC-123  ")
 
     assert result == {"status": "sent", "request_id": 29, "notification_delivered": True}
-    assert len(sent) == 1
+    assert len(sent) == 2
     assert sent[0][1]["chat_id"] == 200
     assert "ABC-123" in sent[0][1]["text"]
     assert "Карта, которую получает получатель" in sent[0][1]["text"]
+    assert any(
+        button["callback_data"] == "tr:29:complete"
+        for row in sent[0][1]["reply_markup"]["inline_keyboard"]
+        for button in row
+    )
+    assert sent[1][1]["chat_id"] == 100
+    assert any(
+        button["callback_data"] == "tr:29:complete"
+        for row in sent[1][1]["reply_markup"]["inline_keyboard"]
+        for button in row
+    )
     assert all("ABC-123" not in str(params) for _query, params in executed)
     assert state["exchange_code_sent_at"] == "sent"
 
     with pytest.raises(HTTPException) as exc:
         trades._deliver_exchange_code(29, 100, "ANOTHER-CODE")
     assert exc.value.status_code == 409
-    assert len(sent) == 1
+    assert len(sent) == 2
 
 
 @pytest.mark.parametrize(
