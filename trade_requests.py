@@ -131,7 +131,7 @@ def get_trade_request(request_id: int, viewer_telegram_id: int | None = None) ->
                 SELECT tr.id, tr.status, tr.created_at, tr.updated_at,
                        tr.sender_agreed_at, tr.recipient_agreed_at,
                        tr.sender_completed_at, tr.recipient_completed_at,
-                       tr.sender_exchange_code, tr.recipient_exchange_code,
+                       tr.exchange_code,
                        sender.telegram_id AS sender_telegram_id,
                        sender.first_name AS sender_first_name, sender.last_name AS sender_last_name,
                        recipient.telegram_id AS recipient_telegram_id,
@@ -208,16 +208,13 @@ def _request_text(request: dict[str, Any], viewer_id: int) -> str:
     )
 
 
-def _exchange_code_message(request: dict[str, Any], sender_id: int, code: str) -> str:
-    is_sender = sender_id == int(request["sender_telegram_id"])
-    prefix = "sender" if is_sender else "recipient"
-    card_name = request["offered_card_name"] if is_sender else request["requested_card_name"]
+def _exchange_code_message(request: dict[str, Any], code: str) -> str:
     return (
-        f"🔑 Код обмена от {_player_name(request, prefix)}\n"
-        f"Карта: «{card_name}»\n"
+        f"🔑 Код обмена от {_player_name(request, 'sender')}\n"
+        f"📤 Вы отдаёте: «{request['requested_card_name']}»\n"
+        f"📥 Вы получаете: «{request['offered_card_name']}»\n"
         f"Код: {code}\n\n"
-        "Введите этот код в PUBG Mobile, чтобы получить карту. "
-        "Если код не сработал, свяжитесь с партнёром и отправьте актуальный код заново."
+        "Введите код в PUBG Mobile и проверьте, что условия обмена совпадают с заявкой."
     )
 
 
@@ -258,11 +255,11 @@ def _keyboard(request: dict[str, Any], viewer_id: int) -> dict[str, Any]:
         if viewer_id == recipient_id and not request.get("recipient_agreed_at"):
             rows.append([{"text": "🤝 Подтвердить обмен", "callback_data": f"tr:{request_id}:agree"}])
     elif status == "agreed":
-        if request.get("sender_exchange_code") and request.get("recipient_exchange_code"):
+        if request.get("exchange_code"):
             completed_field = "sender_completed_at" if viewer_id == sender_id else "recipient_completed_at"
             if not request.get(completed_field):
                 rows.append([{"text": "✅ Подтвердить завершение", "callback_data": f"tr:{request_id}:complete"}])
-        else:
+        elif viewer_id == sender_id:
             rows.append([{"text": "🔑 Передать код в приложении", "callback_data": f"tr:{request_id}:code_help"}])
     if status in {"pending", "accepted", "agreed"}:
         rows.append([{"text": "🔎 Посмотреть карты и статус", "callback_data": f"tr:{request_id}:details"}])
@@ -317,8 +314,7 @@ def init_trade_request_schema() -> None:
                     recipient_agreed_at TIMESTAMPTZ,
                     sender_completed_at TIMESTAMPTZ,
                     recipient_completed_at TIMESTAMPTZ,
-                    sender_exchange_code TEXT,
-                    recipient_exchange_code TEXT,
+                    exchange_code TEXT,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     CHECK (sender_user_id <> recipient_user_id)
@@ -327,8 +323,7 @@ def init_trade_request_schema() -> None:
                     ON trade_requests (sender_user_id, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_trade_requests_recipient_created
                     ON trade_requests (recipient_user_id, created_at DESC);
-                ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS sender_exchange_code TEXT;
-                ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS recipient_exchange_code TEXT;
+                ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS exchange_code TEXT;
                 """
             )
         conn.commit()
@@ -467,8 +462,8 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
             elif action == "complete":
                 if request["status"] != "agreed":
                     raise HTTPException(status_code=409, detail="Оба игрока должны подтвердить договорённость")
-                if not request.get("sender_exchange_code") or not request.get("recipient_exchange_code"):
-                    raise HTTPException(status_code=409, detail="Сначала оба игрока должны передать коды обмена")
+                if not request.get("exchange_code"):
+                    raise HTTPException(status_code=409, detail="Инициатор должен сначала передать код обмена")
                 field = "sender_completed_at" if actor_id == sender_id else "recipient_completed_at"
                 cur.execute(
                     f"""UPDATE trade_requests SET {field}=COALESCE({field}, NOW()),
@@ -491,12 +486,12 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                 raise HTTPException(status_code=409, detail="Статус заявки уже изменился")
             if action in {"cancel", "decline"}:
                 cur.execute(
-                    "UPDATE trade_requests SET sender_exchange_code=NULL, recipient_exchange_code=NULL WHERE id=%s",
+                    "UPDATE trade_requests SET exchange_code=NULL WHERE id=%s",
                     (request_id,),
                 )
             elif action == "complete":
                 cur.execute(
-                    """UPDATE trade_requests SET sender_exchange_code=NULL, recipient_exchange_code=NULL
+                    """UPDATE trade_requests SET exchange_code=NULL
                        WHERE id=%s AND status='completed'""",
                     (request_id,),
                 )
@@ -513,6 +508,8 @@ async def submit_exchange_code(
 ):
     viewer_id, _ = _auth(init_data)
     request = get_trade_request(request_id, viewer_id)
+    if viewer_id != int(request["sender_telegram_id"]):
+        raise HTTPException(status_code=403, detail="Код обмена передаёт автор заявки")
     if request["status"] != "agreed":
         raise HTTPException(status_code=409, detail="Сначала оба игрока должны подтвердить обмен")
 
@@ -520,14 +517,12 @@ async def submit_exchange_code(
     if not code or "\n" in code or "\r" in code:
         raise HTTPException(status_code=400, detail="Введите корректный код обмена")
 
-    is_sender = viewer_id == int(request["sender_telegram_id"])
-    own_field = "sender_exchange_code" if is_sender else "recipient_exchange_code"
-    other_id = int(request["recipient_telegram_id"] if is_sender else request["sender_telegram_id"])
+    other_id = int(request["recipient_telegram_id"])
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                f"""UPDATE trade_requests SET {own_field}=%s, updated_at=NOW()
-                    WHERE id=%s AND status='agreed'""",
+                """UPDATE trade_requests SET exchange_code=%s, updated_at=NOW()
+                   WHERE id=%s AND status='agreed'""",
                 (code, request_id),
             )
             if cur.rowcount != 1:
@@ -539,7 +534,7 @@ async def submit_exchange_code(
     try:
         _telegram_call("sendMessage", {
             "chat_id": other_id,
-            "text": _exchange_code_message(request, viewer_id, code),
+            "text": _exchange_code_message(request, code),
         })
     except HTTPException:
         notification_delivered = False
