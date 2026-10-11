@@ -716,6 +716,27 @@ async def telegram_webhook(
                     # A failed reply must not cause Telegram to retry the same update indefinitely.
                     pass
 
+            if command == "/trade" and isinstance(chat_id, int) and not isinstance(chat_id, bool) and chat.get("type") == "private":
+                arguments = message_text.strip().split()
+                if len(arguments) != 2 or not arguments[1].isdigit():
+                    _telegram_call("sendMessage", {
+                        "chat_id": chat_id,
+                        "text": "Использование: /trade <номер заявки>. Например: /trade 3",
+                    })
+                else:
+                    try:
+                        trade_request = get_trade_request(int(arguments[1]), chat_id)
+                        _telegram_call("sendMessage", {
+                            "chat_id": chat_id,
+                            "text": _request_text(trade_request, chat_id),
+                            "reply_markup": _keyboard(trade_request, chat_id),
+                        })
+                    except HTTPException as exc:
+                        _telegram_call("sendMessage", {
+                            "chat_id": chat_id,
+                            "text": str(exc.detail),
+                        })
+
             reply_to = message.get("reply_to_message")
             reply_text = str((reply_to or {}).get("text") or "") if isinstance(reply_to, dict) else ""
             code_prompt = re.fullmatch(r"Введите код обмена для заявки #(\d+) в ответ на это сообщение\..*", reply_text, flags=re.DOTALL)
