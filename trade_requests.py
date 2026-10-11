@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from typing import Any, Callable
@@ -464,7 +465,28 @@ async def update_my_trade_request(
 ):
     viewer_id, _ = _auth(init_data)
     request = _transition(request_id, viewer_id, action)
-    return {"status": request["status"], "request": request}
+    other_id = int(
+        request["recipient_telegram_id"]
+        if viewer_id == int(request["sender_telegram_id"])
+        else request["sender_telegram_id"]
+    )
+    delivered = []
+    for participant_id in (viewer_id, other_id):
+        try:
+            _telegram_call("sendMessage", {
+                "chat_id": participant_id,
+                "text": _request_text(request, participant_id),
+                "reply_markup": _keyboard(request, participant_id),
+            })
+            delivered.append(participant_id)
+        except HTTPException:
+            # The database state is authoritative; a missing bot chat must not undo it.
+            continue
+    return {
+        "status": request["status"],
+        "request": request,
+        "notified_participants": delivered,
+    }
 
 
 def _callback_actor(callback: dict[str, Any]) -> int:
@@ -486,7 +508,7 @@ async def telegram_webhook(
     expected = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
     if not expected:
         raise HTTPException(status_code=503, detail="TELEGRAM_WEBHOOK_SECRET не задан на сервере")
-    if not secret or not __import__("hmac").compare_digest(secret, expected):
+    if not secret or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=403, detail="Forbidden")
     callback = update.get("callback_query")
     if not isinstance(callback, dict):
