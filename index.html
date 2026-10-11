@@ -1802,23 +1802,21 @@ function renderTradeRequests(requests) {
     }
     let codePanel = '';
     if (request.status === 'agreed') {
-      const ownCode = isSender ? request.sender_exchange_code : request.recipient_exchange_code;
-      const partnerCode = isSender ? request.recipient_exchange_code : request.sender_exchange_code;
-      const ownCard = isSender ? request.offered_card_name : request.requested_card_name;
-      const partnerCard = isSender ? request.requested_card_name : request.offered_card_name;
-      codePanel = '<section class="trade-code-form"><b>🔑 Коды обмена</b>' +
-        '<div class="trade-count">Каждый игрок создаёт в PUBG Mobile код для карты, которую отдаёт, и передаёт его партнёру.</div>' +
-        (ownCode ? '<div class="trade-count">Последний код для карты «' + tradeEsc(ownCard) + '» уже отправлен. Если он истёк, передайте новый.</div>' : '') +
-        '<form data-request-code-form data-request-id="' + tradeEsc(request.id) + '">' +
-          '<label>' + (ownCode ? 'Новый код карты «' : 'Код вашей карты «') + tradeEsc(ownCard) + '»' +
-          '<input name="code" type="text" maxlength="64" autocomplete="off" required placeholder="Введите код из игры"></label>' +
-          '<button type="submit" class="trade">' + (ownCode ? 'Обновить код у партнёра' : 'Передать код партнёру') + '</button></form>' +
-        (partnerCode
-          ? '<div><b>Код партнёра для карты «' + tradeEsc(partnerCard) + '»</b><div class="trade-code-value"><code>' + tradeEsc(partnerCode) + '</code></div></div>'
-          : '<div class="trade-count">Ожидаем код партнёра для карты «' + tradeEsc(partnerCard) + '».</div>') +
+      const exchangeCode = request.exchange_code;
+      codePanel = '<section class="trade-code-form"><b>🔑 Код обмена</b>' +
+        '<div class="trade-count">Код создаёт автор заявки в PUBG Mobile для согласованного обмена. Затем бот передаст его второму игроку.</div>' +
+        (isSender
+          ? (exchangeCode ? '<div class="trade-count">Код уже отправлен партнёру. Если он истёк, передайте новый.</div>' : '') +
+            '<form data-request-code-form data-request-id="' + tradeEsc(request.id) + '">' +
+              '<label>' + (exchangeCode ? 'Новый код обмена' : 'Код обмена из PUBG Mobile') +
+              '<input name="code" type="text" maxlength="64" autocomplete="off" required placeholder="Введите код из игры"></label>' +
+              '<button type="submit" class="trade">' + (exchangeCode ? 'Обновить код у партнёра' : 'Передать код партнёру') + '</button></form>'
+          : (exchangeCode
+              ? '<div><b>Код обмена от партнёра</b><div class="trade-code-value"><code>' + tradeEsc(exchangeCode) + '</code></div><div class="trade-count">Введите этот код в игре и проверьте, что условия совпадают с заявкой.</div></div>'
+              : '<div class="trade-count">Ожидаем код от автора заявки.</div>')) +
         '</section>';
       const alreadyCompleted = isSender ? request.sender_completed_at : request.recipient_completed_at;
-      if (!alreadyCompleted && ownCode && partnerCode) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
+      if (!alreadyCompleted && exchangeCode) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
     }
     if (['pending', 'accepted', 'agreed'].includes(request.status)) {
       actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="cancel">Отменить</button>');
