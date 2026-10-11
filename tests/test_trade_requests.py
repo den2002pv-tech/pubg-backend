@@ -420,7 +420,9 @@ def test_telegram_webhook_delivers_code_from_force_reply(monkeypatch):
 
     assert result == {"ok": True}
     assert delivered == [(29, 100, "ABC-123")]
-    assert any("Код передан второму игроку" in payload["text"] for _method, payload in sent)
+    # _deliver_exchange_code sends the sender's completion-button notification;
+    # this webhook must not send a duplicate plain-text confirmation.
+    assert sent == []
 
 
 def test_exchange_code_api_uses_authenticated_sender(monkeypatch):
