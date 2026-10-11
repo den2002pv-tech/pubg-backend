@@ -482,3 +482,119 @@ def test_code_callback_prompts_sender_to_reply_with_game_code(monkeypatch):
     assert "создайте код в PUBG Mobile" in sent[0][1]["text"]
     assert sent[0][1]["reply_markup"]["force_reply"] is True
     assert answers == [("callback-1", "Ожидаю код обмена")]
+
+
+def test_final_completion_transfers_cards_atomically_and_clears_wishlist(monkeypatch):
+    request = {
+        "id": 41,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "offered_card_id": "card_1",
+        "requested_card_id": "card_2",
+        "sender_completed_at": None,
+        "recipient_completed_at": "already-confirmed",
+    }
+    executed = []
+    committed = []
+
+    class FakeCursor:
+        rowcount = 1
+        last_query = ""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=()):
+            self.last_query = query
+            executed.append((query, params))
+
+        def fetchone(self):
+            if "RETURNING status" in self.last_query:
+                return {"status": "completed"}
+            return None
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            committed.append(True)
+
+    monkeypatch.setattr(trades, "get_trade_request", lambda request_id, viewer_id: {**request, "status": "completed"})
+    monkeypatch.setattr(trades, "get_connection", FakeConnection)
+
+    result = trades._transition(41, 100, "complete")
+
+    assert result["status"] == "completed"
+    assert committed == [True]
+    assert sum("UPDATE user_cards" in query for query, _ in executed) == 2
+    assert sum("INSERT INTO user_cards" in query for query, _ in executed) == 2
+    assert sum("DELETE FROM desired_cards" in query for query, _ in executed) == 2
+    assert ("card_2", 100) in [params for query, params in executed if "INSERT INTO user_cards" in query]
+    assert ("card_1", 200) in [params for query, params in executed if "INSERT INTO user_cards" in query]
+
+
+def test_final_completion_rolls_back_if_a_card_is_no_longer_available(monkeypatch):
+    request = {
+        "id": 42,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "offered_card_id": "card_1",
+        "requested_card_id": "card_2",
+        "sender_completed_at": None,
+        "recipient_completed_at": "already-confirmed",
+    }
+    committed = []
+
+    class FakeCursor:
+        rowcount = 1
+        last_query = ""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=()):
+            self.last_query = query
+            if query.lstrip().startswith("UPDATE user_cards"):
+                self.rowcount = 0
+
+        def fetchone(self):
+            if "RETURNING status" in self.last_query:
+                return {"status": "completed"}
+            return None
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            committed.append(True)
+
+    monkeypatch.setattr(trades, "get_trade_request", lambda request_id, viewer_id: dict(request))
+    monkeypatch.setattr(trades, "get_connection", FakeConnection)
+
+    with pytest.raises(HTTPException) as exc:
+        trades._transition(42, 100, "complete")
+
+    assert exc.value.status_code == 409
+    assert committed == []
