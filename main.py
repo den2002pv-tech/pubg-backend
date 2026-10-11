@@ -1198,6 +1198,91 @@ async def update_desired_cards(
     return {"status": "ok", "desired_cards": desired}
 
 
+def _send_telegram_message(chat_id: int, text: str) -> None:
+    """Send a Telegram Bot API message without exposing bot credentials in errors."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
+
+    payload = json.dumps({"chat_id": chat_id, "text": text}).encode("utf-8")
+    request = Request(
+        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=8) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        # Never return or log the URL, because it contains the bot token.
+        raise HTTPException(
+            status_code=502,
+            detail="Telegram не смог доставить уведомление. Возможно, пользователь ещё не запускал бота.",
+        ) from exc
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось отправить уведомление через Telegram. Попробуйте позже.",
+        ) from exc
+
+    if not isinstance(result, dict) or not result.get("ok"):
+        raise HTTPException(
+            status_code=502,
+            detail="Telegram не смог доставить уведомление. Возможно, пользователь ещё не запускал бота.",
+        )
+
+
+@app.post("/me/trade-matches/{target_telegram_id}/contact")
+async def contact_trade_match(
+    target_telegram_id: int,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    """Notify a reciprocal trade partner through the bot, even without a username."""
+    if target_telegram_id <= 0:
+        raise HTTPException(status_code=400, detail="Некорректный Telegram ID")
+
+    auth = _validate_telegram_init_data(init_data)
+    sender = auth["user"]
+    get_or_create_user(
+        auth["id"],
+        username=str(sender.get("username") or ""),
+        first_name=str(sender.get("first_name") or ""),
+        last_name=str(sender.get("last_name") or ""),
+    )
+
+    # Do not allow this endpoint to be used to message arbitrary Telegram IDs.
+    match = next(
+        (item for item in get_trade_matches(auth["id"]) if int(item["telegram_id"]) == target_telegram_id),
+        None,
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail="Подходящий обмен с этим игроком не найден")
+
+    sender_name = " ".join(
+        part.strip() for part in (sender.get("first_name"), sender.get("last_name")) if part and part.strip()
+    )
+    if not sender_name:
+        sender_name = f"@{sender['username']}" if sender.get("username") else "Игрок PUBG Mobile"
+
+    trade_lines = []
+    for trade in match.get("trades", [])[:5]:
+        give_name = str((trade.get("you_give") or {}).get("name") or "карта")
+        get_name = str((trade.get("you_get") or {}).get("name") or "карта")
+        trade_lines.append(f"• «{give_name}» ↔ «{get_name}»")
+    if not trade_lines:
+        raise HTTPException(status_code=409, detail="Подходящий обмен больше не актуален")
+
+    message = (
+        f"🔄 Вам предлагают обмен картами PUBG Mobile!\n"
+        f"Игрок: {sender_name}\n\n"
+        f"Подходящие варианты:\n" + "\n".join(trade_lines) +
+        "\n\nОткройте бота PUBG Card Exchange, чтобы проверить свои карты и договориться об обмене."
+    )
+    _send_telegram_message(target_telegram_id, message)
+    return {"status": "sent", "message": "Предложение обмена отправлено через Telegram-бота"}
+
+
 @app.get("/me/trade-matches")
 async def get_my_trade_matches(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
     """Return reciprocal trade suggestions for the authenticated Telegram user."""
