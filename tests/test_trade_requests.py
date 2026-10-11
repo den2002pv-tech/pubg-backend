@@ -603,3 +603,31 @@ def test_final_completion_rolls_back_if_a_card_is_no_longer_available(monkeypatc
 
     assert exc.value.status_code == 409
     assert committed == []
+
+def test_completion_keyboard_is_available_for_both_players_after_code_sent():
+    request = {
+        "id": 73,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "sender_completed_at": None,
+        "recipient_completed_at": None,
+        "exchange_code_sent_at": "2026-10-11T17:00:00Z",
+    }
+
+    sender_keyboard = trades._keyboard(request, 100)
+    recipient_keyboard = trades._keyboard(request, 200)
+
+    for keyboard in (sender_keyboard, recipient_keyboard):
+        assert any(
+            button["callback_data"] == "tr:73:complete"
+            for row in keyboard["inline_keyboard"]
+            for button in row
+        )
+
+    assert not any(
+        button["callback_data"] == "tr:73:code"
+        for row in sender_keyboard["inline_keyboard"]
+        for button in row
+    )
+
