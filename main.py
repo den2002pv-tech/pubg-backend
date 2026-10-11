@@ -1233,6 +1233,42 @@ def _send_telegram_message(chat_id: int, text: str) -> None:
         )
 
 
+def _card_icon_public_url(icon: Any) -> str:
+    """Return a public URL only for card icons hosted by this application."""
+    path = str(icon or "").strip()
+    if not path.startswith("/static/cards/") or ".." in path.split("/"):
+        return ""
+    base_url = os.getenv("PUBLIC_BASE_URL", "https://pubg-backend-3rtc.onrender.com").strip().rstrip("/")
+    return f"{base_url}{path}"
+
+
+def _send_telegram_media_group(chat_id: int, media: list[dict[str, str]]) -> None:
+    """Send card icons as a Telegram album. The caller may fall back to text-only."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
+    if not 2 <= len(media) <= 10:
+        return
+
+    payload = json.dumps({"chat_id": chat_id, "media": media}, ensure_ascii=False).encode("utf-8")
+    request = Request(
+        f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=8) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось отправить изображения карт через Telegram.",
+        ) from exc
+    if not isinstance(result, dict) or not result.get("ok"):
+        raise HTTPException(status_code=502, detail="Telegram не смог отправить изображения карт")
+
+
 @app.post("/me/trade-matches/{target_telegram_id}/contact")
 async def contact_trade_match(
     target_telegram_id: int,
@@ -1266,19 +1302,49 @@ async def contact_trade_match(
         sender_name = f"@{sender['username']}" if sender.get("username") else "Игрок PUBG Mobile"
 
     trade_lines = []
+    media: list[dict[str, str]] = []
+    base_url = os.getenv("PUBLIC_BASE_URL", "https://pubg-backend-3rtc.onrender.com").strip().rstrip("/")
     for trade in match.get("trades", [])[:5]:
-        give_name = str((trade.get("you_give") or {}).get("name") or "карта")
-        get_name = str((trade.get("you_get") or {}).get("name") or "карта")
-        trade_lines.append(f"• «{give_name}» ↔ «{get_name}»")
+        sender_gives = trade.get("you_give") or {}
+        sender_gets = trade.get("you_get") or {}
+        # For the recipient, the sender's requested card is what they give;
+        # the sender's duplicate is what they receive.
+        recipient_gives_name = str(sender_gets.get("name") or "карта")
+        recipient_gets_name = str(sender_gives.get("name") or "карта")
+        trade_lines.append(
+            f"• Вы отдаёте «{recipient_gives_name}» ↔ получаете «{recipient_gets_name}»"
+        )
+
+        give_icon = _card_icon_public_url(sender_gets.get("icon"))
+        get_icon = _card_icon_public_url(sender_gives.get("icon"))
+        if give_icon and get_icon and len(media) <= 8:
+            media.extend([
+                {
+                    "type": "photo",
+                    "media": give_icon,
+                    "caption": f"📤 Вы отдаёте: {recipient_gives_name}",
+                },
+                {
+                    "type": "photo",
+                    "media": get_icon,
+                    "caption": f"📥 Вы получаете: {recipient_gets_name}",
+                },
+            ])
     if not trade_lines:
         raise HTTPException(status_code=409, detail="Подходящий обмен больше не актуален")
 
     message = (
-        f"🔄 Вам предлагают обмен картами PUBG Mobile!\n"
-        f"Игрок: {sender_name}\n\n"
-        f"Подходящие варианты:\n" + "\n".join(trade_lines) +
-        "\n\nОткройте бота PUBG Card Exchange, чтобы проверить свои карты и договориться об обмене."
+        f"🔄 Вам предлагают обмен картами PUBG Mobile!\\n"
+        f"Игрок: {sender_name}\\n\\n"
+        f"Варианты обмена:\\n" + "\\n".join(trade_lines) +
+        "\\n\\nОткройте бота PUBG Card Exchange, чтобы проверить свои карты и договориться об обмене."
     )
+    # A broken/missing icon must not prevent a text notification from arriving.
+    if len(media) >= 2:
+        try:
+            _send_telegram_media_group(target_telegram_id, media)
+        except HTTPException:
+            pass
     _send_telegram_message(target_telegram_id, message)
     return {"status": "sent", "message": "Предложение обмена отправлено через Telegram-бота"}
 
