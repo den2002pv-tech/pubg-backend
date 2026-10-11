@@ -139,3 +139,48 @@ def test_telegram_webhook_rejects_invalid_secret(monkeypatch):
         )
 
     assert exc.value.status_code == 403
+
+
+def test_list_my_trade_requests_qualifies_ambiguous_id_column(monkeypatch):
+    captured = {}
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params):
+            captured["query"] = query
+            captured["params"] = params
+
+        def fetchall(self):
+            return [{"id": 17}]
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(trades, "_auth", lambda _init_data: (12345, {}))
+    monkeypatch.setattr(trades, "get_connection", FakeConnection)
+    monkeypatch.setattr(
+        trades,
+        "get_trade_request",
+        lambda request_id, viewer_id: {"id": request_id, "viewer_id": viewer_id},
+    )
+
+    result = asyncio.run(trades.list_my_trade_requests(scope="all", init_data="test-init-data"))
+
+    assert result == {"requests": [{"id": 17, "viewer_id": 12345}], "count": 1}
+    assert "SELECT tr.id FROM trade_requests tr" in captured["query"]
+    assert captured["params"] == (12345, 12345, "all", "all", 12345, "all", 12345)
