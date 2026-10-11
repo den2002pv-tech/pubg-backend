@@ -1333,10 +1333,10 @@ async def contact_trade_match(
         raise HTTPException(status_code=409, detail="Подходящий обмен больше не актуален")
 
     message = (
-        f"🔄 Вам предлагают обмен картами PUBG Mobile!\\n"
-        f"Игрок: {sender_name}\\n\\n"
-        f"Варианты обмена:\\n" + "\\n".join(trade_lines) +
-        "\\n\\nОткройте бота PUBG Card Exchange, чтобы проверить свои карты и договориться об обмене."
+        f"🔄 Вам предлагают обмен картами PUBG Mobile!\n"
+        f"Игрок: {sender_name}\n\n"
+        f"Варианты обмена:\n" + "\n".join(trade_lines) +
+        "\n\nОткройте бота PUBG Card Exchange, чтобы проверить свои карты и договориться об обмене."
     )
     # A broken/missing icon must not prevent a text notification from arriving.
     if len(media) >= 2:
