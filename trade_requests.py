@@ -536,11 +536,11 @@ def _deliver_exchange_code(request_id: int, sender_telegram_id: int, code: str) 
                 raise HTTPException(status_code=409, detail="Код по этой заявке уже отправлен")
 
             message = (
-                f"🎴 Код обмена PUBG Mobile — заявка #{request_id}\\n\\n"
-                f"Игрок: {str(request.get('sender_first_name') or 'Игрок')}\\n"
-                f"📥 Вы получаете: «{request['offered_card_name']}»\\n"
-                f"📤 Вы отдаёте: «{request['requested_card_name']}»\\n\\n"
-                f"Код обмена: {clean_code}\\n\\n"
+                f"🎴 Код обмена PUBG Mobile — заявка #{request_id}\n\n"
+                f"Игрок: {str(request.get('sender_first_name') or 'Игрок')}\n"
+                f"📥 Вы получаете: «{request['offered_card_name']}»\n"
+                f"📤 Вы отдаёте: «{request['requested_card_name']}»\n\n"
+                f"Код обмена: {clean_code}\n\n"
                 "Откройте PUBG Mobile и используйте этот код. После обмена оба игрока должны подтвердить завершение в боте."
             )
             try:
@@ -640,7 +640,7 @@ async def telegram_webhook(
 
             reply_to = message.get("reply_to_message")
             reply_text = str((reply_to or {}).get("text") or "") if isinstance(reply_to, dict) else ""
-            code_prompt = re.fullmatch(r"Введите код обмена для заявки #(\\d+) в ответ на это сообщение\\..*", reply_text, flags=re.DOTALL)
+            code_prompt = re.fullmatch(r"Введите код обмена для заявки #(\d+) в ответ на это сообщение\..*", reply_text, flags=re.DOTALL)
             sender_id = (message.get("from") or {}).get("id")
             if (
                 code_prompt
@@ -693,7 +693,7 @@ async def telegram_webhook(
             _telegram_call("sendMessage", {
                 "chat_id": actor_id,
                 "text": (
-                    f"Введите код обмена для заявки #{request_id} в ответ на это сообщение.\\n"
+                    f"Введите код обмена для заявки #{request_id} в ответ на это сообщение.\n"
                     "Сначала создайте код в PUBG Mobile. Я передам его второму игроку. "
                     "Сам код не сохраняется в нашей базе."
                 ),
