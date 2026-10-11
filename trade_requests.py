@@ -26,6 +26,10 @@ class TradeRequestCreate(BaseModel):
     requested_card_id: str = Field(min_length=1, max_length=100)
 
 
+class TradeCodeSubmit(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
 def register_trade_request_routes(
     app: FastAPI,
     validate_init_data: Callable[..., dict[str, Any]],
@@ -127,6 +131,7 @@ def get_trade_request(request_id: int, viewer_telegram_id: int | None = None) ->
                 SELECT tr.id, tr.status, tr.created_at, tr.updated_at,
                        tr.sender_agreed_at, tr.recipient_agreed_at,
                        tr.sender_completed_at, tr.recipient_completed_at,
+                       tr.sender_exchange_code, tr.recipient_exchange_code,
                        sender.telegram_id AS sender_telegram_id,
                        sender.first_name AS sender_first_name, sender.last_name AS sender_last_name,
                        recipient.telegram_id AS recipient_telegram_id,
@@ -194,6 +199,25 @@ def _request_text(request: dict[str, Any], viewer_id: int) -> str:
         f"📥 Вы получаете: «{gets}»\n\n"
         f"Статус: {_status_label(request)}\n"
         f"Номер заявки: #{request['id']}"
+        + (
+            "\n\nПосле подтверждения оба игрока создают код для своей карты в PUBG Mobile "
+            "и передают его партнёру через приложение."
+            if request["status"] == "agreed"
+            else ""
+        )
+    )
+
+
+def _exchange_code_message(request: dict[str, Any], sender_id: int, code: str) -> str:
+    is_sender = sender_id == int(request["sender_telegram_id"])
+    prefix = "sender" if is_sender else "recipient"
+    card_name = request["offered_card_name"] if is_sender else request["requested_card_name"]
+    return (
+        f"🔑 Код обмена от {_player_name(request, prefix)}\n"
+        f"Карта: «{card_name}»\n"
+        f"Код: {code}\n\n"
+        "Введите этот код в PUBG Mobile, чтобы получить карту. "
+        "Если код не сработал, свяжитесь с партнёром и отправьте актуальный код заново."
     )
 
 
@@ -290,6 +314,8 @@ def init_trade_request_schema() -> None:
                     recipient_agreed_at TIMESTAMPTZ,
                     sender_completed_at TIMESTAMPTZ,
                     recipient_completed_at TIMESTAMPTZ,
+                    sender_exchange_code TEXT,
+                    recipient_exchange_code TEXT,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     CHECK (sender_user_id <> recipient_user_id)
@@ -298,6 +324,8 @@ def init_trade_request_schema() -> None:
                     ON trade_requests (sender_user_id, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_trade_requests_recipient_created
                     ON trade_requests (recipient_user_id, created_at DESC);
+                ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS sender_exchange_code TEXT;
+                ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS recipient_exchange_code TEXT;
                 """
             )
         conn.commit()
@@ -341,7 +369,7 @@ async def list_my_trade_requests(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id FROM trade_requests tr
+                SELECT tr.id FROM trade_requests tr
                 JOIN users sender ON sender.id = tr.sender_user_id
                 JOIN users recipient ON recipient.id = tr.recipient_user_id
                 WHERE (sender.telegram_id = %s OR recipient.telegram_id = %s)
@@ -456,6 +484,17 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                 raise HTTPException(status_code=400, detail="Неизвестное действие")
             if cur.rowcount != 1:
                 raise HTTPException(status_code=409, detail="Статус заявки уже изменился")
+            if action in {"cancel", "decline"}:
+                cur.execute(
+                    "UPDATE trade_requests SET sender_exchange_code=NULL, recipient_exchange_code=NULL WHERE id=%s",
+                    (request_id,),
+                )
+            elif action == "complete":
+                cur.execute(
+                    """UPDATE trade_requests SET sender_exchange_code=NULL, recipient_exchange_code=NULL
+                       WHERE id=%s AND status='completed'""",
+                    (request_id,),
+                )
         conn.commit()
     return get_trade_request(request_id, actor_id)
 
