@@ -217,12 +217,10 @@ def test_admin_preview_rejects_paths_outside_temp_images(monkeypatch, tmp_path):
     assert exc.value.status_code == 400
 
 
-def test_github_commit_defaults_to_working_branch_and_refuses_main(monkeypatch):
+def test_github_commit_always_targets_working_branch(monkeypatch):
     monkeypatch.delenv("GITHUB_BRANCH", raising=False)
     assert main._github_commit_branch() == "feature/card-counter"
 
+    # A stale Render setting must not redirect admin data commits to main.
     monkeypatch.setenv("GITHUB_BRANCH", "main")
-    with pytest.raises(main.HTTPException) as exc:
-        main._github_commit_branch()
-
-    assert exc.value.status_code == 409
+    assert main._github_commit_branch() == "feature/card-counter"

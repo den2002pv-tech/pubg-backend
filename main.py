@@ -1560,13 +1560,9 @@ def _github_request(method: str, url: str, token: str, payload: dict[str, Any] |
 
 
 def _github_commit_branch() -> str:
-    branch = os.getenv("GITHUB_BRANCH", "feature/card-counter").strip() or "feature/card-counter"
-    if branch == "main":
-        raise HTTPException(
-            status_code=409,
-            detail="Админка не может отправлять данные в main. Установи GITHUB_BRANCH=feature/card-counter.",
-        )
-    return branch
+    # Card data must never be pushed to main from the admin UI, even if an old
+    # Render environment variable still points there.
+    return "feature/card-counter"
 
 
 def _github_commit() -> dict[str, Any]:
