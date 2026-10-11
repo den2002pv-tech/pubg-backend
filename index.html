@@ -60,6 +60,10 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .trade-count{font-size:11px;color:var(--text-muted);margin-top:4px}
 .trade-arrow{font-size:20px}
 .trade-contact{display:inline-flex;margin-top:10px;text-decoration:none}
+.trade-code-form{display:grid;gap:8px;margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px}
+.trade-code-form label{display:grid;gap:6px;font-size:13px}
+.trade-code-form input{width:100%;min-width:0;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)}
+.trade-code-value{overflow-wrap:anywhere;padding:10px;border-radius:8px;background:var(--surface)}
 .trade-empty{padding:16px;text-align:center;color:var(--text-muted)}
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .tab{border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:var(--radius-md);padding:11px;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s}
@@ -1796,9 +1800,23 @@ function renderTradeRequests(requests) {
       const alreadyAgreed = isSender ? request.sender_agreed_at : request.recipient_agreed_at;
       if (!alreadyAgreed) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="agree">🤝 Подтвердить обмен</button>');
     }
+    let codePanel = '';
     if (request.status === 'agreed') {
+      const exchangeCode = request.exchange_code;
+      codePanel = '<section class="trade-code-form"><b>🔑 Код обмена</b>' +
+        '<div class="trade-count">Код создаёт автор заявки в PUBG Mobile для согласованного обмена. Затем бот передаст его второму игроку.</div>' +
+        (isSender
+          ? (exchangeCode ? '<div class="trade-count">Код уже отправлен партнёру. Если он истёк, передайте новый.</div>' : '') +
+            '<form data-request-code-form data-request-id="' + tradeEsc(request.id) + '">' +
+              '<label>' + (exchangeCode ? 'Новый код обмена' : 'Код обмена из PUBG Mobile') +
+              '<input name="code" type="text" maxlength="64" autocomplete="off" required placeholder="Введите код из игры"></label>' +
+              '<button type="submit" class="trade">' + (exchangeCode ? 'Обновить код у партнёра' : 'Передать код партнёру') + '</button></form>'
+          : (exchangeCode
+              ? '<div><b>Код обмена от партнёра</b><div class="trade-code-value"><code>' + tradeEsc(exchangeCode) + '</code></div><div class="trade-count">Введите этот код в игре и проверьте, что условия совпадают с заявкой.</div></div>'
+              : '<div class="trade-count">Ожидаем код от автора заявки.</div>')) +
+        '</section>';
       const alreadyCompleted = isSender ? request.sender_completed_at : request.recipient_completed_at;
-      if (!alreadyCompleted) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
+      if (!alreadyCompleted && exchangeCode) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
     }
     if (['pending', 'accepted', 'agreed'].includes(request.status)) {
       actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="cancel">Отменить</button>');
@@ -1807,6 +1825,7 @@ function renderTradeRequests(requests) {
       '<div class="trade-card-name">📤 Вы отдаёте: <b>' + tradeEsc(gives) + '</b></div>' +
       '<div class="trade-card-name" style="margin-top:6px">📥 Вы получаете: <b>' + tradeEsc(gets) + '</b></div>' +
       '<div class="trade-count" style="margin:8px 0">' + tradeEsc(requestStatusLabels[request.status] || request.status) + '</div>' +
+      codePanel +
       '<div class="quick-actions-bar">' + actions.join('') + '</div></article>';
   }).join('');
 }
@@ -1830,6 +1849,43 @@ async function loadTradeRequests() {
     tradeRequestsStatusEl.textContent = 'Ошибка загрузки заявок: ' + (error.message || 'проверьте соединение');
   }
 }
+tradeRequestsEl.addEventListener('submit', async event => {
+  const form = event.target.closest('form[data-request-code-form]');
+  if (!form || !tradeRequestsEl.contains(form)) return;
+  event.preventDefault();
+  const input = form.elements.namedItem('code');
+  const code = String(input?.value || '').trim();
+  const requestId = form.dataset.requestId;
+  if (!code) {
+    input?.focus();
+    return;
+  }
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = 'Передаём код…';
+  }
+  try {
+    const response = await fetch(API + '/me/trade-requests/' + encodeURIComponent(requestId) + '/code', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось передать код');
+    tradeRequestsStatusEl.textContent = data.notification_delivered
+      ? 'Код сохранён и отправлен партнёру в Telegram.'
+      : 'Код сохранён, но Telegram не доставил уведомление. Партнёр увидит его в заявке.';
+    await loadTradeRequests();
+  } catch (error) {
+    tradeRequestsStatusEl.textContent = 'Ошибка передачи кода: ' + (error.message || 'проверьте соединение');
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = 'Передать код партнёру';
+    }
+  }
+});
+
 tradeRequestsEl.addEventListener('click', async event => {
   const button = event.target.closest('button[data-request-action]');
   if (!button || !tradeRequestsEl.contains(button)) return;

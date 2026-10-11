@@ -26,6 +26,10 @@ class TradeRequestCreate(BaseModel):
     requested_card_id: str = Field(min_length=1, max_length=100)
 
 
+class TradeCodeSubmit(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
 def register_trade_request_routes(
     app: FastAPI,
     validate_init_data: Callable[..., dict[str, Any]],
@@ -127,6 +131,7 @@ def get_trade_request(request_id: int, viewer_telegram_id: int | None = None) ->
                 SELECT tr.id, tr.status, tr.created_at, tr.updated_at,
                        tr.sender_agreed_at, tr.recipient_agreed_at,
                        tr.sender_completed_at, tr.recipient_completed_at,
+                       tr.exchange_code,
                        sender.telegram_id AS sender_telegram_id,
                        sender.first_name AS sender_first_name, sender.last_name AS sender_last_name,
                        recipient.telegram_id AS recipient_telegram_id,
@@ -194,6 +199,22 @@ def _request_text(request: dict[str, Any], viewer_id: int) -> str:
         f"📥 Вы получаете: «{gets}»\n\n"
         f"Статус: {_status_label(request)}\n"
         f"Номер заявки: #{request['id']}"
+        + (
+            "\n\nПосле подтверждения оба игрока создают код для своей карты в PUBG Mobile "
+            "и передают его партнёру через приложение."
+            if request["status"] == "agreed"
+            else ""
+        )
+    )
+
+
+def _exchange_code_message(request: dict[str, Any], code: str) -> str:
+    return (
+        f"🔑 Код обмена от {_player_name(request, 'sender')}\n"
+        f"📤 Вы отдаёте: «{request['requested_card_name']}»\n"
+        f"📥 Вы получаете: «{request['offered_card_name']}»\n"
+        f"Код: {code}\n\n"
+        "Введите код в PUBG Mobile и проверьте, что условия обмена совпадают с заявкой."
     )
 
 
@@ -234,9 +255,12 @@ def _keyboard(request: dict[str, Any], viewer_id: int) -> dict[str, Any]:
         if viewer_id == recipient_id and not request.get("recipient_agreed_at"):
             rows.append([{"text": "🤝 Подтвердить обмен", "callback_data": f"tr:{request_id}:agree"}])
     elif status == "agreed":
-        completed_field = "sender_completed_at" if viewer_id == sender_id else "recipient_completed_at"
-        if not request.get(completed_field):
-            rows.append([{"text": "✅ Подтвердить завершение", "callback_data": f"tr:{request_id}:complete"}])
+        if request.get("exchange_code"):
+            completed_field = "sender_completed_at" if viewer_id == sender_id else "recipient_completed_at"
+            if not request.get(completed_field):
+                rows.append([{"text": "✅ Подтвердить завершение", "callback_data": f"tr:{request_id}:complete"}])
+        elif viewer_id == sender_id:
+            rows.append([{"text": "🔑 Передать код в приложении", "callback_data": f"tr:{request_id}:code_help"}])
     if status in {"pending", "accepted", "agreed"}:
         rows.append([{"text": "🔎 Посмотреть карты и статус", "callback_data": f"tr:{request_id}:details"}])
         rows.append([{"text": "Отменить обмен", "callback_data": f"tr:{request_id}:cancel"}])
@@ -290,6 +314,7 @@ def init_trade_request_schema() -> None:
                     recipient_agreed_at TIMESTAMPTZ,
                     sender_completed_at TIMESTAMPTZ,
                     recipient_completed_at TIMESTAMPTZ,
+                    exchange_code TEXT,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     CHECK (sender_user_id <> recipient_user_id)
@@ -298,6 +323,7 @@ def init_trade_request_schema() -> None:
                     ON trade_requests (sender_user_id, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_trade_requests_recipient_created
                     ON trade_requests (recipient_user_id, created_at DESC);
+                ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS exchange_code TEXT;
                 """
             )
         conn.commit()
@@ -341,7 +367,7 @@ async def list_my_trade_requests(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id FROM trade_requests tr
+                SELECT tr.id FROM trade_requests tr
                 JOIN users sender ON sender.id = tr.sender_user_id
                 JOIN users recipient ON recipient.id = tr.recipient_user_id
                 WHERE (sender.telegram_id = %s OR recipient.telegram_id = %s)
@@ -436,6 +462,8 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
             elif action == "complete":
                 if request["status"] != "agreed":
                     raise HTTPException(status_code=409, detail="Оба игрока должны подтвердить договорённость")
+                if not request.get("exchange_code"):
+                    raise HTTPException(status_code=409, detail="Инициатор должен сначала передать код обмена")
                 field = "sender_completed_at" if actor_id == sender_id else "recipient_completed_at"
                 cur.execute(
                     f"""UPDATE trade_requests SET {field}=COALESCE({field}, NOW()),
@@ -456,8 +484,65 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                 raise HTTPException(status_code=400, detail="Неизвестное действие")
             if cur.rowcount != 1:
                 raise HTTPException(status_code=409, detail="Статус заявки уже изменился")
+            if action in {"cancel", "decline"}:
+                cur.execute(
+                    "UPDATE trade_requests SET exchange_code=NULL WHERE id=%s",
+                    (request_id,),
+                )
+            elif action == "complete":
+                cur.execute(
+                    """UPDATE trade_requests SET exchange_code=NULL
+                       WHERE id=%s AND status='completed'""",
+                    (request_id,),
+                )
         conn.commit()
     return get_trade_request(request_id, actor_id)
+
+
+
+@router.post("/me/trade-requests/{request_id}/code")
+async def submit_exchange_code(
+    request_id: int,
+    data: TradeCodeSubmit,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    viewer_id, _ = _auth(init_data)
+    request = get_trade_request(request_id, viewer_id)
+    if viewer_id != int(request["sender_telegram_id"]):
+        raise HTTPException(status_code=403, detail="Код обмена передаёт автор заявки")
+    if request["status"] != "agreed":
+        raise HTTPException(status_code=409, detail="Сначала оба игрока должны подтвердить обмен")
+
+    code = data.code.strip()
+    if not code or "\n" in code or "\r" in code:
+        raise HTTPException(status_code=400, detail="Введите корректный код обмена")
+
+    other_id = int(request["recipient_telegram_id"])
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE trade_requests SET exchange_code=%s, updated_at=NOW()
+                   WHERE id=%s AND status='agreed'""",
+                (code, request_id),
+            )
+            if cur.rowcount != 1:
+                raise HTTPException(status_code=409, detail="Статус заявки изменился; обновите страницу")
+        conn.commit()
+
+    request = get_trade_request(request_id, viewer_id)
+    notification_delivered = True
+    try:
+        _telegram_call("sendMessage", {
+            "chat_id": other_id,
+            "text": _exchange_code_message(request, code),
+        })
+    except HTTPException:
+        notification_delivered = False
+    return {
+        "status": "submitted",
+        "notification_delivered": notification_delivered,
+        "request": request,
+    }
 
 
 @router.post("/me/trade-requests/{request_id}/{action}")
@@ -572,6 +657,20 @@ async def telegram_webhook(
         if action == "details":
             _notify_request(request, actor_id)
             _answer_callback(callback_id, "Карты и статус заявки отправлены")
+            return {"ok": True}
+        if action == "code_help":
+            _telegram_call("sendMessage", {
+                "chat_id": actor_id,
+                "text": (
+                    "Чтобы передать код: откройте PUBG Mobile, создайте код для карты, которую отдаёте, "
+                    "затем вставьте его в карточку заявки в приложении. Каждый участник передаёт свой код."
+                ),
+                "reply_markup": {"inline_keyboard": [[{
+                    "text": "🎴 Открыть приложение",
+                    "web_app": {"url": "https://pubg-app-phi.vercel.app"},
+                }]]},
+            })
+            _answer_callback(callback_id, "Инструкция отправлена")
             return {"ok": True}
         if action == "accept":
             if actor_id != int(request["recipient_telegram_id"]) or request["status"] != "pending":
