@@ -558,6 +558,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     <hr style="border:0;border-top:1px solid var(--border);margin:18px 0">
     <h3 style="margin:0 0 8px">📬 Мои заявки</h3>
     <div class="quick-actions-bar" role="group" aria-label="Фильтр заявок">
+      <button type="button" class="quick-btn active" data-request-scope="all" aria-pressed="true">Все</button>
       <button type="button" class="quick-btn" data-request-scope="incoming" aria-pressed="false">Входящие</button>
       <button type="button" class="quick-btn" data-request-scope="outgoing" aria-pressed="false">Исходящие</button>
     </div>
@@ -1730,10 +1731,11 @@ tradeMatchesEl.addEventListener('click', async event => {
     if (!response.ok) throw new Error(data.detail || 'Не удалось отправить предложение');
     button.textContent = '✓ Предложение отправлено';
     button.setAttribute('aria-label', 'Предложение обмена отправлено');
-    tradeStatusEl.textContent = data.message || 'Предложение обмена отправлено через Telegram-бота.';
+    tradeStatusEl.textContent = data.message || 'Заявка сохранена.';
+    await loadTradeRequests();
   } catch (error) {
     button.disabled = false;
-    button.textContent = 'Предложить обмен через бота';
+    button.textContent = 'Предложить этот обмен';
     tradeStatusEl.textContent = 'Не удалось отправить предложение: ' + (error.message || 'проверьте соединение');
   }
 });
