@@ -74,8 +74,10 @@ def _create_request_record(
             cur.execute(
                 """
                 INSERT INTO trade_requests
-                    (sender_user_id, recipient_user_id, offered_card_id, requested_card_id, status)
-                SELECT sender.id, recipient.id, offered.id, requested.id, 'pending'
+                    (sender_user_id, recipient_user_id, offered_card_id, requested_card_id,
+                     offered_card_name, offered_card_icon, requested_card_name, requested_card_icon, status)
+                SELECT sender.id, recipient.id, offered.id, requested.id,
+                       offered.name, offered.icon, requested.name, requested.icon, 'pending'
                 FROM users sender
                 JOIN users recipient ON recipient.telegram_id = %s
                 JOIN cards offered ON offered.id = %s
@@ -129,13 +131,11 @@ def get_trade_request(request_id: int, viewer_telegram_id: int | None = None) ->
                        sender.first_name AS sender_first_name, sender.last_name AS sender_last_name,
                        recipient.telegram_id AS recipient_telegram_id,
                        recipient.first_name AS recipient_first_name, recipient.last_name AS recipient_last_name,
-                       offered.id AS offered_card_id, offered.name AS offered_card_name, offered.icon AS offered_card_icon,
-                       requested.id AS requested_card_id, requested.name AS requested_card_name, requested.icon AS requested_card_icon
+                       tr.offered_card_id, tr.offered_card_name, tr.offered_card_icon,
+                       tr.requested_card_id, tr.requested_card_name, tr.requested_card_icon
                 FROM trade_requests tr
                 JOIN users sender ON sender.id = tr.sender_user_id
                 JOIN users recipient ON recipient.id = tr.recipient_user_id
-                JOIN cards offered ON offered.id = tr.offered_card_id
-                JOIN cards requested ON requested.id = tr.requested_card_id
                 WHERE tr.id = %s
                 """,
                 (request_id,),
@@ -278,8 +278,12 @@ def init_trade_request_schema() -> None:
                     id BIGSERIAL PRIMARY KEY,
                     sender_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     recipient_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    offered_card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE RESTRICT,
-                    requested_card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE RESTRICT,
+                    offered_card_id TEXT NOT NULL,
+                    requested_card_id TEXT NOT NULL,
+                    offered_card_name TEXT NOT NULL,
+                    offered_card_icon TEXT NOT NULL DEFAULT '',
+                    requested_card_name TEXT NOT NULL,
+                    requested_card_icon TEXT NOT NULL DEFAULT '',
                     status TEXT NOT NULL DEFAULT 'pending'
                         CHECK (status IN ('pending', 'accepted', 'agreed', 'completed', 'declined', 'cancelled')),
                     sender_agreed_at TIMESTAMPTZ,
