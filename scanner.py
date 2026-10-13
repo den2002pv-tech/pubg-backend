@@ -791,7 +791,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         cards.append(entry)
 
     profile = {
-        "decode_ms": round(decode_ms, 1),
+        "rgb_convert_ms": round(decode_ms, 1),
         "detection_ms": round(detection_ms, 1),
         "counter_ms": round(counter_ms, 1),
         "raw_hash_ms": round(raw_hash_ms, 1),
