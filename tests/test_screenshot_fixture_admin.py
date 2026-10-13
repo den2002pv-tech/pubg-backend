@@ -25,6 +25,15 @@ def test_screenshot_fixture_preview_keeps_original_png_and_returns_detected_boxe
             "cards": [{"box": [10, 12, 40, 60], "quantity": 3}],
         },
     )
+    monkeypatch.setattr(
+        main,
+        "_enrich_admin_scan",
+        lambda cards, db: [{
+            **cards[0], "matched": True, "id": "card_7",
+            "name": "Проверенная карта", "icon": "/static/cards/card_7.webp",
+            "distance": 2.5,
+        }],
+    )
     upload = main.UploadFile(filename="inventory.png", file=io.BytesIO(_png_bytes()))
 
     result = asyncio.run(main.preview_screenshot_test(file=upload, authorization=None))
@@ -32,7 +41,11 @@ def test_screenshot_fixture_preview_keeps_original_png_and_returns_detected_boxe
     saved = tmp_path / f"screenshot-fixture-{result['upload_id']}.png"
     assert saved.read_bytes() == _png_bytes()
     assert result["image_size"] == [100, 120]
-    assert result["cards"] == [{"box": [10, 12, 40, 60], "quantity": 3}]
+    assert result["cards"] == [{
+        "box": [10, 12, 40, 60], "quantity": 3, "matched": True,
+        "card_id": "card_7", "card_name": "Проверенная карта",
+        "icon": "/static/cards/card_7.webp", "match_distance": 2.5,
+    }]
     assert result["image_url"].endswith(result["upload_id"])
 
 
