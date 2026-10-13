@@ -96,6 +96,10 @@ def _assert_crop_quality(testcase, expected_box, actual_box, screenshot_size, la
         ax + aw, ex + ew - x_tolerance,
         msg=f"{label}: crop may cut off the card's right/counter area: {actual_box}",
     )
+    testcase.assertGreaterEqual(
+        ay + ah, ey + eh - y_tolerance,
+        msg=f"{label}: crop may cut off the card's bottom edge: {actual_box}",
+    )
 
     ratio = aw / float(ah)
     testcase.assertGreaterEqual(
