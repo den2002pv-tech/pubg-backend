@@ -149,6 +149,24 @@ class ScreenshotFixtureTests(unittest.TestCase):
                 self.assertIsInstance(quantity, int)
                 self.assertGreaterEqual(quantity, 1)
 
+    def test_crop_quality_accepts_a_complete_card_crop(self):
+        expected = [100, 100, 200, 300]
+        actual = [102, 102, 196, 296]
+        _assert_crop_quality(self, expected, actual, (500, 500), "synthetic-good-crop")
+
+    def test_crop_quality_rejects_a_crop_that_clips_the_counter_corner(self):
+        expected = [100, 100, 200, 300]
+        # The top edge is clipped by more than the permitted tolerance.
+        actual = [102, 116, 196, 284]
+        with self.assertRaises(AssertionError):
+            _assert_crop_quality(self, expected, actual, (500, 500), "synthetic-clipped-counter")
+
+    def test_crop_quality_rejects_excessive_background(self):
+        expected = [100, 100, 200, 300]
+        actual = [50, 100, 300, 300]
+        with self.assertRaises(AssertionError):
+            _assert_crop_quality(self, expected, actual, (500, 500), "synthetic-background")
+
     def test_has_labeled_screenshot_cases(self):
         if not self.cases:
             self.skipTest(
