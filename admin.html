@@ -61,7 +61,20 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     <button class="tab" data-tab="temp">🗑️ Временные</button>
     <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
     <button class="tab" data-tab="users">👥 Пользователи</button>
+    <button class="tab" data-tab="analytics">📊 Метрики</button>
   </div>
+
+  <section id="analytics" class="panel"><div class="box">
+    <h2>Пользовательские метрики</h2>
+    <p class="muted">События Mini App за выбранный период. Не сохраняются поисковые запросы, изображения, названия карт или текст переписки.</p>
+    <div class="row"><select id="analyticsDays" aria-label="Период метрик"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select><button id="refreshAnalyticsBtn" class="btn-secondary" type="button">Обновить метрики</button></div>
+    <div class="row"><div class="stat"><span id="analyticsActiveUsers">—</span><small>Активные пользователи</small></div><div class="stat"><span id="analyticsScans">—</span><small>Успешные сканирования</small></div><div class="stat"><span id="analyticsFailedScans">—</span><small>Ошибки сканирования</small></div><div class="stat"><span id="analyticsAvgScan">—</span><small>Среднее время сканирования</small></div><div class="stat"><span id="analyticsFeedbackAvg">—</span><small>Средняя оценка удобства</small></div></div>
+    <h3>Популярные разделы</h3><div id="analyticsTabs" class="muted">Загрузка…</div>
+    <h3>События</h3><div id="analyticsEvents" class="muted">Загрузка…</div>
+    <h3>Что пользователи хотят улучшить</h3><div id="analyticsFeedbackCategories" class="muted">Загрузка…</div>
+    <h3>Активность по дням</h3><div id="analyticsDaily" class="muted">Загрузка…</div>
+    <div id="analyticsStatus" class="muted" role="status" aria-live="polite"></div>
+  </div></section>
 
   <section id="users" class="panel"><div class="box">
     <h2>Пользователи и активность</h2><p class="muted">Онлайн означает активность Telegram Mini App за последние 90 секунд. Список обновляется автоматически.</p>
@@ -1091,11 +1104,46 @@ document.getElementById('commitBtn').onclick=async()=>{
   finally{b.disabled=false;b.textContent='💾 Отправить все изменения одним commit'}
 };
 
+async function loadAnalytics() {
+  const status = document.getElementById('analyticsStatus');
+  status.textContent = 'Загружаем метрики…';
+  try {
+    const days = Number(document.getElementById('analyticsDays').value || 30);
+    const response = await api('/admin/analytics?days=' + encodeURIComponent(days));
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Не удалось загрузить метрики');
+    const scans = data.scans || {};
+    document.getElementById('analyticsActiveUsers').textContent = data.active_users ?? 0;
+    document.getElementById('analyticsScans').textContent = (data.events || []).filter(x => x.event_name === 'scan_completed').reduce((n, x) => n + Number(x.events || 0), 0);
+    document.getElementById('analyticsFailedScans').textContent = scans.failed_scans ?? 0;
+    document.getElementById('analyticsAvgScan').textContent = scans.avg_duration_ms == null ? '—' : scans.avg_duration_ms + ' мс';
+    const feedback = data.feedback || {};
+    document.getElementById('analyticsFeedbackAvg').textContent = feedback.average_rating == null ? '—' : feedback.average_rating + ' / 5';
+    document.getElementById('analyticsFeedbackCategories').innerHTML = (data.feedback_categories || []).length
+      ? '<ul>' + data.feedback_categories.map(x => '<li>' + esc(x.category) + ': ' + esc(x.ratings) + ' оценок</li>').join('') + '</ul>'
+      : 'Пока нет оценок или выбранных причин.';
+    document.getElementById('analyticsTabs').innerHTML = (data.popular_tabs || []).length
+      ? '<ul>' + data.popular_tabs.map(x => '<li>' + esc(x.tab) + ': ' + esc(x.views) + ' открытий · ' + esc(x.users) + ' пользователей</li>').join('') + '</ul>'
+      : 'Пока нет данных о переходах между разделами.';
+    document.getElementById('analyticsEvents').innerHTML = (data.events || []).length
+      ? '<ul>' + data.events.map(x => '<li>' + esc(x.event_name) + ': ' + esc(x.events) + ' событий · ' + esc(x.users) + ' пользователей</li>').join('') + '</ul>'
+      : 'Пока нет событий. Метрики появятся после использования Mini App.';
+    document.getElementById('analyticsDaily').innerHTML = (data.daily_active || []).length
+      ? '<ul>' + data.daily_active.map(x => '<li>' + esc(x.day) + ': ' + esc(x.active_users) + ' активных пользователей</li>').join('') + '</ul>'
+      : 'Пока нет данных.';
+    status.textContent = 'Период: ' + data.days + ' дней. Событий: ' + (data.events || []).reduce((n, x) => n + Number(x.events || 0), 0) + '.';
+  } catch (error) {
+    status.textContent = 'Ошибка: ' + (error.message || 'не удалось загрузить метрики');
+  }
+}
+document.getElementById('refreshAnalyticsBtn').addEventListener('click', loadAnalytics);
+document.getElementById('analyticsDays').addEventListener('change', loadAnalytics);
+
 document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='users')loadUsers();
+  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();
 });
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 

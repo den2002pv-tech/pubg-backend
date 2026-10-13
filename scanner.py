@@ -741,17 +741,34 @@ def _json_safe(value: Any) -> Any:
 
 
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
+    import time
+
+    total_started = time.perf_counter()
+    stage_started = time.perf_counter()
     image = _image_from_any(image)
+    decode_ms = (time.perf_counter() - stage_started) * 1000
+
+    stage_started = time.perf_counter()
     detected = detect_inventory_cards(image)
+    detection_ms = (time.perf_counter() - stage_started) * 1000
+    counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0
     cards = []
     for item in detected:
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
         if is_gray_locked_card(crop):
             continue
+        stage_started = time.perf_counter()
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
+        counter_ms += (time.perf_counter() - stage_started) * 1000
+
+        stage_started = time.perf_counter()
         raw_hashes = calculate_card_hashes(crop)
+        raw_hash_ms += (time.perf_counter() - stage_started) * 1000
+
+        stage_started = time.perf_counter()
         hashes = calculate_card_hashes(clean_crop)
+        clean_hash_ms += (time.perf_counter() - stage_started) * 1000
         entry = {
             "row": item["row"],
             "col": item["col"],
@@ -768,6 +785,18 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         }
         if save_previews:
             # Keep the original card in the preview; UI cleanup is hash-only.
+            stage_started = time.perf_counter()
             entry["preview"] = encode_preview(crop)
+            preview_ms += (time.perf_counter() - stage_started) * 1000
         cards.append(entry)
-    return _json_safe({"cards": cards, "count": len(cards), "image_size": list(image.size)})
+
+    profile = {
+        "rgb_convert_ms": round(decode_ms, 1),
+        "detection_ms": round(detection_ms, 1),
+        "counter_ms": round(counter_ms, 1),
+        "raw_hash_ms": round(raw_hash_ms, 1),
+        "clean_hash_ms": round(clean_hash_ms, 1),
+        "preview_ms": round(preview_ms, 1),
+        "total_ms": round((time.perf_counter() - total_started) * 1000, 1),
+    }
+    return _json_safe({"cards": cards, "count": len(cards), "image_size": list(image.size), "profile": profile})
