@@ -98,3 +98,42 @@ def test_run_screenshot_fixtures_checks_card_count_boxes_and_quantity(monkeypatc
     assert result["passed"] == 1
     assert result["failed"] == 0
     assert result["results"][0]["passed"] is True
+
+
+def test_github_commit_files_includes_required_tree_fields_for_deletions(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
+    calls = []
+
+    def fake_request(method, url, token, payload=None):
+        calls.append((method, url, payload))
+        if url.endswith("/git/ref/heads/feature%2Fcard-counter"):
+            return {"object": {"sha": "parent-sha"}}
+        if url.endswith("/git/commits/parent-sha"):
+            return {"tree": {"sha": "base-tree-sha"}}
+        if url.endswith("/git/trees"):
+            return {"sha": "new-tree-sha"}
+        if url.endswith("/git/commits"):
+            return {"sha": "new-commit-sha", "html_url": "https://example.test/commit"}
+        if url.endswith("/git/refs/heads/feature%2Fcard-counter"):
+            return {}
+        raise AssertionError(f"Unexpected GitHub request: {method} {url}")
+
+    monkeypatch.setattr(main, "_github_request", fake_request)
+
+    result = main._github_commit_files(
+        {"tests/fixtures/screenshots/images/old.png": None},
+        "Delete screenshot fixture",
+        "feature/card-counter",
+    )
+
+    tree_call = next(call for call in calls if call[1].endswith("/git/trees"))
+    entry = tree_call[2]["tree"][0]
+    assert entry == {
+        "path": "tests/fixtures/screenshots/images/old.png",
+        "mode": "100644",
+        "type": "blob",
+        "sha": None,
+    }
+    assert result["sha"] == "new-commit-sha"
+
