@@ -121,7 +121,22 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
         <div><label for="counterTestBranch">Рабочая ветка</label><div id="counterTestBranch" class="badge">feature/card-counter</div></div>
         <button id="refreshCounterTestsBtn" type="button" class="btn-secondary">Обновить тесты</button>
       </div>
-      <div id="counterTestsStatus" class="muted"></div>
+      <div id="counterTestsStatus" class="muted" role="status" aria-live="polite"></div>
+      <hr>
+      <h3>Проверка текущего алгоритма</h3>
+      <p class="muted">Запускает распознавание на всех сохранённых эталонных кропах из выбранной ветки. Сравнивает новый результат с эталонным количеством и показывает ошибки и диагностику. Запуск не меняет карты, эталоны, инвентарь или метрики.</p>
+      <div class="row">
+        <button id="runCounterTestsBtn" type="button">▶ Запустить все тесты</button>
+        <select id="counterTestResultFilter" aria-label="Фильтр результатов тестирования">
+          <option value="all">Все результаты</option>
+          <option value="failed">Только ошибки</option>
+          <option value="passed">Только пройденные</option>
+        </select>
+      </div>
+      <div id="counterRunSummary" class="muted" role="status" aria-live="polite">Тесты ещё не запускались в этой сессии админки.</div>
+      <div id="counterRunResults" class="card-grid"></div>
+      <hr>
+      <h3>Сохранённые эталоны</h3>
       <div id="counterTestsList" class="card-grid"></div>
     </div>
   </section>
@@ -529,6 +544,52 @@ async function loadCounterTests(){
     status.className='ok';status.textContent='Тесты читаются из GitHub. Новые примеры сначала накапливаются в очереди браузера и отправляются только по твоей кнопке.';
   }catch(e){status.className='err';status.textContent='Не удалось загрузить тесты: '+e.message}
 }
+let lastCounterRunResults=[];
+function renderCounterRunResults(){
+  const root=document.getElementById('counterRunResults');
+  const filter=document.getElementById('counterTestResultFilter').value;
+  const results=lastCounterRunResults.filter(item=>filter==='all'||item.status===filter);
+  root.innerHTML='';
+  if(!lastCounterRunResults.length){root.innerHTML='<p class="muted">Запусти тесты, чтобы увидеть результаты.</p>';return}
+  if(!results.length){root.innerHTML='<p class="muted">Для выбранного фильтра результатов нет.</p>';return}
+  results.forEach(item=>{
+    const passed=item.status==='passed';
+    const el=document.createElement('article');el.className='item';
+    const duration=item.duration_ms==null?'—':Number(item.duration_ms).toFixed(2)+' мс';
+    const confidence=item.confidence==null?'—':String(item.confidence);
+    const imagePath=String(item.image_path||'');
+    el.innerHTML=`<h3>${esc(item.card_name||item.card_id||item.id||'Тест счётчика')}</h3>
+      <div class="${passed?'ok':'err'}"><b>${passed?'✓ Пройден':'✗ Ошибка'}</b></div>
+      <p>Эталон: <b>${esc(item.expected_quantity??'—')}</b> · Распознано: <b>${esc(item.detected_quantity??'—')}</b></p>
+      <p class="muted">Уверенность: ${esc(confidence)} · Время: ${esc(duration)}</p>
+      <p class="muted">ID теста: ${esc(item.id||'—')}<br>Кроп: ${esc(imagePath)}</p>
+      ${item.error?`<p class="err">${esc(item.error)}</p>`:''}
+      ${item.debug?`<details><summary>Диагностика распознавания</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px">${esc(JSON.stringify(item.debug,null,2))}</pre></details>`:''}`;
+    root.appendChild(el);
+  });
+}
+async function runCounterTests(){
+  const button=document.getElementById('runCounterTestsBtn');
+  const summary=document.getElementById('counterRunSummary');
+  button.disabled=true;button.textContent='Выполняются тесты…';
+  summary.className='muted';summary.textContent='Загружаем эталоны и запускаем текущий алгоритм. Это может занять некоторое время.';
+  try{
+    const r=await api('/admin/counter-tests/run',{method:'POST'});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка запуска тестов');
+    lastCounterRunResults=d.results||[];
+    const percent=d.total?Math.round(d.passed/d.total*100):0;
+    summary.className=d.failed?'err':'ok';
+    summary.textContent=`Ветка: ${d.branch} · Пройдено: ${d.passed}/${d.total} (${percent}%) · Ошибок: ${d.failed} · Время: ${d.duration_ms??'—'} мс · Версия приложения: ${d.app_commit||'unknown'} · ${d.run_at?new Date(d.run_at).toLocaleString():''}. ${d.message||''}`;
+    document.getElementById('counterTestResultFilter').value='all';
+    renderCounterRunResults();
+  }catch(e){
+    summary.className='err';summary.textContent='Не удалось выполнить тесты: '+e.message;
+  }finally{
+    button.disabled=false;button.textContent='▶ Запустить все тесты';
+  }
+}
+document.getElementById('runCounterTestsBtn').addEventListener('click',runCounterTests);
+document.getElementById('counterTestResultFilter').addEventListener('change',renderCounterRunResults);
 document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
 document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCounterCasesToQueue()}catch(e){const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message}};
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
