@@ -59,8 +59,18 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
 .counter-fixture-dialog h3{margin-top:0}
 .counter-fixture-dialog .dialog-actions{display:flex;gap:8px;margin-top:14px}
 .counter-fixture-dialog .dialog-actions button{flex:1}
-#counterTestsList{grid-template-columns:1fr}
+#counterTestsList{grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr))}
 #counterTests .counter-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.counter-workspace-tabs{display:flex;gap:8px;margin:14px 0 18px;border-bottom:1px solid #444;padding-bottom:8px}
+.counter-workspace-tab{width:auto;flex:1;min-width:0;margin:0;background:#292929;color:#eee;border:1px solid #444}
+.counter-workspace-tab.active{background:#ff9900;color:#111;border-color:#ff9900}
+.counter-workspace-panel[hidden]{display:none}
+.counter-saved-toolbar{margin-bottom:10px}
+.counter-run-grid .counter-fixture{height:100%}
+.counter-run-grid .counter-fixture-body{padding-right:0}
+.counter-run-grid .counter-fixture-status{font-weight:700}
+.counter-run-grid .counter-fixture-meta{margin-top:6px}
+.counter-run-grid .counter-fixture-thumb.image-unavailable{opacity:.45}
 @media(max-width:520px){
  body{padding:8px}
  .box{padding:12px}
@@ -163,22 +173,32 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
         <button id="refreshCounterTestsBtn" type="button" class="btn-secondary">Обновить тесты</button>
       </div>
       <div id="counterTestsStatus" class="muted" role="status" aria-live="polite"></div>
-      <hr>
-      <div class="counter-section-heading"><h3>Проверка текущего алгоритма</h3><span class="badge">Регрессионные тесты</span></div>
-      <p class="muted">Запускает распознавание на всех сохранённых эталонных кропах из выбранной ветки. Сравнивает новый результат с эталонным количеством и показывает ошибки и диагностику. Запуск не меняет карты, эталоны, инвентарь или метрики.</p>
-      <div class="row">
-        <button id="runCounterTestsBtn" type="button">▶ Запустить все тесты</button>
-        <select id="counterTestResultFilter" aria-label="Фильтр результатов тестирования">
-          <option value="all">Все результаты</option>
-          <option value="failed">Только ошибки</option>
-          <option value="passed">Только пройденные</option>
-        </select>
+      <div class="counter-workspace-tabs" role="tablist" aria-label="Разделы тестов счётчика">
+        <button class="counter-workspace-tab active" id="counterRunTab" type="button" role="tab" aria-selected="true" aria-controls="counterRunPanel" data-counter-view="run">▶ Тесты</button>
+        <button class="counter-workspace-tab" id="counterSavedTab" type="button" role="tab" aria-selected="false" aria-controls="counterSavedPanel" data-counter-view="saved">▣ Сохранённые эталоны</button>
       </div>
-      <div id="counterRunSummary" class="muted" role="status" aria-live="polite">Тесты ещё не запускались в этой сессии админки.</div>
-      <div id="counterRunResults" class="card-grid counter-run-grid"></div>
-      <hr>
-      <h3>Сохранённые эталоны</h3>
-      <div id="counterTestsList" class="card-grid"></div>
+      <section id="counterRunPanel" class="counter-workspace-panel" role="tabpanel" aria-labelledby="counterRunTab">
+        <div class="counter-section-heading"><h3>Проверка текущего алгоритма</h3><span class="badge">Регрессионные тесты</span></div>
+        <p class="muted">Запускает распознавание на сохранённых эталонных кропах. Результаты показаны карточками с изображениями и сравнением количества. Запуск не меняет карты, эталоны, инвентарь или метрики.</p>
+        <div class="row">
+          <button id="runCounterTestsBtn" type="button">▶ Запустить все тесты</button>
+          <select id="counterTestResultFilter" aria-label="Фильтр результатов тестирования">
+            <option value="all">Все результаты</option>
+            <option value="failed">Только ошибки</option>
+            <option value="passed">Только пройденные</option>
+          </select>
+        </div>
+        <div id="counterRunSummary" class="muted" role="status" aria-live="polite">Тесты ещё не запускались в этой сессии админки.</div>
+        <div id="counterRunResults" class="counter-fixture-list counter-run-grid"></div>
+      </section>
+      <section id="counterSavedPanel" class="counter-workspace-panel" role="tabpanel" aria-labelledby="counterSavedTab" hidden>
+        <div class="row counter-saved-toolbar">
+          <input id="counterFixtureSearch" type="search" placeholder="Фильтр по названию карты или ID теста" aria-label="Фильтр сохранённых эталонов" autocomplete="off">
+          <button id="clearCounterFixtureSearch" type="button" class="btn-secondary">Очистить фильтр</button>
+        </div>
+        <div id="counterFixtureFilterSummary" class="muted" role="status" aria-live="polite"></div>
+        <div id="counterTestsList" class="counter-fixture-list"></div>
+      </section>
     </div>
   </section>
 
@@ -663,9 +683,28 @@ function renderCounterFixture(item){
   loadCounterFixtureImage(item,img);
   return el;
 }
+let counterFixturesCache=[];
+function renderSavedCounterFixtures(){
+  const root=document.getElementById('counterTestsList');
+  const summary=document.getElementById('counterFixtureFilterSummary');
+  const query=(document.getElementById('counterFixtureSearch').value||'').trim().toLocaleLowerCase();
+  const items=counterFixturesCache.filter(item=>
+    [item.card_name,item.card_id,item.id].some(value=>String(value||'').toLocaleLowerCase().includes(query))
+  );
+  root.innerHTML='';
+  if(!counterFixturesCache.length){
+    root.innerHTML='<p class="muted">Эталонных тестов пока нет. Просканируй изображение и сохрани первый пример.</p>';
+  }else if(!items.length){
+    root.innerHTML='<p class="muted">По этому фильтру эталоны не найдены.</p>';
+  }else{
+    const fragment=document.createDocumentFragment();
+    items.forEach(item=>fragment.appendChild(renderCounterFixture(item)));
+    root.appendChild(fragment);
+  }
+  summary.textContent='Показано '+items.length+' из '+counterFixturesCache.length+' загруженных эталонов.';
+}
 async function loadCounterTests(){
   const status=document.getElementById('counterTestsStatus');
-  const root=document.getElementById('counterTestsList');
   try{
     status.className='muted';status.textContent='Загружаем тесты из GitHub…';
     const r=await api('/admin/counter-tests');const d=await r.json();
@@ -673,18 +712,18 @@ async function loadCounterTests(){
     document.getElementById('counterTestCount').textContent=d.count;
     document.getElementById('counterTestBranch').textContent=d.branch;
     revokeCounterFixtureUrls();
-    root.innerHTML='';
-    if(!d.recent.length){
-      root.innerHTML='<p class="muted">Эталонных тестов пока нет. Просканируй изображение и сохрани первый пример.</p>';
-    }else{
-      const fragment=document.createDocumentFragment();
-      d.recent.forEach(item=>fragment.appendChild(renderCounterFixture(item)));
-      root.appendChild(fragment);
-    }
+    counterFixturesCache=Array.isArray(d.recent)?d.recent:[];
+    renderSavedCounterFixtures();
+    renderCounterRunResults();
     status.className='ok';
-    status.textContent='Загружено '+d.recent.length+' из '+d.count+' тестов. Изменения записываются в GitHub одним commit на операцию.';
+    status.textContent='Загружено '+counterFixturesCache.length+' из '+d.count+' тестов. Изменения записываются в GitHub одним commit на операцию.';
   }catch(e){status.className='err';status.textContent='Не удалось загрузить тесты: '+e.message}
 }
+document.getElementById('counterFixtureSearch').addEventListener('input',renderSavedCounterFixtures);
+document.getElementById('clearCounterFixtureSearch').addEventListener('click',()=>{
+  document.getElementById('counterFixtureSearch').value='';
+  renderSavedCounterFixtures();
+});
 function openCounterFixtureEditor(item){
   editingCounterFixture=item;
   document.getElementById('counterFixtureEditName').textContent=(item.card_name||item.card_id||item.id)+' · '+item.id;
@@ -730,6 +769,7 @@ document.addEventListener('click',event=>{
 let lastCounterRunResults=[];
 function renderCounterRunResults(){
   const root=document.getElementById('counterRunResults');
+  if(!root)return;
   const filter=document.getElementById('counterTestResultFilter').value;
   const results=lastCounterRunResults.filter(item=>filter==='all'||item.status===filter);
   root.innerHTML='';
@@ -737,18 +777,38 @@ function renderCounterRunResults(){
   if(!results.length){root.innerHTML='<p class="muted">Для выбранного фильтра результатов нет.</p>';return}
   results.forEach(item=>{
     const passed=item.status==='passed';
-    const el=document.createElement('article');el.className='item';
+    const el=document.createElement('article');el.className='counter-fixture';
+    const fixture=counterFixturesCache.find(saved=>String(saved.id)===String(item.id));
+    const img=document.createElement('img');
+    img.className='counter-fixture-thumb';
+    img.loading='lazy';
+    img.alt='Кроп теста '+(item.card_name||item.card_id||item.id||'');
+    img.src='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="92" height="118"%3E%3Crect width="100%25" height="100%25" fill="%23111111"/%3E%3Ctext x="50%25" y="50%25" fill="%23777777" font-size="10" text-anchor="middle"%3EНет превью%3C/text%3E%3C/svg%3E';
+    const body=document.createElement('div');body.className='counter-fixture-body';
+    const title=document.createElement('h4');title.className='counter-fixture-title';
+    title.textContent=item.card_name||item.card_id||item.id||'Тест счётчика';
+    const status=document.createElement('div');status.className='counter-fixture-status '+(passed?'ok':'err');
+    status.textContent=passed?'✓ Тест пройден':'✗ Ошибка распознавания';
+    const quantities=document.createElement('div');quantities.className='counter-fixture-quantity';
+    const expected=document.createElement('span');expected.textContent='Эталон: '+(item.expected_quantity??'—');
+    const detected=document.createElement('span');detected.textContent='Алгоритм: '+(item.detected_quantity??'—');
+    quantities.append(expected,detected);
     const duration=item.duration_ms==null?'—':Number(item.duration_ms).toFixed(2)+' мс';
     const confidence=item.confidence==null?'—':String(item.confidence);
-    const imagePath=String(item.image_path||'');
-    el.innerHTML=`<h3>${esc(item.card_name||item.card_id||item.id||'Тест счётчика')}</h3>
-      <div class="${passed?'ok':'err'}"><b>${passed?'✓ Пройден':'✗ Ошибка'}</b></div>
-      <p>Эталон: <b>${esc(item.expected_quantity??'—')}</b> · Распознано: <b>${esc(item.detected_quantity??'—')}</b></p>
-      <p class="muted">Уверенность: ${esc(confidence)} · Время: ${esc(duration)}</p>
-      <p class="muted">ID теста: ${esc(item.id||'—')}<br>Кроп: ${esc(imagePath)}</p>
-      ${item.error?`<p class="err">${esc(item.error)}</p>`:''}
-      ${item.debug?`<details><summary>Диагностика распознавания</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px">${esc(JSON.stringify(item.debug,null,2))}</pre></details>`:''}`;
+    const meta=document.createElement('div');meta.className='counter-fixture-meta';
+    meta.textContent='ID: '+(item.id||'—')+' · Уверенность: '+confidence+' · Время: '+duration;
+    body.append(title,status,quantities,meta);
+    if(item.error){const error=document.createElement('div');error.className='counter-fixture-status err';error.textContent=item.error;body.appendChild(error)}
+    if(item.debug){
+      const details=document.createElement('details');details.style.marginTop='8px';
+      const summary=document.createElement('summary');summary.textContent='Диагностика распознавания';
+      const pre=document.createElement('pre');pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px';pre.textContent=JSON.stringify(item.debug,null,2);
+      details.append(summary,pre);body.appendChild(details);
+    }
+    el.append(img,body);
     root.appendChild(el);
+    if(fixture)loadCounterFixtureImage(fixture,img);
+    else img.classList.add('image-unavailable');
   });
 }
 async function runCounterTests(){
@@ -773,6 +833,18 @@ async function runCounterTests(){
 }
 document.getElementById('runCounterTestsBtn').addEventListener('click',runCounterTests);
 document.getElementById('counterTestResultFilter').addEventListener('change',renderCounterRunResults);
+document.querySelectorAll('[data-counter-view]').forEach(button=>button.addEventListener('click',()=>{
+  const view=button.dataset.counterView;
+  document.querySelectorAll('[data-counter-view]').forEach(tab=>{
+    const active=tab===button;
+    tab.classList.toggle('active',active);
+    tab.setAttribute('aria-selected',String(active));
+    tab.tabIndex=active?0:-1;
+  });
+  document.getElementById('counterRunPanel').hidden=view!=='run';
+  document.getElementById('counterSavedPanel').hidden=view!=='saved';
+  if(view==='saved'&&!counterFixturesCache.length)loadCounterTests();
+}));
 document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
 document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCounterCasesToQueue()}catch(e){const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message}};
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
