@@ -27,6 +27,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
+from analytics import get_analytics_summary, init_analytics_db, record_analytics_events
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
@@ -46,6 +47,7 @@ app = FastAPI(title="PUBG Card Scanner")
 @app.on_event("startup")
 def startup_database() -> None:
     init_db()
+    init_analytics_db()
     _migrate_frame_color_hashes()
     sync_cards(load_db())
     init_trade_request_schema()
@@ -842,6 +844,36 @@ async def admin_status(authorization: str | None = Header(default=None)):
     }
 
 
+@app.post("/me/analytics/events")
+async def submit_analytics_events(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    """Store privacy-conscious, allowlisted product analytics for an authenticated Telegram user."""
+    auth = _validate_telegram_init_data(init_data)
+    profile = auth.get("user", {})
+    user = get_or_create_user(
+        auth["id"],
+        username=str(profile.get("username") or ""),
+        first_name=str(profile.get("first_name") or ""),
+        last_name=str(profile.get("last_name") or ""),
+    )
+    events = data.get("events", [])
+    if not isinstance(events, list):
+        raise HTTPException(status_code=400, detail="events должен быть массивом")
+    accepted = record_analytics_events(int(user["id"]), events[:20])
+    return {"status": "ok", "accepted": accepted}
+
+
+@app.get("/admin/analytics")
+async def admin_analytics(
+    authorization: str | None = Header(default=None),
+    days: int = 30,
+):
+    require_admin(authorization)
+    return get_analytics_summary(days=days)
+
+
 @app.get("/admin/users")
 async def admin_users(authorization: str | None = Header(default=None), search: str = "", online_seconds: int = 90, limit: int = 50, offset: int = 0):
     require_admin(authorization)
@@ -1496,7 +1528,7 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
     if auth:
         get_or_create_user(auth["id"])
 
-    return {"cards": matches, "count": len(matches), "authenticated": bool(auth)}
+    return {"cards": matches, "count": len(matches), "authenticated": bool(auth), "profile": result.get("profile", {})}
 
 
 @app.post("/admin/save-card")
