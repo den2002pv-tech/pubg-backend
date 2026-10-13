@@ -182,6 +182,20 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     </div>
   </section>
 
+  <dialog id="counterFixtureEditDialog" class="counter-fixture-dialog" aria-labelledby="counterFixtureEditTitle">
+    <form id="counterFixtureEditForm">
+      <h3 id="counterFixtureEditTitle">Изменить эталон</h3>
+      <p id="counterFixtureEditName" class="muted"></p>
+      <label for="counterFixtureExpectedInput">Фактическое количество на изображении</label>
+      <input id="counterFixtureExpectedInput" name="expected_quantity" type="number" min="1" max="999" step="1" required inputmode="numeric">
+      <div id="counterFixtureEditStatus" class="muted" role="status" aria-live="polite"></div>
+      <div class="dialog-actions">
+        <button id="counterFixtureCancelEdit" type="button" class="btn-secondary">Отмена</button>
+        <button id="counterFixtureSaveEdit" type="submit">Сохранить эталон</button>
+      </div>
+    </form>
+  </dialog>
+
   <section id="clubPosts" class="panel">
     <div class="box">
       <h2>Публикации PUBG MOBILE Club — #cardexchange</h2>
