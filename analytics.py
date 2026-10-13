@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from database import get_connection
@@ -45,7 +46,7 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
     if not isinstance(value, dict):
         return None
     name = value.get("name")
-    if name not in ALLOWED_EVENTS:
+    if not isinstance(name, str) or name not in ALLOWED_EVENTS:
         return None
     raw = value.get("properties")
     raw = raw if isinstance(raw, dict) else {}
@@ -60,8 +61,9 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
         "category": ALLOWED_FEEDBACK_CATEGORIES,
     }
     for key, choices in enum_fields.items():
-        if raw.get(key) in choices:
-            props[key] = raw[key]
+        value = raw.get(key)
+        if isinstance(value, str) and value in choices:
+            props[key] = value
 
     for key in ("cards_detected", "matched_count", "added_count", "removed_count", "card_count"):
         val = raw.get(key)
@@ -97,7 +99,7 @@ def record_analytics_events(user_id: int, events: list[Any]) -> int:
         with conn.cursor() as cur:
             cur.executemany(
                 "INSERT INTO user_analytics_events (user_id, event_name, properties) VALUES (%s, %s, %s::jsonb)",
-                [(user_id, name, __import__("json").dumps(props, separators=(",", ":"))) for name, props in safe],
+                [(user_id, name, json.dumps(props, separators=(",", ":"))) for name, props in safe],
             )
         conn.commit()
     return len(safe)
