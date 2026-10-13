@@ -92,6 +92,29 @@ def test_empty_states_offer_recovery_and_scanner_has_steps():
     assert 'data-empty-action="scanner"' in HTML
     assert "Показано ' + list.length + ' из ' + inventoryCards.length" in HTML
 
+def test_inventory_filters_have_one_primary_level_and_secondary_filter_is_collapsible():
+    assert '<div class="stats-grid" hidden aria-hidden="true">' in HTML
+    assert '<details class="filter-more">' in HTML
+    details_start = HTML.index('<details class="filter-more">')
+    secondary_filter = HTML.index('data-filter="not_desired"', details_start)
+    details_end = HTML.index('</details>', details_start)
+    assert details_start < secondary_filter < details_end
+    assert 'data-filter="missing"' in HTML
+    assert 'data-filter="duplicates"' in HTML
+    assert 'data-filter="desired"' in HTML
+
+
+def test_scanner_save_status_is_persistent_and_retryable():
+    parser = inspect_markup()
+    by_id = {attrs.get("id"): attrs for _, attrs in parser.elements if attrs.get("id")}
+    status = by_id["scanSaveStatus"]
+    assert status.get("role") == "status"
+    assert status.get("aria-live") == "polite"
+    assert "Сохранено успешно: обновлено карт" in HTML
+    assert "Не удалось сохранить изменения:" in HTML
+    assert "Повторить сохранение (" in HTML
+
+
 def test_closed_quantity_dialog_is_removed_from_keyboard_order():
     assert 'id="qtyModal" class="modal-overlay" aria-hidden="true" inert' in HTML
     assert "qtyModal.inert = false" in HTML
