@@ -53,7 +53,7 @@ def test_scan_metrics_are_bounded_and_profile_is_allowlisted():
 
 
 def test_invalid_rating_is_dropped():
-    assert sanitize_event({"name": "feedback_submitted", "properties": {"rating": 10}} == (
+    assert sanitize_event({"name": "feedback_submitted", "properties": {"rating": 10}}) == (
         "feedback_submitted",
         {},
     )
