@@ -6145,6 +6145,372 @@
           ]
         }
       }
+    },
+    {
+      "id": "20261013T201146705854-b2ca5f3fe7",
+      "timestamp": "2026-10-13T20:11:46.705854+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146705854-b2ca5f3fe7.png",
+      "image_sha256": "b2ca5f3fe7559bcc55428d4781cf68de162315738d39aa41372a860e0025738d",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1329,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.7419,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 216,
+              "y": 17,
+              "w": 9,
+              "h": 53,
+              "digit": 1,
+              "score": 0.692
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201146706290-c3af503cdb",
+      "timestamp": "2026-10-13T20:11:46.706290+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146706290-c3af503cdb.png",
+      "image_sha256": "c3af503cdb938fc2312026c905a59d4def0d1cca7d7f4faa3c840b84f214ba1f",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1324,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.7365,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 217,
+              "y": 17,
+              "w": 8,
+              "h": 53,
+              "digit": 1,
+              "score": 0.549
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201146706584-60b1e98509",
+      "timestamp": "2026-10-13T20:11:46.706584+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146706584-60b1e98509.png",
+      "image_sha256": "60b1e985090b8cc37b156bbd7a108643d0d960e64b2cb8d135d16a2c9f20a3ed",
+      "expected_quantity": 10,
+      "detected_quantity": 10,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 10,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 10,
+            "digit": null,
+            "digits": [
+              1,
+              0
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.94
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              193,
+              3,
+              47,
+              32
+            ],
+            "contrast": 95.5,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0827,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 199,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.94
+            },
+            {
+              "x": 215,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811
+            },
+            {
+              "x": 223,
+              "y": 39,
+              "w": 6,
+              "h": 31,
+              "digit": 1,
+              "score": 0.656
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201146706852-0df7e65c10",
+      "timestamp": "2026-10-13T20:11:46.706852+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146706852-0df7e65c10.png",
+      "image_sha256": "0df7e65c1087a7b4b5f590e19f5aba7de5466c628471e08a963fd0cd1910d41a",
+      "expected_quantity": 5,
+      "detected_quantity": 5,
+      "correct": true,
+      "quantity_confidence": 0.881,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 5,
+        "confidence": 0.881,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 5,
+            "digit": 5,
+            "digits": [
+              5
+            ],
+            "digit_score": 0.881,
+            "digit_scores": [
+              0.881
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 91.8,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0636,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 5,
+              "score": 0.881
+            },
+            {
+              "x": 223,
+              "y": 39,
+              "w": 6,
+              "h": 31,
+              "digit": 1,
+              "score": 0.656
+            }
+          ]
+        }
+      }
     }
   ]
 }
