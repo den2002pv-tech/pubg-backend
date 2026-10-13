@@ -149,6 +149,24 @@ def get_analytics_summary(days: int = 30) -> dict[str, Any]:
                 WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
             """, (days,))
             active_users = int(cur.fetchone()["active_users"])
+            cur.execute("""
+                SELECT COUNT(*) AS ratings,
+                       ROUND(AVG((properties->>'rating')::numeric), 1) AS average_rating
+                FROM user_analytics_events
+                WHERE event_name = 'feedback_submitted'
+                  AND properties ? 'rating'
+                  AND created_at >= NOW() - (%s * INTERVAL '1 day')
+            """, (days,))
+            feedback = dict(cur.fetchone())
+            cur.execute("""
+                SELECT properties->>'category' AS category, COUNT(*) AS ratings
+                FROM user_analytics_events
+                WHERE event_name = 'feedback_submitted'
+                  AND properties ? 'category'
+                  AND created_at >= NOW() - (%s * INTERVAL '1 day')
+                GROUP BY properties->>'category' ORDER BY ratings DESC
+            """, (days,))
+            feedback_categories = [dict(row) for row in cur.fetchall()]
     return {
         "days": days,
         "active_users": active_users,
@@ -156,4 +174,6 @@ def get_analytics_summary(days: int = 30) -> dict[str, Any]:
         "daily_active": daily_active,
         "popular_tabs": popular_tabs,
         "scans": scans,
+        "feedback": feedback,
+        "feedback_categories": feedback_categories,
     }
