@@ -71,6 +71,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     <div class="row"><div class="stat"><span id="analyticsActiveUsers">—</span><small>Активные пользователи</small></div><div class="stat"><span id="analyticsScans">—</span><small>Успешные сканирования</small></div><div class="stat"><span id="analyticsFailedScans">—</span><small>Ошибки сканирования</small></div><div class="stat"><span id="analyticsAvgScan">—</span><small>Среднее время сканирования</small></div><div class="stat"><span id="analyticsFeedbackAvg">—</span><small>Средняя оценка удобства</small></div></div>
     <h3>Популярные разделы</h3><div id="analyticsTabs" class="muted">Загрузка…</div>
     <h3>События</h3><div id="analyticsEvents" class="muted">Загрузка…</div>
+    <h3>Что пользователи хотят улучшить</h3><div id="analyticsFeedbackCategories" class="muted">Загрузка…</div>
     <h3>Активность по дням</h3><div id="analyticsDaily" class="muted">Загрузка…</div>
     <div id="analyticsStatus" class="muted" role="status" aria-live="polite"></div>
   </div></section>
@@ -1118,6 +1119,9 @@ async function loadAnalytics() {
     document.getElementById('analyticsAvgScan').textContent = scans.avg_duration_ms == null ? '—' : scans.avg_duration_ms + ' мс';
     const feedback = data.feedback || {};
     document.getElementById('analyticsFeedbackAvg').textContent = feedback.average_rating == null ? '—' : feedback.average_rating + ' / 5';
+    document.getElementById('analyticsFeedbackCategories').innerHTML = (data.feedback_categories || []).length
+      ? '<ul>' + data.feedback_categories.map(x => '<li>' + esc(x.category) + ': ' + esc(x.ratings) + ' оценок</li>').join('') + '</ul>'
+      : 'Пока нет оценок или выбранных причин.';
     document.getElementById('analyticsTabs').innerHTML = (data.popular_tabs || []).length
       ? '<ul>' + data.popular_tabs.map(x => '<li>' + esc(x.tab) + ': ' + esc(x.views) + ' открытий · ' + esc(x.users) + ' пользователей</li>').join('') + '</ul>'
       : 'Пока нет данных о переходах между разделами.';
