@@ -1245,8 +1245,26 @@ async def preview_screenshot_test(file: UploadFile = File(...), authorization: s
     upload_id = uuid.uuid4().hex
     (TEMP_DIR / f"screenshot-fixture-{upload_id}.png").write_bytes(data)
     result = scan_screenshot(image, save_previews=False)
-    return {"upload_id": upload_id, "image_url": f"/admin/screenshot-tests/upload/{upload_id}",
-            "image_size": size, "cards": [{"box": c["box"], "quantity": c.get("quantity", 1)} for c in result.get("cards", [])]}
+    # Match each detected crop against saved card hashes so the fixture editor can
+    # show the known icon/name next to its editable label.
+    enriched_cards = _enrich_admin_scan(result.get("cards", []), load_db())
+    return {
+        "upload_id": upload_id,
+        "image_url": f"/admin/screenshot-tests/upload/{upload_id}",
+        "image_size": size,
+        "cards": [
+            {
+                "box": c["box"],
+                "quantity": c.get("quantity", 1),
+                "matched": bool(c.get("matched")),
+                "card_id": c.get("id"),
+                "card_name": c.get("name", ""),
+                "icon": c.get("icon", ""),
+                "match_distance": c.get("distance"),
+            }
+            for c in enriched_cards
+        ],
+    }
 
 
 @app.get("/admin/screenshot-tests/upload/{upload_id}")
