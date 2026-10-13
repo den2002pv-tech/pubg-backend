@@ -1483,9 +1483,13 @@ async def save_my_collection(
 
 @app.post("/scan")
 async def scan(file: UploadFile = File(...), init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    request_started = time.perf_counter()
     auth = _validate_telegram_init_data(init_data) if init_data else None
+    decode_started = time.perf_counter()
     image = await _read_image(file)
+    upload_decode_ms = (time.perf_counter() - decode_started) * 1000
     result = scan_screenshot(image, save_previews=True)
+    matching_started = time.perf_counter()
     db = load_db()
 
     matches = []
@@ -1525,10 +1529,15 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
                 "row": card["row"],
                 "col": card["col"],
             })
+    matching_ms = (time.perf_counter() - matching_started) * 1000
     if auth:
         get_or_create_user(auth["id"])
 
-    return {"cards": matches, "count": len(matches), "authenticated": bool(auth), "profile": result.get("profile", {})}
+    profile = dict(result.get("profile", {}))
+    profile["upload_decode_ms"] = round(upload_decode_ms, 1)
+    profile["matching_ms"] = round(matching_ms, 1)
+    profile["server_total_ms"] = round((time.perf_counter() - request_started) * 1000, 1)
+    return {"cards": matches, "count": len(matches), "authenticated": bool(auth), "profile": profile}
 
 
 @app.post("/admin/save-card")
