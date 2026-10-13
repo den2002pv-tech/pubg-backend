@@ -52,13 +52,18 @@ class ScreenshotFixtureTests(unittest.TestCase):
                 self.assertGreater(len(expected_cards), 0)
 
                 detected = scan_screenshot(screenshot, save_previews=False)["cards"]
+                # "owned" cards should appear in inventory output; "unowned" /
+                # darkened cards are labelled on the screenshot but must not be
+                # counted as inventory cards.
+                expected_owned = [c for c in expected_cards if c.get("state", "owned") == "owned"]
+                expected_unowned = [c for c in expected_cards if c.get("state") == "unowned"]
                 self.assertEqual(
-                    len(expected_cards), len(detected),
+                    len(expected_owned), len(detected),
                     msg=f"Expected {len(expected_cards)} cards, detected {len(detected)}; "
                         f"boxes={[card['box'] for card in detected]}",
                 )
                 unmatched = list(detected)
-                for expected in expected_cards:
+                for expected in expected_owned:
                     expected_box = expected.get("box")
                     self.assertIsInstance(expected_box, list)
                     self.assertEqual(4, len(expected_box))
