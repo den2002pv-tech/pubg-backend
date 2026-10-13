@@ -569,7 +569,9 @@ function revokeCounterFixtureUrls(){
   counterFixtureObjectUrls.forEach(url=>URL.revokeObjectURL(url));
   counterFixtureObjectUrls=[];
 }
-async function loadCounterFixtureImage(item,img){
+async function fetchCounterFixtureImage(item,img){
+  if(img.dataset.loaded==='true'||img.dataset.loading==='true')return;
+  img.dataset.loading='true';
   try{
     const response=await api(item.image_url);
     if(!response.ok)throw new Error('Изображение недоступно');
@@ -577,10 +579,24 @@ async function loadCounterFixtureImage(item,img){
     counterFixtureObjectUrls.push(url);
     img.src=url;
     img.alt='Кроп теста '+(item.card_name||item.id||'');
+    img.dataset.loaded='true';
   }catch(e){
     img.alt='Не удалось загрузить кроп';
     img.classList.add('image-unavailable');
-  }
+  }finally{delete img.dataset.loading}
+}
+const counterFixtureImageObserver=typeof IntersectionObserver==='function'
+  ?new IntersectionObserver(entries=>entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      counterFixtureImageObserver.unobserve(entry.target);
+      fetchCounterFixtureImage(entry.target._counterFixtureItem,entry.target);
+    }
+  }),{rootMargin:'160px'})
+  :null;
+function loadCounterFixtureImage(item,img){
+  img._counterFixtureItem=item;
+  if(counterFixtureImageObserver)counterFixtureImageObserver.observe(img);
+  else fetchCounterFixtureImage(item,img);
 }
 function closeCounterFixtureMenus(except){
   document.querySelectorAll('.counter-fixture-menu[open]').forEach(menu=>{if(menu!==except)menu.open=false});
