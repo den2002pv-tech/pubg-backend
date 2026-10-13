@@ -11,7 +11,7 @@ Real labelled examples are added from the admin page's **Tests counter** tab aft
 
 ## Current manifest
 
-Check `cases.json` for the current case count and contents. The manifest may already contain labelled examples; it does not necessarily start empty. In the checked version, it contains 37 cases, including cases where the quantity recorded at capture differed from the manually verified quantity. Do not clear the manifest just to reset scan statistics.
+Check `cases.json` for the current case count and contents. The manifest may already contain labelled examples; it does not necessarily start empty, and its size changes whenever new labelled batches are saved. It also retains cases where the quantity recorded at capture differed from the manually verified quantity. Do not clear the manifest just to reset scan statistics.
 
 ## Run the tests
 
