@@ -43,7 +43,7 @@ body{
 h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .subtitle{color:var(--text-muted);text-align:center;margin:0 0 14px;font-size:13px}
 
-.feedback-panel summary{cursor:pointer;font-weight:750;min-height:32px;display:flex;align-items:center}.feedback-panel .subtitle{text-align:left;margin:8px 0 12px}.feedback-ratings{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.feedback-ratings button{min-height:42px;border:1px solid var(--border);border-radius:9px;background:var(--surface-raised);color:var(--text);font-weight:800}.feedback-ratings button.active{border-color:var(--accent);background:#223348;color:#fff}.feedback-panel label{font-size:13px;color:var(--text-muted)}
+.feedback-panel{display:none}.feedback-panel summary{cursor:pointer;font-weight:750;min-height:32px;display:flex;align-items:center}.feedback-panel .subtitle{text-align:left;margin:8px 0 12px}.feedback-ratings{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.feedback-ratings button{min-height:42px;border:1px solid var(--border);border-radius:9px;background:var(--surface-raised);color:var(--text);font-weight:800}.feedback-ratings button.active{border-color:var(--accent);background:#223348;color:#fff}.feedback-panel label{font-size:13px;color:var(--text-muted)}
 /* Panels & Account */
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-top:12px}
 .account-badge{display:flex;align-items:center;justify-content:space-between;background:var(--surface-raised);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;font-size:13px}
@@ -661,6 +661,7 @@ tg?.expand();
 
 const API = 'https://pubg-backend-3rtc.onrender.com';
 const telegramInitData = tg?.initData || '';
+if (telegramInitData) document.getElementById('feedbackPanel')?.style.setProperty('display', 'block');
 const telegramHeaders = () => telegramInitData ? { 'X-Telegram-Init-Data': telegramInitData } : {};
 
 const analyticsQueue = [];
