@@ -6,7 +6,9 @@ import hmac
 import json
 import math
 import os
+import re
 import time
+import uuid
 from collections import deque
 from datetime import datetime, timezone
 from io import BytesIO
@@ -280,6 +282,21 @@ class CounterTestCaseSchema(BaseModel):
 
 class CounterTestBatchSchema(BaseModel):
     cases: list[CounterTestCaseSchema]
+
+
+class ScreenshotFixtureCardSchema(BaseModel):
+    box: list[int]
+    expected_quantity: int = 1
+    state: str = "owned"
+    card_name: str = ""
+    card_id: str = ""
+
+
+class ScreenshotFixtureSaveSchema(BaseModel):
+    upload_id: str
+    id: str
+    title: str = ""
+    cards: list[ScreenshotFixtureCardSchema]
 
 
 class CardSaveSchema(BaseModel):
@@ -1156,6 +1173,221 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
         raise HTTPException(status_code=502, detail=f"GitHub API: {exc.code} {detail[:300]}") from exc
     except URLError as exc:
         raise HTTPException(status_code=502, detail=f"GitHub API недоступен: {exc}") from exc
+
+
+SCREENSHOT_TEST_CASES_PATH = "tests/fixtures/screenshots/cases.json"
+SCREENSHOT_TEST_IMAGES_PATH = "tests/fixtures/screenshots/images"
+
+
+def _screenshot_test_branch() -> str:
+    return os.getenv("COUNTER_TEST_BRANCH", "feature/card-counter").strip() or "feature/card-counter"
+
+
+def _screenshot_test_manifest(branch: str) -> dict[str, Any]:
+    raw = _github_read_text(SCREENSHOT_TEST_CASES_PATH, branch)
+    if not raw:
+        return {"version": 1, "cases": []}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Некорректный cases.json тестов скриншотов") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("cases"), list):
+        raise HTTPException(status_code=500, detail="Некорректная структура cases.json")
+    return payload
+
+
+def _safe_screenshot_upload_id(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{32}", value or ""):
+        raise HTTPException(status_code=400, detail="Некорректный ID временного скриншота")
+    return value
+
+
+@app.get("/admin/screenshot-tests")
+def get_screenshot_tests(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    cases = _screenshot_test_manifest(branch)["cases"]
+    return {"count": len(cases), "branch": branch, "cases": [
+        {**item, "image_url": f"/admin/screenshot-tests/image/{quote(str(item['id']), safe='')}"}
+        for item in cases if isinstance(item, dict) and item.get("id")
+    ]}
+
+
+@app.post("/admin/screenshot-tests/preview")
+async def preview_screenshot_test(file: UploadFile = File(...), authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    if Path(file.filename or "").suffix.lower() != ".png":
+        raise HTTPException(status_code=400, detail="Загрузи оригинальный PNG-скриншот")
+    data = await file.read()
+    if not data or len(data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PNG должен быть не пустым и не больше 15 МБ")
+    try:
+        with Image.open(BytesIO(data)) as opened:
+            if opened.format != "PNG":
+                raise ValueError("not png")
+            opened.load()
+            size = [opened.width, opened.height]
+            image = opened.convert("RGB")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Не удалось прочитать PNG-скриншот") from exc
+    if image.width * image.height > 30_000_000:
+        raise HTTPException(status_code=400, detail="Разрешение превышает 30 мегапикселей")
+    upload_id = uuid.uuid4().hex
+    (TEMP_DIR / f"screenshot-fixture-{upload_id}.png").write_bytes(data)
+    result = scan_screenshot(image, save_previews=False)
+    return {"upload_id": upload_id, "image_url": f"/admin/screenshot-tests/upload/{upload_id}",
+            "image_size": size, "cards": [{"box": c["box"], "quantity": c.get("quantity", 1)} for c in result.get("cards", [])]}
+
+
+@app.get("/admin/screenshot-tests/upload/{upload_id}")
+def get_screenshot_test_upload(upload_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    path = TEMP_DIR / f"screenshot-fixture-{_safe_screenshot_upload_id(upload_id)}.png"
+    if not path.is_file():
+        raise HTTPException(status_code=410, detail="Временный скриншот истёк. Загрузи его повторно.")
+    return Response(path.read_bytes(), media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/screenshot-tests/image/{case_id}")
+def get_screenshot_test_image(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    case = next((c for c in _screenshot_test_manifest(branch)["cases"] if str(c.get("id")) == case_id), None)
+    if not case:
+        raise HTTPException(status_code=404, detail="Эталонный скриншот не найден")
+    path = case.get("image_path", "")
+    if not isinstance(path, str) or not path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") or ".." in Path(path).parts:
+        raise HTTPException(status_code=400, detail="Некорректный путь изображения")
+    data = _github_read_bytes(path, branch)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Файл скриншота отсутствует в GitHub")
+    return Response(data, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/admin/screenshot-tests")
+def save_screenshot_test(data: ScreenshotFixtureSaveSchema, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    case_id = data.id.strip()
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{2,79}", case_id):
+        raise HTTPException(status_code=400, detail="ID: от 3 до 80 символов, латиница, цифры, _ и -")
+    if not data.cards or len(data.cards) > 100:
+        raise HTTPException(status_code=400, detail="Добавь от 1 до 100 карт")
+    upload_path = TEMP_DIR / f"screenshot-fixture-{_safe_screenshot_upload_id(data.upload_id)}.png"
+    if not upload_path.is_file():
+        raise HTTPException(status_code=410, detail="Временный скриншот истёк. Загрузи его повторно.")
+    image_data = upload_path.read_bytes()
+    try:
+        with Image.open(BytesIO(image_data)) as image:
+            image.load()
+            width, height = image.size
+            if image.format != "PNG":
+                raise ValueError("not png")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Некорректный PNG") from exc
+    for i, card in enumerate(data.cards, 1):
+        if len(card.box) != 4:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: box должен содержать x, y, ширину и высоту")
+        x, y, w, h = card.box
+        if x < 0 or y < 0 or w < 20 or h < 20 or x + w > width or y + h > height:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: рамка выходит за границы или слишком мала")
+        if card.expected_quantity < 1 or card.expected_quantity > 999:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: количество должно быть 1–999")
+        if card.state not in {"owned", "unowned"}:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: неизвестное состояние")
+    branch = _screenshot_test_branch()
+    payload = _screenshot_test_manifest(branch)
+    if any(str(c.get("id")) == case_id for c in payload["cases"]):
+        raise HTTPException(status_code=409, detail="Такой ID уже существует")
+    image_path = f"{SCREENSHOT_TEST_IMAGES_PATH}/{case_id}.png"
+    payload["version"] = 1
+    payload["cases"].append({"id": case_id, "title": data.title.strip()[:120], "image_path": image_path,
+        "source_screenshot_size": [width, height], "cards": [c.model_dump() for c in data.cards],
+        "image_sha256": hashlib.sha256(image_data).hexdigest()})
+    files = {image_path: image_data, SCREENSHOT_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"}
+    commit = _github_commit_files(files, f"Add screenshot quality fixture {case_id}", branch)
+    upload_path.unlink(missing_ok=True)
+    return {"ok": True, "id": case_id, "branch": branch, "git_commit": commit["sha"]}
+
+
+@app.delete("/admin/screenshot-tests/{case_id}")
+def delete_screenshot_test(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    payload = _screenshot_test_manifest(branch)
+    case = next((c for c in payload["cases"] if str(c.get("id")) == case_id), None)
+    if not case:
+        raise HTTPException(status_code=404, detail="Эталон не найден")
+    payload["cases"] = [c for c in payload["cases"] if str(c.get("id")) != case_id]
+    files: dict[str, bytes | None] = {SCREENSHOT_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"}
+    path = case.get("image_path", "")
+    if isinstance(path, str) and path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") and ".." not in Path(path).parts:
+        files[path] = None
+    commit = _github_commit_files(files, f"Delete screenshot quality fixture {case_id}", branch)
+    return {"ok": True, "id": case_id, "branch": branch, "git_commit": commit["sha"]}
+
+
+@app.post("/admin/screenshot-tests/run")
+def run_screenshot_tests(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    results = []
+    for case in _screenshot_test_manifest(branch)["cases"]:
+        errors = []
+        path = case.get("image_path", "")
+        if not isinstance(path, str) or not path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") or ".." in Path(path).parts:
+            data = None
+        else:
+            data = _github_read_bytes(path, branch)
+        if data is None:
+            results.append({"id": case.get("id", "?"), "passed": False, "errors": ["Файл скриншота отсутствует"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0})
+            continue
+        try:
+            with Image.open(BytesIO(data)) as source:
+                source.load()
+                result = scan_screenshot(source.convert("RGB"), save_previews=False)
+        except Exception as exc:
+            results.append({"id": case.get("id", "?"), "passed": False, "errors": [f"Ошибка сканирования: {type(exc).__name__}"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0})
+            continue
+        owned = [c for c in case.get("cards", []) if c.get("state", "owned") == "owned"]
+        detected = list(result.get("cards", []))
+        if len(owned) != len(detected):
+            errors.append(f"Количество карт: ожидалось {len(owned)}, найдено {len(detected)}")
+        unmatched = list(detected)
+        matched = checked = 0
+        for expected in owned:
+            box = expected.get("box", [])
+            if not isinstance(box, list) or len(box) != 4:
+                errors.append("Некорректная эталонная рамка")
+                continue
+            ex, ey, ew, eh = box
+            best, best_iou = None, 0.0
+            for actual in unmatched:
+                ax, ay, aw, ah = actual.get("box", [0, 0, 0, 0])
+                ix, iy = max(ex, ax), max(ey, ay)
+                iw, ih = max(0, min(ex + ew, ax + aw) - ix), max(0, min(ey + eh, ay + ah) - iy)
+                inter = iw * ih
+                union = ew * eh + aw * ah - inter
+                score = inter / union if union else 0.0
+                if score > best_iou:
+                    best, best_iou = actual, score
+            label = expected.get("card_name") or expected.get("card_id") or "Карта"
+            if best is None or best_iou < 0.70:
+                errors.append(f"{label}: IoU {best_iou:.2f}, требуется не менее 0.70")
+                continue
+            unmatched.remove(best)
+            ax, ay, aw, ah = best["box"]
+            ix, iy = max(ex, ax), max(ey, ay)
+            inter = max(0, min(ex + ew, ax + aw) - ix) * max(0, min(ey + eh, ay + ah) - iy)
+            coverage = inter / (ew * eh) if ew * eh else 0
+            precision = inter / (aw * ah) if aw * ah else 0
+            if coverage < 0.90: errors.append(f"{label}: покрытие карты {coverage:.0%}, требуется ≥ 90%")
+            if precision < 0.75: errors.append(f"{label}: точность кропа {precision:.0%}, требуется ≥ 75%")
+            checked += 1
+            if int(best.get("quantity", 1)) == int(expected.get("expected_quantity", 1)): matched += 1
+            else: errors.append(f"{label}: ожидалось {expected.get('expected_quantity', 1)}, найдено {best.get('quantity', 1)}")
+        results.append({"id": case.get("id", "?"), "passed": not errors, "errors": errors, "expected_cards": len(owned), "detected_cards": len(detected), "quantity_matches": matched, "quantity_checked": checked})
+    passed = sum(x["passed"] for x in results)
+    return {"count": len(results), "passed": passed, "failed": len(results) - passed, "results": results}
 
 
 @app.post("/admin/counter-tests/run")

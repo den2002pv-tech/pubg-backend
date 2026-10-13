@@ -61,3 +61,8 @@ For each original screenshot, the tests verify:
 - Fixture IDs, image paths, dimensions, rectangles, states, and quantities are valid.
 
 The manifest currently contains no labelled screenshot cases, so the end-to-end screenshot test is skipped until at least one real, manually checked screenshot is added. The manifest validation test still runs. Do not claim full screenshot coverage until the fixture list contains representative screenshots, including different resolutions/layouts, multiple rows, gray/dimmed cards, and cards with and without quantity badges.
+
+
+## Admin workflow
+
+Open the admin panel's **Quality screenshot tests** tab. Upload the original PNG without resizing or cropping. The scanner proposes card rectangles and quantities; verify each box, manually add or remove rectangles if needed, and set the true quantity plus whether each card is owned. Saving commits the original PNG and manually checked labels to the configured fixture branch. Use **Check all screenshots** to rerun the current scanner against saved screenshots. A failed result indicates a scanner issue or a label that needs independent review; never adjust the expected quantity just to make the test pass.
