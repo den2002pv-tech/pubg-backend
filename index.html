@@ -1075,6 +1075,10 @@ async function confirmCollection() {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || 'Ошибка сохранения');
+    trackAnalytics('collection_saved', { card_count: selected.length });
+    let desiredRemovedForMetrics = 0;
+    selected.forEach(c => { if (num(c.quantity) > 0 && desiredIds.has(c.id)) desiredRemovedForMetrics++; });
+    if (desiredRemovedForMetrics) trackAnalytics('wishlist_updated', { removed_count: desiredRemovedForMetrics });
     pendingCards = [];
     confirmBtn.style.display = 'none';
     inventoryCards = d.cards || inventoryCards;
@@ -1513,6 +1517,7 @@ async function saveDesired() {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || 'Ошибка сохранения');
+    trackAnalytics('wishlist_updated', { added_count: Math.max(0, desiredIds.size - savedDesiredIds.size), removed_count: Math.max(0, savedDesiredIds.size - desiredIds.size) });
     desiredIds = new Set((d.desired_cards || []).filter(c => inventoryQuantity(c.id) === 0).map(c => c.id));
     savedDesiredIds = new Set(desiredIds);
     checkDesiredChanges();
@@ -1790,6 +1795,7 @@ tradeMatchesEl.addEventListener('click', async event => {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || 'Не удалось отправить предложение');
+    trackAnalytics('trade_action', { action: 'request' });
     button.textContent = '✓ Предложение отправлено';
     button.setAttribute('aria-label', 'Предложение обмена отправлено');
     tradeStatusEl.textContent = data.message || 'Заявка сохранена.';
