@@ -1,4 +1,65 @@
 {
   "version": 1,
-  "cases": []
+  "cases": [
+    {
+      "id": "inventory-20261013211359",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261013211359.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": ""
+        },
+        {
+          "box": [
+            474,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": ""
+        },
+        {
+          "box": [
+            743,
+            169,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "",
+          "card_id": ""
+        },
+        {
+          "box": [
+            1012,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": ""
+        }
+      ],
+      "image_sha256": "b3aad80471bb04577e8a83088fde62a294a70b04790eadede22a4693b997aa99"
+    }
+  ]
 }
