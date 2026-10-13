@@ -24,3 +24,31 @@ python -m pytest -v tests
 ```
 
 The full CI checks also compile Python files and run `python -m pytest -q` on Python 3.12. The dedicated counter workflow runs on Python 3.11. If fixture tests fail, inspect the actual failure output and fix the detector; do not change expected quantities to make the tests pass.
+
+## Full screenshot fixtures
+
+`tests/fixtures/screenshots/cases.json` stores end-to-end inventory screenshot tests, separate from the counter-only crop manifest above. Each case points to the original full screenshot and manually labelled card rectangles. Example:
+
+```json
+{
+  "version": 1,
+  "cases": [{
+    "id": "inventory-gray-cards-01",
+    "image_path": "tests/fixtures/screenshots/images/inventory-gray-cards-01.png",
+    "cards": [
+      {
+        "card_id": "verified-catalog-id",
+        "card_name": "Manually verified card name",
+        "box": [198, 147, 228, 337],
+        "expected_quantity": 10
+      }
+    ]
+  }]
+}
+```
+
+- `box` is the manually verified rectangle `[x, y, width, height]` on the original screenshot, not on a cropped card.
+- `expected_quantity` is the visible quantity on that card; use `1` when there is no quantity badge.
+- The end-to-end test runs the real screenshot pipeline, verifies the total number of detected cards, matches each detected contour to the labelled rectangle using IoU >= 0.70, then verifies the quantity on the matched crop.
+- Keep original screenshot dimensions. Never alter the labelled rectangle or expected quantity just to make a test pass.
+- Run with `python -m pytest -q tests/test_screenshot_fixtures.py`. The suite skips its labelled-case assertion while the manifest is empty; add verified screenshot cases before treating it as meaningful coverage.
