@@ -16,7 +16,7 @@ ALLOWED_SORTS = {"name", "rarity", "quantity", "duplicates", "id"}
 ALLOWED_FAILURES = {"timeout", "network", "server", "unknown"}
 ALLOWED_TRADE_ACTIONS = {"open", "accept", "decline", "cancel", "confirm", "code_submit", "request"}
 ALLOWED_FEEDBACK_CATEGORIES = {"bug", "slow", "confusing", "feature", "other"}
-PROFILE_KEYS = {"decode_ms", "upload_decode_ms", "detection_ms", "counter_ms", "raw_hash_ms", "clean_hash_ms", "preview_ms", "matching_ms", "total_ms", "server_total_ms"}
+PROFILE_KEYS = {"rgb_convert_ms", "upload_decode_ms", "detection_ms", "counter_ms", "raw_hash_ms", "clean_hash_ms", "preview_ms", "matching_ms", "total_ms", "server_total_ms"}
 
 
 def init_analytics_db() -> None:
