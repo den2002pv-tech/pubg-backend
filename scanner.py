@@ -775,8 +775,9 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
     for item in detected:
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
-        if is_gray_locked_card(crop):
-            continue
+        # Low-saturation frames are not sufficient evidence that a card is locked:
+        # owned gray-rarity cards use the same gray palette and may have quantity
+        # badges. Keep every geometrically detected card for matching and labeling.
         stage_started = time.perf_counter()
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
         counter_ms += (time.perf_counter() - stage_started) * 1000
