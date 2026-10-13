@@ -844,6 +844,67 @@ async def admin_status(authorization: str | None = Header(default=None)):
     }
 
 
+@app.get("/admin/pubg-club/posts")
+async def admin_pubg_club_posts(authorization: str | None = Header(default=None)):
+    """Show recent public posts from the PUBG MOBILE Club cardexchange topic."""
+    require_admin(authorization)
+
+    topic_url = "https://share.club.gpubgm.com/2vRUE5jmLe0"
+    try:
+        request = Request(
+            topic_url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; PUBGCardAdmin/1.0)"},
+        )
+        with urlopen(request, timeout=15) as response:
+            page = response.read(2_000_000).decode("utf-8", "replace")
+        marker = "window.__INITIAL_STATE__"
+        marker_index = page.find(marker)
+        if marker_index < 0:
+            raise ValueError("Страница темы не содержит начальное состояние")
+        equals_index = page.find("=", marker_index + len(marker))
+        if equals_index < 0:
+            raise ValueError("Не найдено состояние темы")
+        state, _ = json.JSONDecoder().raw_decode(page[equals_index + 1:].lstrip())
+        feed = state.get("topicFeedList") or {}
+        topic = feed.get("topicDetail") or {}
+        bodies = feed.get("bodys") or []
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Не удалось загрузить публикации PUBG MOBILE Club: {type(exc).__name__}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ошибка чтения темы PUBG MOBILE Club: {type(exc).__name__}",
+        ) from exc
+
+    posts = []
+    for item in bodies[:20]:
+        if not isinstance(item, dict):
+            continue
+        video = item.get("video") if isinstance(item.get("video"), dict) else {}
+        images = item.get("image_urls") or []
+        if not isinstance(images, list):
+            images = []
+        posts.append({
+            "iid": str(item.get("iid") or ""),
+            "content": str(item.get("content") or "")[:5000],
+            "image_urls": [str(url) for url in images[:10] if isinstance(url, str)],
+            "video_preview": str(video.get("img_url") or ""),
+            "published_at": str(item.get("sendDate") or item.get("time") or ""),
+            "type": str(item.get("type") or ""),
+        })
+
+    return {
+        "topic": str(topic.get("topicName") or "cardexchange"),
+        "topic_url": topic_url,
+        "count": len(posts),
+        "posts": posts,
+        "source": "PUBG MOBILE Club public topic page",
+    }
+
+
 @app.post("/me/analytics/events")
 async def submit_analytics_events(
     data: dict[str, Any],
