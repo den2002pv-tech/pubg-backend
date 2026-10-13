@@ -498,9 +498,14 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 continue
             if cw < 2 or cw > max(8, int(roi_w * 0.40)) or area < 3.0:
                 continue
+            # Keep the filled external contour for the multiply-sign shape test,
+            # but preserve the thresholded glyph pixels for digit matching. Filling
+            # an external contour erases the holes in 0/6/8/9 and makes them look
+            # like solid 1-shaped blobs.
             mask = np.zeros((ch, cw), dtype=np.uint8)
             shifted = contour - np.array([[[cx, cy]]], dtype=np.int32)
             cv2.drawContours(mask, [shifted], -1, 255, thickness=-1)
+            digit_mask = glyph_mask[cy:cy + ch, cx:cx + cw]
 
             if cw >= 3 and ch >= 3 and 0.55 <= cw / float(ch) <= 1.45:
                 x_score = _multiply_score(mask)
@@ -508,7 +513,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                     x_candidates.append({"x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch, "score": x_score})
 
             if ch >= max(5, int(roi_h * 0.16)) and cw / float(ch) <= 0.88:
-                scores = {d: _digit_score(mask, d) for d in range(10)}
+                scores = {d: _digit_score(digit_mask, d) for d in range(10)}
                 ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
                 best_digit, best_score = ordered[0]
                 runner_up = ordered[1][1]
