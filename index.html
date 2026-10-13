@@ -90,6 +90,12 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .chip.chip-gold.active{background:var(--gold-bg);border-color:var(--gold);color:var(--gold)}
 .chip.chip-not-desired.active{background:rgba(56,139,253,0.22);border-color:#58a6ff;color:#79c0ff}
 .chip .chip-count{background:rgba(255,255,255,0.1);padding:1px 6px;border-radius:10px;font-size:11px}
+.filter-more{position:relative;flex:0 0 auto}
+.filter-more summary{min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px dashed var(--border);border-radius:20px;color:var(--text);font-size:13px;font-weight:700;cursor:pointer;list-style:none;white-space:nowrap}
+.filter-more summary::-webkit-details-marker{display:none}
+.filter-more summary::after{content:'⌄';font-size:15px;color:var(--text-muted)}
+.filter-more[open] summary::after{content:'⌃'}
+.filter-more .chip{margin-top:7px}
 
 /* Wishlist Quick Actions */
 .quick-actions-bar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
