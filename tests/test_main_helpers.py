@@ -224,3 +224,65 @@ def test_github_commit_always_targets_working_branch(monkeypatch):
     # A stale Render setting must not redirect admin data commits to main.
     monkeypatch.setenv("GITHUB_BRANCH", "main")
     assert main._github_commit_branch() == "feature/card-counter"
+
+
+
+def test_manual_counter_runner_reports_pass_and_mismatch(monkeypatch):
+    from io import BytesIO
+    import hashlib
+    from PIL import Image
+
+    image_buffer = BytesIO()
+    Image.new("RGB", (32, 48), "white").save(image_buffer, format="PNG")
+    image_bytes = image_buffer.getvalue()
+    image_sha = hashlib.sha256(image_bytes).hexdigest()
+    manifest = {
+        "version": 1,
+        "cases": [
+            {
+                "id": "fixture-pass",
+                "card_name": "Fixture passes",
+                "image_path": "tests/fixtures/counter/images/manual-run-pass.png",
+                "image_sha256": image_sha,
+                "expected_quantity": 1,
+            },
+            {
+                "id": "fixture-mismatch",
+                "card_name": "Fixture mismatch",
+                "image_path": "tests/fixtures/counter/images/manual-run-mismatch.png",
+                "image_sha256": image_sha,
+                "expected_quantity": 2,
+            },
+        ],
+    }
+    monkeypatch.setattr(main, "_counter_test_branch", lambda: "feature/card-counter")
+    monkeypatch.setattr(main, "_github_read_text", lambda path, branch: json.dumps(manifest))
+    monkeypatch.setattr(main, "_github_read_bytes", lambda path, branch: image_bytes)
+    monkeypatch.setattr(main, "_detect_counter", lambda image: (None, 1, 0.9, {"method": "test"}))
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+
+    result = main.run_counter_tests(authorization="Bearer test-token")
+
+    assert result["total"] == 2
+    assert result["passed"] == 1
+    assert result["failed"] == 1
+    assert result["results"][0]["status"] == "passed"
+    assert result["results"][1]["status"] == "failed"
+    assert result["results"][1]["expected_quantity"] == 2
+    assert result["results"][1]["detected_quantity"] == 1
+    assert result["results"][1]["error"] == "Ожидалось 2, распознано 1"
+
+
+def test_manual_counter_runner_requires_admin(monkeypatch):
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(
+        main,
+        "require_admin",
+        lambda authorization: (_ for _ in ()).throw(HTTPException(status_code=401, detail="Unauthorized")),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        main.run_counter_tests(authorization=None)
+
+    assert exc.value.status_code == 401
