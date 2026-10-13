@@ -4,6 +4,7 @@ Real labelled examples are added from the admin page's **Tests counter** tab aft
 
 - `cases.json` stores each manually verified quantity, detector output captured at scan time, app commit, card metadata, detector diagnostics, and image SHA-256.
 - `images/` stores the exact card crop passed to the counter detector, not the entire screenshot.
+- Gray-rarity cards must not be discarded solely because their frame has low color saturation; their crop, manually verified card identity, and actual quantity should be added as a regression case from the admin scan queue.
 - Saving a labelled batch appends cases to the existing manifest and commits the images plus updated manifest to `feature/card-counter` (or `COUNTER_TEST_BRANCH` if configured). The application retains the most recent 500 cases; saving does not reset earlier cases.
 - Do not edit `expected_quantity` to match a wrong detector result; it must reflect the actual inventory.
 - A saved case whose detector output was wrong is valuable regression data. Keep it until the current detector passes the fixture or the label/image is independently proven invalid.
