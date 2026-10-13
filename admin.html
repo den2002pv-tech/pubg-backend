@@ -60,6 +60,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     <button class="tab" data-tab="cards">🃏 Карты</button>
     <button class="tab" data-tab="temp">🗑️ Временные</button>
     <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
+    <button class="tab" data-tab="clubPosts">🌐 PUBG Club</button>
     <button class="tab" data-tab="users">👥 Пользователи</button>
     <button class="tab" data-tab="analytics">📊 Метрики</button>
   </div>
@@ -122,6 +123,20 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
       </div>
       <div id="counterTestsStatus" class="muted"></div>
       <div id="counterTestsList" class="card-grid"></div>
+    </div>
+  </section>
+
+  <section id="clubPosts" class="panel">
+    <div class="box">
+      <h2>Публикации PUBG MOBILE Club — #cardexchange</h2>
+      <p class="muted">Показывает последние публикации, доступные на публичной странице темы. Это просмотр: публикации не изменяют инвентарь и не запускают распознавание автоматически.</p>
+      <div class="row">
+        <div class="stat"><span id="clubPostsCount">—</span><small>Публикаций загружено</small></div>
+        <button id="refreshClubPostsBtn" type="button" class="btn-secondary">Обновить публикации</button>
+        <a id="clubTopicLink" class="btn-secondary" href="https://share.club.gpubgm.com/2vRUE5jmLe0" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;padding:10px;margin-top:6px;border-radius:7px">Открыть тему в PUBG Club ↗</a>
+      </div>
+      <div id="clubPostsStatus" class="muted" role="status" aria-live="polite">Нажми «Обновить публикации», чтобы загрузить тему.</div>
+      <div id="clubPostsList" class="card-grid"></div>
     </div>
   </section>
 
@@ -1104,6 +1119,49 @@ document.getElementById('commitBtn').onclick=async()=>{
   finally{b.disabled=false;b.textContent='💾 Отправить все изменения одним commit'}
 };
 
+function safeClubMediaUrl(value){
+  try{
+    const url=new URL(String(value||''));
+    return url.protocol==='https:' ? url.href : '';
+  }catch{return ''}
+}
+async function loadClubPosts(){
+  const status=document.getElementById('clubPostsStatus');
+  const root=document.getElementById('clubPostsList');
+  const button=document.getElementById('refreshClubPostsBtn');
+  status.className='muted';status.textContent='Загружаем публичную тему PUBG MOBILE Club…';
+  button.disabled=true;root.innerHTML='';
+  try{
+    const response=await api('/admin/pubg-club/posts');
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.detail||'Не удалось загрузить публикации');
+    document.getElementById('clubPostsCount').textContent=Number(data.count||0);
+    document.getElementById('clubTopicLink').href=safeClubMediaUrl(data.topic_url)||'https://share.club.gpubgm.com/2vRUE5jmLe0';
+    const posts=Array.isArray(data.posts)?data.posts:[];
+    if(!posts.length){
+      root.innerHTML='<p class="muted">Публичная страница не вернула публикаций. Попробуй обновить позже.</p>';
+    }
+    posts.forEach(post=>{
+      const el=document.createElement('article');el.className='item';
+      const images=(Array.isArray(post.image_urls)?post.image_urls:[]).map(safeClubMediaUrl).filter(Boolean);
+      const videoPreview=safeClubMediaUrl(post.video_preview);
+      const media=images.length?images:videoPreview?[videoPreview]:[];
+      const mediaHtml=media.map(url=>'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="'+esc(url)+'" alt="Медиа публикации PUBG Club" style="height:220px;object-fit:contain" referrerpolicy="no-referrer"></a>').join('');
+      const text=String(post.content||'').trim();
+      el.innerHTML='<h3>Публикация</h3>'+
+        '<div class="muted">ID: <code>'+esc(post.iid||'—')+'</code></div>'+
+        (post.published_at?'<div class="muted">Дата: '+esc(post.published_at)+'</div>':'')+
+        '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(text||'Без текста')+'</p>'+
+        (mediaHtml?'<div class="card-grid">'+mediaHtml+'</div>':'<p class="muted">Нет доступного изображения или превью.</p>');
+      root.appendChild(el);
+    });
+    status.className='ok';status.textContent='Загружено '+posts.length+' публикаций из темы '+String(data.topic||'cardexchange')+'. Источник: публичная страница PUBG MOBILE Club.';
+  }catch(error){
+    status.className='err';status.textContent='Не удалось загрузить публикации: '+error.message;
+  }finally{button.disabled=false}
+}
+document.getElementById('refreshClubPostsBtn').addEventListener('click',loadClubPosts);
+
 async function loadAnalytics() {
   const status = document.getElementById('analyticsStatus');
   status.textContent = 'Загружаем метрики…';
@@ -1143,7 +1201,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();
+  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();if(btn.dataset.tab==='clubPosts')loadClubPosts();
 });
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 
