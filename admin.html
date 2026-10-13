@@ -31,6 +31,47 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
 .progress-text{margin-top:8px}
 .users-table th,.users-table td{vertical-align:top}.users-table tbody tr:hover{background:#292929}
 .presence-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#777}.presence-dot.online{background:#2ecc71}
+/* Counter fixture workspace: compact, touch-friendly and responsive. */
+#counterTests .counter-intro{max-width:760px;line-height:1.5}
+#counterTests .counter-toolbar{align-items:center}
+#counterTests .counter-toolbar .stat{flex:0 0 auto;min-width:120px}
+#counterTests .counter-toolbar button{width:auto;min-width:140px}
+#counterTests .counter-run-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+#counterTests .counter-fixture-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:10px;margin-top:12px}
+.counter-fixture{position:relative;display:grid;grid-template-columns:92px minmax(0,1fr);gap:12px;align-items:start;padding:10px;background:#222;border:1px solid #3d3d3d;border-radius:12px;min-width:0}
+.counter-fixture-thumb{width:92px;height:118px;object-fit:contain;background:#111;border-radius:8px;border:1px solid #393939}
+.counter-fixture-body{min-width:0;padding-right:28px}
+.counter-fixture-title{font-size:14px;line-height:1.35;margin:2px 0 8px;overflow-wrap:anywhere}
+.counter-fixture-meta{font-size:12px;color:#aaa;line-height:1.45;overflow-wrap:anywhere}
+.counter-fixture-quantity{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.counter-fixture-quantity span{font-size:12px;padding:4px 7px;border-radius:7px;background:#333}
+.counter-fixture-menu{position:absolute;right:8px;top:8px;z-index:5}
+.counter-fixture-menu>summary{list-style:none;cursor:pointer;width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:#333;color:#fff;font-size:21px;line-height:1}
+.counter-fixture-menu>summary::-webkit-details-marker{display:none}
+.counter-fixture-menu[open]>summary,.counter-fixture-menu>summary:hover{background:#4a4a4a}
+.counter-fixture-menu-items{position:absolute;right:0;top:38px;width:180px;padding:5px;background:#181818;border:1px solid #4b4b4b;border-radius:10px;box-shadow:0 12px 30px #0009}
+.counter-fixture-menu-items button{display:block;width:100%;margin:0;padding:10px;text-align:left;background:transparent;color:#eee;font-weight:500}
+.counter-fixture-menu-items button:hover{background:#303030}
+.counter-fixture-menu-items button.danger{color:#ff8585}
+.counter-fixture-status{font-size:12px;margin-top:8px;overflow-wrap:anywhere}
+.counter-fixture-dialog{border:1px solid #555;border-radius:14px;background:#202020;color:#fff;width:min(420px,calc(100% - 28px));padding:20px;box-shadow:0 20px 70px #000b}
+.counter-fixture-dialog::backdrop{background:#000a}
+.counter-fixture-dialog h3{margin-top:0}
+.counter-fixture-dialog .dialog-actions{display:flex;gap:8px;margin-top:14px}
+.counter-fixture-dialog .dialog-actions button{flex:1}
+#counterTestsList{grid-template-columns:1fr}
+#counterTests .counter-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media(max-width:520px){
+ body{padding:8px}
+ .box{padding:12px}
+ #counterTests .counter-toolbar{gap:8px}
+ #counterTests .counter-toolbar button{flex:1;min-width:0}
+ .counter-fixture{grid-template-columns:78px minmax(0,1fr);gap:9px;padding:8px}
+ .counter-fixture-thumb{width:78px;height:104px}
+ .counter-fixture-title{font-size:13px}
+ .counter-fixture-menu-items{width:165px}
+}
+
 .user-link{background:transparent;color:#ffb84d;padding:2px;margin:0;text-align:left;width:auto}
 </style>
 </head>
@@ -115,7 +156,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="counterTests" class="panel">
     <div class="box">
       <h2>Реальные тесты счётчика</h2>
-      <p class="muted">Сначала на вкладке «Хеши» добавляй результаты каждого сканирования в очередь. Когда закончишь тестирование, нажми «Отправить всю очередь одним commit». В GitHub попадут изображения, введённые эталонные количества и диагностика всех накопленных примеров за один commit. Очередь сохраняется в текущей вкладке браузера до отправки или очистки данных браузера.</p>
+      <p class="muted counter-intro">Эталоны хранятся в GitHub. Открой меню <b>⋯</b> у теста, чтобы изменить фактическое количество или удалить пример вместе с кропом. Изменения сохраняются отдельным commit в рабочую ветку.</p>
       <div class="row">
         <div class="stat"><span id="counterTestCount">—</span><small>Сохранено эталонных тестов</small></div>
         <div><label for="counterTestBranch">Рабочая ветка</label><div id="counterTestBranch" class="badge">feature/card-counter</div></div>
@@ -123,7 +164,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
       </div>
       <div id="counterTestsStatus" class="muted" role="status" aria-live="polite"></div>
       <hr>
-      <h3>Проверка текущего алгоритма</h3>
+      <div class="counter-section-heading"><h3>Проверка текущего алгоритма</h3><span class="badge">Регрессионные тесты</span></div>
       <p class="muted">Запускает распознавание на всех сохранённых эталонных кропах из выбранной ветки. Сравнивает новый результат с эталонным количеством и показывает ошибки и диагностику. Запуск не меняет карты, эталоны, инвентарь или метрики.</p>
       <div class="row">
         <button id="runCounterTestsBtn" type="button">▶ Запустить все тесты</button>
@@ -134,7 +175,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
         </select>
       </div>
       <div id="counterRunSummary" class="muted" role="status" aria-live="polite">Тесты ещё не запускались в этой сессии админки.</div>
-      <div id="counterRunResults" class="card-grid"></div>
+      <div id="counterRunResults" class="card-grid counter-run-grid"></div>
       <hr>
       <h3>Сохранённые эталоны</h3>
       <div id="counterTestsList" class="card-grid"></div>
@@ -522,28 +563,140 @@ async function saveCounterTestsBatch(){
     status.className="err";status.textContent="Не удалось сохранить очередь: "+e.message+". Данные оставлены в очереди — можно повторить отправку.";
   }finally{button.disabled=false;renderCounterQueueStatus();}
 }
+let counterFixtureObjectUrls=[];
+let editingCounterFixture=null;
+function revokeCounterFixtureUrls(){
+  counterFixtureObjectUrls.forEach(url=>URL.revokeObjectURL(url));
+  counterFixtureObjectUrls=[];
+}
+async function loadCounterFixtureImage(item,img){
+  try{
+    const response=await api(item.image_url);
+    if(!response.ok)throw new Error('Изображение недоступно');
+    const url=URL.createObjectURL(await response.blob());
+    counterFixtureObjectUrls.push(url);
+    img.src=url;
+    img.alt='Кроп теста '+(item.card_name||item.id||'');
+  }catch(e){
+    img.alt='Не удалось загрузить кроп';
+    img.classList.add('image-unavailable');
+  }
+}
+function closeCounterFixtureMenus(except){
+  document.querySelectorAll('.counter-fixture-menu[open]').forEach(menu=>{if(menu!==except)menu.open=false});
+}
+function renderCounterFixture(item){
+  const el=document.createElement('article');
+  el.className='counter-fixture';
+  const correct=Number(item.expected_quantity)===Number(item.detected_quantity);
+  const img=document.createElement('img');
+  img.className='counter-fixture-thumb';
+  img.loading='lazy';
+  img.src='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="92" height="118"%3E%3Crect width="100%25" height="100%25" fill="%23111111"/%3E%3Ctext x="50%25" y="50%25" fill="%23777777" font-size="10" text-anchor="middle"%3EЗагрузка…%3C/text%3E%3C/svg%3E';
+  const body=document.createElement('div');
+  body.className='counter-fixture-body';
+  const title=document.createElement('h4');
+  title.className='counter-fixture-title';
+  title.textContent=item.card_name||item.card_id||item.id||'Тест счётчика';
+  const status=document.createElement('div');
+  status.className='counter-fixture-status '+(correct?'ok':'err');
+  status.textContent=correct?'✓ Совпадает с текущей записью':'! Требует проверки';
+  const quantities=document.createElement('div');
+  quantities.className='counter-fixture-quantity';
+  const expected=document.createElement('span');
+  expected.textContent='Эталон: '+(item.expected_quantity??'—');
+  const detected=document.createElement('span');
+  detected.textContent='Алгоритм: '+(item.detected_quantity??'—');
+  quantities.append(expected,detected);
+  const meta=document.createElement('div');
+  meta.className='counter-fixture-meta';
+  meta.textContent=(item.id||'')+' · '+(item.timestamp?new Date(item.timestamp).toLocaleDateString():'');
+  const menu=document.createElement('details');
+  menu.className='counter-fixture-menu';
+  const trigger=document.createElement('summary');
+  trigger.textContent='⋯';
+  trigger.setAttribute('aria-label','Действия для теста '+(item.card_name||item.id||''));
+  trigger.setAttribute('title','Действия');
+  const actions=document.createElement('div');
+  actions.className='counter-fixture-menu-items';
+  const edit=document.createElement('button');
+  edit.type='button';edit.textContent='Изменить эталон';
+  edit.onclick=()=>{menu.open=false;openCounterFixtureEditor(item)};
+  const remove=document.createElement('button');
+  remove.type='button';remove.className='danger';remove.textContent='Удалить тест';
+  remove.onclick=()=>{menu.open=false;deleteCounterFixture(item)};
+  actions.append(edit,remove);
+  menu.append(trigger,actions);
+  menu.addEventListener('toggle',()=>{if(menu.open)closeCounterFixtureMenus(menu)});
+  body.append(title,status,quantities,meta);
+  el.append(img,body,menu);
+  loadCounterFixtureImage(item,img);
+  return el;
+}
 async function loadCounterTests(){
   const status=document.getElementById('counterTestsStatus');
+  const root=document.getElementById('counterTestsList');
   try{
-    status.className='muted';status.textContent='Загружаем тесты из GitHub...';
-    const r=await api('/admin/counter-tests');const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка загрузки тестов');
+    status.className='muted';status.textContent='Загружаем тесты из GitHub…';
+    const r=await api('/admin/counter-tests');const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка загрузки тестов');
     document.getElementById('counterTestCount').textContent=d.count;
     document.getElementById('counterTestBranch').textContent=d.branch;
-    const root=document.getElementById('counterTestsList');root.innerHTML='';
-    if(!d.recent.length){root.innerHTML='<p class="muted">Эталонных тестов пока нет. Просканируй изображение и сохрани первый тест из карточки результата.</p>'}
-    d.recent.forEach(item=>{
-      const el=document.createElement('div');el.className='item';
-      const correct=item.correct===true;
-      el.innerHTML=`<h3>${esc(item.card_name||item.id||'Тест счётчика')}</h3>
-        <div>Эталон: <b>${esc(item.expected_quantity)}</b> · Алгоритм: <b>${esc(item.detected_quantity)}</b></div>
-        <div class="${correct?'ok':'err'}">${correct?'Совпало':'Ошибка распознавания'}</div>
-        <div class="muted">${esc(item.timestamp||'')}<br>${esc(item.image_path||'')}</div>
-        ${item.commit_url?'<a href="'+esc(item.commit_url)+'" target="_blank" rel="noopener">Открыть commit</a>':''}`;
-      root.appendChild(el);
-    });
-    status.className='ok';status.textContent='Тесты читаются из GitHub. Новые примеры сначала накапливаются в очереди браузера и отправляются только по твоей кнопке.';
+    revokeCounterFixtureUrls();
+    root.innerHTML='';
+    if(!d.recent.length){
+      root.innerHTML='<p class="muted">Эталонных тестов пока нет. Просканируй изображение и сохрани первый пример.</p>';
+    }else{
+      const fragment=document.createDocumentFragment();
+      d.recent.forEach(item=>fragment.appendChild(renderCounterFixture(item)));
+      root.appendChild(fragment);
+    }
+    status.className='ok';
+    status.textContent='Загружено '+d.recent.length+' из '+d.count+' тестов. Изменения записываются в GitHub одним commit на операцию.';
   }catch(e){status.className='err';status.textContent='Не удалось загрузить тесты: '+e.message}
 }
+function openCounterFixtureEditor(item){
+  editingCounterFixture=item;
+  document.getElementById('counterFixtureEditName').textContent=(item.card_name||item.card_id||item.id)+' · '+item.id;
+  document.getElementById('counterFixtureExpectedInput').value=item.expected_quantity??1;
+  document.getElementById('counterFixtureEditStatus').textContent='';
+  const dialog=document.getElementById('counterFixtureEditDialog');
+  if(typeof dialog.showModal==='function')dialog.showModal();else alert('Этот браузер не поддерживает диалог редактирования.');
+}
+document.getElementById('counterFixtureCancelEdit').addEventListener('click',()=>document.getElementById('counterFixtureEditDialog').close());
+document.getElementById('counterFixtureEditForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!editingCounterFixture)return;
+  const input=document.getElementById('counterFixtureExpectedInput');
+  const quantity=Number(input.value);
+  const status=document.getElementById('counterFixtureEditStatus');
+  const button=document.getElementById('counterFixtureSaveEdit');
+  if(!Number.isInteger(quantity)||quantity<1||quantity>999){status.className='err';status.textContent='Введи целое число от 1 до 999.';return}
+  button.disabled=true;status.className='muted';status.textContent='Сохраняем эталон и создаём commit…';
+  try{
+    const r=await api('/admin/counter-tests/'+encodeURIComponent(editingCounterFixture.id)+'?expected_quantity='+quantity,{method:'PATCH'});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Не удалось изменить эталон');
+    document.getElementById('counterFixtureEditDialog').close();
+    document.getElementById('counterTestsStatus').className='ok';
+    document.getElementById('counterTestsStatus').textContent='Эталон обновлён. Commit '+String(d.git_commit||'').slice(0,10)+' · '+d.branch;
+    await loadCounterTests();
+  }catch(e){status.className='err';status.textContent='Ошибка сохранения: '+e.message}
+  finally{button.disabled=false}
+});
+async function deleteCounterFixture(item){
+  if(!confirm('Удалить тест «'+(item.card_name||item.card_id||item.id)+'»? Эталон и изображение будут удалены из рабочей ветки GitHub.'))return;
+  const status=document.getElementById('counterTestsStatus');
+  status.className='muted';status.textContent='Удаляем тест и кроп, создаём commit…';
+  try{
+    const r=await api('/admin/counter-tests/'+encodeURIComponent(item.id),{method:'DELETE'});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Не удалось удалить тест');
+    status.className='ok';status.textContent='Тест удалён. Commit '+String(d.git_commit||'').slice(0,10)+' · '+d.branch;
+    await loadCounterTests();
+  }catch(e){status.className='err';status.textContent='Тест не удалён: '+e.message}
+}
+document.addEventListener('click',event=>{
+  if(!event.target.closest('.counter-fixture-menu'))closeCounterFixtureMenus();
+});
 let lastCounterRunResults=[];
 function renderCounterRunResults(){
   const root=document.getElementById('counterRunResults');
