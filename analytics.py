@@ -6,7 +6,7 @@ from typing import Any
 from database import get_connection
 
 ALLOWED_EVENTS = {
-    "app_open", "tab_open", "scan_started", "scan_completed", "scan_failed",
+    "app_open", "tab_open", "scan_started", "scan_completed", "scan_failed", "counter_corrected",
     "filter_changed", "sort_changed", "search_used", "collection_saved",
     "wishlist_updated", "trade_viewed", "trade_action", "feedback_submitted",
 }
@@ -65,7 +65,7 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
         if isinstance(value, str) and value in choices:
             props[key] = value
 
-    for key in ("cards_detected", "matched_count", "added_count", "removed_count", "card_count"):
+    for key in ("cards_detected", "matched_count", "added_count", "removed_count", "card_count", "corrected_count"):
         val = raw.get(key)
         if isinstance(val, (int, float)) and not isinstance(val, bool):
             props[key] = max(0, min(int(val), 10000))
