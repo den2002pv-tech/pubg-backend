@@ -1105,6 +1105,9 @@ def _github_commit_files(files: dict[str, bytes], message: str, branch: str) -> 
     parent = _github_request("GET", f"{api}/git/commits/{parent_sha}", token)
     entries = []
     for path, content in files.items():
+        if content is None:
+            entries.append({"path": path, "sha": None})
+            continue
         blob = _github_request("POST", f"{api}/git/blobs", token, {
             "content": base64.b64encode(content).decode("ascii"),
             "encoding": "base64",
@@ -1258,28 +1261,102 @@ async def get_counter_tests(authorization: str | None = Header(default=None)):
     branch = _counter_test_branch()
     raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
     try:
-        cases = json.loads(raw) if raw else {"version": 1, "cases": []}
-        if not isinstance(cases, dict) or not isinstance(cases.get("cases"), list):
-            cases = {"version": 1, "cases": []}
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="Файл тестовых случаев в GitHub содержит некорректный JSON")
+        payload = json.loads(raw) if raw else {"version": 1, "cases": []}
+        if not isinstance(payload, dict) or not isinstance(payload.get("cases"), list):
+            raise ValueError("Некорректная структура cases.json")
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail="Файл тестовых случаев в GitHub содержит некорректный формат") from exc
     return {
         "branch": branch,
-        "count": len(cases["cases"]),
+        "count": len(payload["cases"]),
         "recent": [
             {
                 "id": item.get("id"),
                 "timestamp": item.get("timestamp"),
                 "card_name": item.get("card_name"),
+                "card_id": item.get("card_id"),
                 "expected_quantity": item.get("expected_quantity"),
                 "detected_quantity": item.get("detected_quantity"),
                 "correct": item.get("correct"),
                 "image_path": item.get("image_path"),
+                "image_url": f"/admin/counter-tests/image/{quote(str(item.get('id', '')), safe='')}",
                 "commit_url": item.get("commit_url"),
             }
-            for item in reversed(cases["cases"][-10:])
+            for item in reversed(payload["cases"])
         ],
     }
+
+
+@app.get("/admin/counter-tests/image/{case_id}")
+async def get_counter_test_image(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        payload = json.loads(raw) if raw else {"cases": []}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    case = next((item for item in payload.get("cases", []) if item.get("id") == case_id), None)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Эталонный тест не найден")
+    image_path = case.get("image_path")
+    if not isinstance(image_path, str) or not image_path.startswith(COUNTER_TEST_IMAGES_PATH + "/") or ".." in Path(image_path).parts:
+        raise HTTPException(status_code=400, detail="Недопустимый путь изображения")
+    image_bytes = _github_read_bytes(image_path, branch)
+    if not image_bytes:
+        raise HTTPException(status_code=404, detail="Изображение эталонного теста не найдено")
+    media_type = "image/png" if image_path.lower().endswith(".png") else "image/jpeg" if image_path.lower().endswith((".jpg", ".jpeg")) else "image/webp"
+    return Response(content=image_bytes, media_type=media_type, headers={"Cache-Control": "private, max-age=300"})
+
+
+@app.patch("/admin/counter-tests/{case_id}")
+async def update_counter_test(case_id: str, expected_quantity: int, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    if not 1 <= expected_quantity <= 999:
+        raise HTTPException(status_code=400, detail="Эталонное количество должно быть от 1 до 999")
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        payload = json.loads(raw) if raw else {"version": 1, "cases": []}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    cases = payload.get("cases") if isinstance(payload, dict) else None
+    if not isinstance(cases, list):
+        raise HTTPException(status_code=500, detail="В cases.json отсутствует список cases")
+    case = next((item for item in cases if item.get("id") == case_id), None)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Эталонный тест не найден")
+    case["expected_quantity"] = expected_quantity
+    case["correct"] = case.get("detected_quantity") == expected_quantity
+    files = {COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\\n"}
+    commit = _github_commit_files(files, f"Update counter fixture label {case_id}", branch)
+    return {"ok": True, "id": case_id, "expected_quantity": expected_quantity, "branch": branch, "git_commit": commit["sha"]}
+
+
+@app.delete("/admin/counter-tests/{case_id}")
+async def delete_counter_test(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        payload = json.loads(raw) if raw else {"version": 1, "cases": []}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    cases = payload.get("cases") if isinstance(payload, dict) else None
+    if not isinstance(cases, list):
+        raise HTTPException(status_code=500, detail="В cases.json отсутствует список cases")
+    index = next((i for i, item in enumerate(cases) if item.get("id") == case_id), None)
+    if index is None:
+        raise HTTPException(status_code=404, detail="Эталонный тест не найден")
+    removed = cases.pop(index)
+    image_path = removed.get("image_path")
+    files: dict[str, bytes | None] = {
+        COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\\n"
+    }
+    if isinstance(image_path, str) and image_path.startswith(COUNTER_TEST_IMAGES_PATH + "/") and ".." not in Path(image_path).parts:
+        files[image_path] = None
+    commit = _github_commit_files(files, f"Delete counter fixture {case_id}", branch)
+    return {"ok": True, "id": case_id, "branch": branch, "git_commit": commit["sha"]}
 
 
 @app.post("/admin/counter-tests")
