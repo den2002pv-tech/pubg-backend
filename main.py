@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+from scanner import _detect_counter
 
 from pydantic import BaseModel
 
@@ -1123,6 +1124,132 @@ def _github_commit_files(files: dict[str, bytes], message: str, branch: str) -> 
         "force": False,
     })
     return {"sha": commit["sha"], "url": commit.get("html_url", ""), "branch": branch}
+
+
+def _github_read_bytes(path: str, branch: str) -> bytes | None:
+    """Read a binary fixture from the selected branch without trusting local deploy files."""
+    token = os.getenv("GITHUB_TOKEN", "")
+    repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
+    if not token:
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+    url = f"https://api.github.com/repos/{repo}/contents/{quote(path, safe='/')}?ref={quote(branch, safe='')}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "pubg-card-admin",
+    }
+    try:
+        with urlopen(Request(url, headers=headers), timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        encoded = payload.get("content", "")
+        if not encoded:
+            raise HTTPException(status_code=502, detail=f"GitHub не вернул содержимое файла {path}")
+        return base64.b64decode(encoded)
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"GitHub API: {exc.code} {detail[:300]}") from exc
+    except URLError as exc:
+        raise HTTPException(status_code=502, detail=f"GitHub API недоступен: {exc}") from exc
+
+
+@app.post("/admin/counter-tests/run")
+def run_counter_tests(authorization: str | None = Header(default=None)):
+    """Run the current counter detector against labelled fixture images; no data is modified."""
+    require_admin(authorization)
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    if not raw:
+        raise HTTPException(status_code=404, detail="В рабочей ветке нет tests/fixtures/counter/cases.json")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    cases = payload.get("cases") if isinstance(payload, dict) else None
+    if not isinstance(cases, list):
+        raise HTTPException(status_code=500, detail="В cases.json отсутствует список cases")
+    if not cases:
+        return {
+            "branch": branch,
+            "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+            "run_at": datetime.now(timezone.utc).isoformat(),
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "results": [],
+            "message": "Нет эталонных тестовых случаев.",
+        }
+
+    started = time.perf_counter()
+    results: list[dict[str, Any]] = []
+    for case in cases:
+        case_id = str(case.get("id", "unknown"))[:120]
+        expected = case.get("expected_quantity")
+        image_path = case.get("image_path")
+        result: dict[str, Any] = {
+            "id": case_id,
+            "card_id": case.get("card_id"),
+            "card_name": case.get("card_name"),
+            "timestamp": case.get("timestamp"),
+            "expected_quantity": expected,
+            "image_path": image_path,
+            "status": "failed",
+            "detected_quantity": None,
+            "confidence": None,
+            "duration_ms": None,
+            "debug": None,
+            "error": None,
+        }
+        try:
+            if not isinstance(image_path, str) or not image_path.startswith(COUNTER_TEST_IMAGES_PATH + "/") or ".." in Path(image_path).parts:
+                raise ValueError("Недопустимый путь изображения в cases.json")
+            if not isinstance(expected, int) or isinstance(expected, bool) or not 1 <= expected <= 999:
+                raise ValueError("Эталонное количество должно быть целым числом от 1 до 999")
+            # Prefer a local fixture only when its SHA matches the manifest; otherwise read
+            # the exact version from GitHub so a stale Render deployment cannot test old data.
+            image_bytes = None
+            local_image = Path(image_path)
+            expected_sha = case.get("image_sha256")
+            if local_image.is_file():
+                local_bytes = local_image.read_bytes()
+                if not expected_sha or hashlib.sha256(local_bytes).hexdigest() == expected_sha:
+                    image_bytes = local_bytes
+            if image_bytes is None:
+                image_bytes = _github_read_bytes(image_path, branch)
+            if not image_bytes:
+                raise FileNotFoundError("Эталонное изображение не найдено в рабочей ветке")
+            if expected_sha and hashlib.sha256(image_bytes).hexdigest() != expected_sha:
+                raise ValueError("SHA-256 изображения не совпадает с cases.json")
+            with Image.open(BytesIO(image_bytes)) as source:
+                image = source.convert("RGB")
+            detector_started = time.perf_counter()
+            _, actual, confidence, debug = _detect_counter(image)
+            result["duration_ms"] = round((time.perf_counter() - detector_started) * 1000, 2)
+            result["detected_quantity"] = actual
+            result["confidence"] = confidence
+            result["debug"] = debug
+            result["status"] = "passed" if actual == expected else "failed"
+            if actual != expected:
+                result["error"] = f"Ожидалось {expected}, распознано {actual}"
+        except Exception as exc:
+            result["error"] = str(exc)[:500]
+        results.append(result)
+
+    passed = sum(1 for item in results if item["status"] == "passed")
+    failed = len(results) - passed
+    return {
+        "branch": branch,
+        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "run_at": datetime.now(timezone.utc).isoformat(),
+        "total": len(results),
+        "passed": passed,
+        "failed": failed,
+        "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+        "results": results,
+        "message": "Все тесты пройдены." if failed == 0 else f"Не пройдено тестов: {failed}.",
+    }
 
 
 @app.get("/admin/counter-tests")
