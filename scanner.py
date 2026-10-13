@@ -414,6 +414,16 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
         return 0.0
     normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
     candidate = normalized >= 128
+
+    # Preserve glyph topology as well as pixel similarity. In particular, a
+    # 6 has one enclosed area while an 8 has two; plain IoU can confuse them.
+    padded = np.pad(candidate.astype(np.uint8), 1, constant_values=0)
+    background = (padded == 0).astype(np.uint8)
+    _, component_labels = cv2.connectedComponents(background, connectivity=8)
+    exterior_label = int(component_labels[0, 0])
+    background_labels = np.unique(component_labels[background > 0])
+    hole_count = sum(int(label) != exterior_label for label in background_labels)
+
     templates = [_COUNTER_TEMPLATES[digit]] + _COUNTER_VARIANTS.get(digit, [])
     best = 0.0
     for tmpl_str in templates:
@@ -428,6 +438,10 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
                 union = candidate.sum() + target.sum() - inter
                 iou = float(inter / union) if union else 0.0
                 best = max(best, iou)
+
+    expected_holes = {0: 1, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 0, 8: 2, 9: 1}[digit]
+    if hole_count != expected_holes:
+        best *= 0.30
     return best
 
 
