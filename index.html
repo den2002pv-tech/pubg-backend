@@ -812,6 +812,7 @@ function switchTab(name) {
     renderInventory();
     checkDesiredChanges();
   } else if (isTrades) {
+    trackAnalytics('trade_viewed');
     loadTradeMatches();
     loadTradeRequests();
   }
