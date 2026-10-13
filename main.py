@@ -1123,7 +1123,8 @@ def _github_commit_files(files: dict[str, bytes], message: str, branch: str) -> 
     entries = []
     for path, content in files.items():
         if content is None:
-            entries.append({"path": path, "sha": None})
+            # Git Trees API requires mode and type even for deletion entries.
+            entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
             continue
         blob = _github_request("POST", f"{api}/git/blobs", token, {
             "content": base64.b64encode(content).decode("ascii"),
