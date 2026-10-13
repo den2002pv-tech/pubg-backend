@@ -636,6 +636,39 @@ const API = 'https://pubg-backend-3rtc.onrender.com';
 const telegramInitData = tg?.initData || '';
 const telegramHeaders = () => telegramInitData ? { 'X-Telegram-Init-Data': telegramInitData } : {};
 
+const analyticsQueue = [];
+let analyticsFlushTimer = null;
+function trackAnalytics(name, properties = {}) {
+  if (!telegramInitData) return;
+  analyticsQueue.push({ name, properties });
+  if (analyticsQueue.length >= 10) flushAnalytics();
+  else if (!analyticsFlushTimer) analyticsFlushTimer = setTimeout(flushAnalytics, 12000);
+}
+async function flushAnalytics() {
+  clearTimeout(analyticsFlushTimer);
+  analyticsFlushTimer = null;
+  if (!telegramInitData || !analyticsQueue.length) return;
+  const batch = analyticsQueue.splice(0, 20);
+  try {
+    const response = await fetch(API + '/me/analytics/events', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: batch }),
+      keepalive: true,
+    });
+    if (!response.ok) throw new Error('analytics request failed');
+  } catch (_) {
+    analyticsQueue.unshift(...batch);
+    if (analyticsQueue.length > 40) analyticsQueue.splice(0, analyticsQueue.length - 40);
+    if (!analyticsFlushTimer) analyticsFlushTimer = setTimeout(flushAnalytics, 30000);
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushAnalytics();
+});
+
+trackAnalytics('app_open');
+
 // Heartbeat keeps online presence fresh while the Telegram Mini App is open.
 let activityHeartbeatTimer = null;
 async function sendActivityHeartbeat(){
@@ -762,6 +795,7 @@ document.querySelectorAll('.tab').forEach(btn => {
 });
 
 function switchTab(name) {
+  trackAnalytics('tab_open', { tab: name });
   const isScanner = name === 'scanner';
   const isInventory = name === 'inventory';
   const isTrades = name === 'trades';
@@ -812,6 +846,8 @@ async function uploadImage() {
   const fd = new FormData();
   fd.append('file', file);
 
+  const scanStartedAt = performance.now();
+  trackAnalytics('scan_started');
   try {
     // Пробуждаем бесплатный Render-сервис отдельным безопасным GET-запросом,
     // чтобы загрузка изображения не потерялась из-за холодного старта.
@@ -826,6 +862,7 @@ async function uploadImage() {
     );
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.detail || 'Ошибка сервера при сканировании');
+    trackAnalytics('scan_completed', { cards_detected: Number(d.count || 0), matched_count: (d.cards || []).filter(card => !!card.id).length, duration_ms: performance.now() - scanStartedAt, profile: d.profile || {} });
     statusText.textContent = '📷 Загрузить другой скриншот';
     statusEl.textContent = '✅ Найдено карт: ' + (d.count || 0);
     pendingCards = (d.cards || []).filter(c => c.id).map(c => ({
@@ -835,6 +872,7 @@ async function uploadImage() {
     }));
     showResults(d.cards || []);
   } catch (e) {
+    trackAnalytics('scan_failed', { reason: e?.name === 'AbortError' ? 'timeout' : (e instanceof TypeError ? 'network' : 'server') });
     statusText.textContent = '📷 Загрузить скриншот альбома';
     if (e?.name === 'AbortError') {
       statusEl.textContent = '❌ Сервер не успел ответить. Попробуйте повторить сканирование.';
@@ -1671,6 +1709,7 @@ document.getElementById('statDesiredCard').addEventListener('click', () => {
 
 function setFilter(filterName) {
   currentFilter = filterName;
+  trackAnalytics('filter_changed', { filter: filterName });
   document.querySelectorAll('#filterChips .chip').forEach(c => {
     const selected = c.dataset.filter === filterName;
     c.classList.toggle('active', selected);
@@ -1683,7 +1722,10 @@ function setFilter(filterName) {
 const searchInput = document.getElementById('inventorySearch');
 const searchClearBtn = document.getElementById('searchClearBtn');
 
+let searchAnalyticsTracked = false;
+searchInput.addEventListener('focus', () => { searchAnalyticsTracked = false; });
 searchInput.addEventListener('input', () => {
+  if (searchInput.value.trim() && !searchAnalyticsTracked) { trackAnalytics('search_used'); searchAnalyticsTracked = true; }
   searchClearBtn.hidden = !searchInput.value;
   renderInventory();
 });
