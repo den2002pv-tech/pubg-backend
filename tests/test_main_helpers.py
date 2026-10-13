@@ -286,3 +286,41 @@ def test_manual_counter_runner_requires_admin(monkeypatch):
         main.run_counter_tests(authorization=None)
 
     assert exc.value.status_code == 401
+
+
+def test_scan_screenshot_keeps_gray_rarity_cards(monkeypatch):
+    from PIL import Image
+    import scanner
+
+    image = Image.new("RGB", (120, 180), (120, 120, 120))
+    monkeypatch.setattr(
+        scanner,
+        "detect_inventory_cards",
+        lambda image: [{"row": 0, "col": 0, "box": [0, 0, 120, 180]}],
+    )
+    monkeypatch.setattr(
+        scanner,
+        "_detect_counter",
+        lambda crop: (crop, 5, 0.95, {"reason": "test"}),
+    )
+    monkeypatch.setattr(
+        scanner,
+        "calculate_card_hashes",
+        lambda crop: {
+            "full_dhash": "abcd",
+            "full_phash": "abcd",
+            "visual_phash": "abcd",
+            "visual_dhash": "abcd",
+            "frame_colorhash": "abcd",
+        },
+    )
+    monkeypatch.setattr(scanner, "encode_preview", lambda crop: "preview")
+    # Even if the old low-saturation heuristic would label this frame gray/locked,
+    # scan_screenshot must not silently discard a geometrically detected card.
+    monkeypatch.setattr(scanner, "is_gray_locked_card", lambda crop: True)
+
+    result = scanner.scan_screenshot(image)
+
+    assert result["count"] == 1
+    assert result["cards"][0]["quantity"] == 5
+    assert result["cards"][0]["hashes"]["full_dhash"] == "abcd"
