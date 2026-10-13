@@ -5741,6 +5741,410 @@
           "rejection_stage": "badge_geometry_or_contrast"
         }
       }
+    },
+    {
+      "id": "20261013T201112700942-56c7291510",
+      "timestamp": "2026-10-13T20:11:12.700942+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112700942-56c7291510.png",
+      "image_sha256": "56c7291510dca92b9a45f00845bf23b3e5f5d8e2d924593d163325cec6f233ba",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 95.3,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.2017,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.783
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201112701372-21bf6c4d6a",
+      "timestamp": "2026-10-13T20:11:12.701372+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112701372-21bf6c4d6a.png",
+      "image_sha256": "21bf6c4d6a6947edb40c739b22d4a8fd6e65903ab887948c74b00ef6d6a55ff0",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 88.7,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1518,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201112701662-efe22bd7d4",
+      "timestamp": "2026-10-13T20:11:12.701662+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112701662-efe22bd7d4.png",
+      "image_sha256": "efe22bd7d45856a2d1ddac6f5e7c0fc9fcdee9fa5e8c613e0cb19ffa01a78fbb",
+      "expected_quantity": 6,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 8,
+              "bright_pixel_ratio": 0.2161,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.815
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T201112701947-22484475ba",
+      "timestamp": "2026-10-13T20:11:12.701947+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112701947-22484475ba.png",
+      "image_sha256": "22484475ba0bf9bf51993d6481bb86efece0e97893e4304c6c94e4b7ba838a05",
+      "expected_quantity": 11,
+      "detected_quantity": 11,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 11,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 11,
+            "digit": null,
+            "digits": [
+              1,
+              1
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.811
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 93.2,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0651,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 229,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811
+            },
+            {
+              "x": 222,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811
+            },
+            {
+              "x": 223,
+              "y": 40,
+              "w": 6,
+              "h": 30,
+              "digit": 1,
+              "score": 0.667
+            }
+          ]
+        }
+      }
     }
   ]
 }
