@@ -1328,7 +1328,7 @@ async def update_counter_test(case_id: str, expected_quantity: int, authorizatio
         raise HTTPException(status_code=404, detail="Эталонный тест не найден")
     case["expected_quantity"] = expected_quantity
     case["correct"] = case.get("detected_quantity") == expected_quantity
-    files = {COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\\n"}
+    files = {COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"}
     commit = _github_commit_files(files, f"Update counter fixture label {case_id}", branch)
     return {"ok": True, "id": case_id, "expected_quantity": expected_quantity, "branch": branch, "git_commit": commit["sha"]}
 
@@ -1351,7 +1351,7 @@ async def delete_counter_test(case_id: str, authorization: str | None = Header(d
     removed = cases.pop(index)
     image_path = removed.get("image_path")
     files: dict[str, bytes | None] = {
-        COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\\n"
+        COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
     }
     if isinstance(image_path, str) and image_path.startswith(COUNTER_TEST_IMAGES_PATH + "/") and ".." not in Path(image_path).parts:
         files[image_path] = None
