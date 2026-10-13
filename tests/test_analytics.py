@@ -57,3 +57,11 @@ def test_invalid_rating_is_dropped():
         "feedback_submitted",
         {},
     )
+
+
+def test_feedback_rating_and_category_are_recorded_without_free_text():
+    result = sanitize_event({
+        "name": "feedback_submitted",
+        "properties": {"rating": 4, "category": "confusing", "comment": "private free text"},
+    })
+    assert result == ("feedback_submitted", {"category": "confusing", "rating": 4})
