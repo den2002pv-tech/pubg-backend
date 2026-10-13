@@ -1088,6 +1088,7 @@ function updateConfirmState() {
 }
 
 async function confirmCollection() {
+  const correctedCount = pendingCards.filter(c => c.selected && c.editQuantity != null && Number(c.editQuantity) !== Number(c.quantity)).length;
   const selected = pendingCards.filter(c => c.selected && c.editQuantity != null).map(c => ({
     ...c,
     quantity: c.editQuantity,
@@ -1105,6 +1106,7 @@ async function confirmCollection() {
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || 'Ошибка сохранения');
     trackAnalytics('collection_saved', { card_count: selected.length });
+    if (correctedCount > 0) trackAnalytics('counter_corrected', { corrected_count: correctedCount, card_count: selected.length });
     let desiredRemovedForMetrics = 0;
     selected.forEach(c => { if (num(c.quantity) > 0 && desiredIds.has(c.id)) desiredRemovedForMetrics++; });
     if (desiredRemovedForMetrics) trackAnalytics('wishlist_updated', { removed_count: desiredRemovedForMetrics });
