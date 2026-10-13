@@ -1163,9 +1163,18 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
         with urlopen(Request(url, headers=headers), timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
         encoded = payload.get("content", "")
-        if not encoded:
+        if encoded:
+            return base64.b64decode(encoded)
+        # GitHub's Contents API may omit base64 content for files larger than 1 MB.
+        # Fall back to its download URL so full-size original screenshots remain usable.
+        download_url = payload.get("download_url")
+        if not download_url:
             raise HTTPException(status_code=502, detail=f"GitHub не вернул содержимое файла {path}")
-        return base64.b64decode(encoded)
+        download_headers = {"User-Agent": "pubg-card-admin"}
+        if token:
+            download_headers["Authorization"] = f"Bearer {token}"
+        with urlopen(Request(download_url, headers=download_headers), timeout=30) as response:
+            return response.read()
     except HTTPError as exc:
         if exc.code == 404:
             return None
