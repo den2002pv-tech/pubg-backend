@@ -52,3 +52,6 @@ The full CI checks also compile Python files and run `python -m pytest -q` on Py
 - The end-to-end test runs the real screenshot pipeline, verifies the total number of detected cards, matches each detected contour to the labelled rectangle using IoU >= 0.70, then verifies the quantity on the matched crop.
 - Keep original screenshot dimensions. Never alter the labelled rectangle or expected quantity just to make a test pass.
 - Run with `python -m pytest -q tests/test_screenshot_fixtures.py`. The suite skips its labelled-case assertion while the manifest is empty; add verified screenshot cases before treating it as meaningful coverage.
+
+
+Screenshot fixture labels may include `state: "owned"` or `state: "unowned"`. A darkened card visible in a collection/reward screen can be labelled `unowned`: it may be visually detected and labelled in the screenshot, but must not be counted as a card in the user's inventory. Omit `state` or use `owned` for cards that are actually present in inventory. The current end-to-end assertion compares the inventory scan output against owned cards only; the manifest should include manually verified examples of both states before claiming coverage for dimmed-card classification.
