@@ -589,7 +589,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                         "digit": best_digit, "score": best_score,
                     })
 
-    for thresh in (180, 160):
+    for thresh in (180, 160, 140):
         bright = cv2.inRange(gray, thresh, 255)
         join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
@@ -797,6 +797,7 @@ def is_card_darkened(card: Image.Image) -> bool:
     bright_white = (frame[:, 1] < 70) & (frame[:, 2] > 205)
     gold_ratio = float(np.count_nonzero(gold)) / float(frame.shape[0])
     bright_frame_ratio = float(np.count_nonzero(bright_white)) / float(frame.shape[0])
+    frame_brightness_p75 = float(np.percentile(frame[:, 2], 75))
 
     # The centered bottom emblem is a separate signal from the artwork.
     badge = hsv[int(h * 0.88):max(int(h * 0.88) + 1, int(h * 0.98)),
@@ -809,9 +810,10 @@ def is_card_darkened(card: Image.Image) -> bool:
 
     return (
         badge_median < 150
+        and badge_median < frame_brightness_p75 - 8
         and badge_bright_ratio < 0.18
-        and bright_frame_ratio < 0.10
-        and gold_ratio < 0.015
+        and bright_frame_ratio < 0.18
+        and gold_ratio < 0.04
     )
 
 

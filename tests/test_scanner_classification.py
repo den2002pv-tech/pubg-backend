@@ -22,8 +22,9 @@ def test_refine_digit_prediction_distinguishes_open_six_from_zero():
     # A normalized 6-like glyph with an open upper-right area.
     glyph = np.zeros((24, 12), dtype=np.uint8)
     cv2 = __import__("cv2")
-    cv2.ellipse(glyph, (5, 15), (4, 7), 0, 0, 300, 255, 2)
-    cv2.line(glyph, (5, 8), (9, 4), 255, 2)
+    cv2.ellipse(glyph, (4, 14), (3, 5), 0, 30, 330, 255, 1)
+    cv2.line(glyph, (4, 9), (4, 3), 255, 1)
+    glyph[3:9, 5:9] = 0
     scores = {digit: 0.2 for digit in range(10)}
     scores[0] = 0.81
     scores[6] = 0.79
@@ -46,6 +47,9 @@ def _make_card(darkened=False, dark_art=True):
         gray = pixels.mean(axis=2, keepdims=True)
         pixels = gray * 0.48
         image = Image.fromarray(np.clip(np.repeat(pixels, 3, axis=2), 0, 255).astype(np.uint8))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((2, 2, 117, 197), outline=(120, 120, 120), width=4)
+        draw.ellipse((48, 176, 72, 194), fill=(90, 90, 90))
     return image
 
 

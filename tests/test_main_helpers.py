@@ -318,6 +318,7 @@ def test_scan_screenshot_keeps_gray_rarity_cards(monkeypatch):
     # Even if the old low-saturation heuristic would label this frame gray/locked,
     # scan_screenshot must not silently discard a geometrically detected card.
     monkeypatch.setattr(scanner, "is_gray_locked_card", lambda crop: True)
+    monkeypatch.setattr(scanner, "is_card_darkened", lambda crop: False)
 
     result = scanner.scan_screenshot(image)
 
