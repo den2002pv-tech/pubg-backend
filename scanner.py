@@ -462,7 +462,7 @@ def _refine_digit_prediction(
     bottom_left_fill = float(bottom_left.mean()) if bottom_left.size else 0.0
 
     # A 6 opens on the upper-right side; a 0 keeps its outer right wall closed.
-    if predicted_digit in (0, 6) and abs(scores[0] - scores[6]) <= 0.12:
+    if predicted_digit in (0, 6) and abs(scores[0] - scores[6]) <= 0.20:
         if top_right_fill < 0.22:
             return 6, scores[6]
         return 0, scores[0]
@@ -581,8 +581,8 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 )
                 was_refined = best_digit != initial_digit
                 runner_up = max(score for digit, score in scores.items() if digit != best_digit)
-                if best_score >= 0.45 and (
-                    best_score - runner_up >= 0.03 or best_score >= 0.65 or was_refined
+                if best_score >= 0.42 and (
+                    best_score - runner_up >= 0.02 or best_score >= 0.65 or was_refined
                 ):
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
