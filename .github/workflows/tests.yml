@@ -28,6 +28,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check inline JavaScript syntax
+        run: node scripts/check_inline_js.cjs
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
