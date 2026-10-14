@@ -9,6 +9,7 @@ Backend для приложения управления коллекцией и
 - [Документация проекта](docs/README.md)
 - [Архитектура](docs/architecture.md)
 - [Разработка и тесты](docs/development.md)
+- [Журнал разработки и улучшений](docs/development-log.md)
 - [Инструкции для ИИ-разработчика](AGENTS.md)
 - [Заметки по развёртыванию](README_DEPLOY.md)
 - [Фикстуры распознавания счётчика](tests/fixtures/counter/README.md)
