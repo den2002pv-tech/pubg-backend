@@ -1,4 +1,65 @@
 {
   "version": 1,
-  "cases": []
+  "cases": [
+    {
+      "id": "inventory-20261014103410",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261014103410.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            206,
+            75,
+            240,
+            366
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "Турецкий чай",
+          "card_id": "card_69"
+        },
+        {
+          "box": [
+            474,
+            88,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Адана-кебаб",
+          "card_id": "card_60"
+        },
+        {
+          "box": [
+            743,
+            88,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Симит",
+          "card_id": "card_59"
+        },
+        {
+          "box": [
+            1012,
+            87,
+            240,
+            353
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Турецкий кофе",
+          "card_id": "card_58"
+        }
+      ],
+      "image_sha256": "3f62d4f96755b22bc3e6478702a8fa6bfef716c2a0cd6fc0d92cb0179f7e1c94"
+    }
+  ]
 }
