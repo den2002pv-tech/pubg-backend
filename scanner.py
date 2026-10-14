@@ -528,7 +528,7 @@ def _counter_digit_aligned(
         return False
     multiply_center_y = float(multiply["y"]) + float(multiply["h"]) / 2.0
     digit_center_y = float(digit["y"]) + float(digit["h"]) / 2.0
-    return abs(multiply_center_y - digit_center_y) <= max(6, int(digit["h"] * 0.25))
+    return abs(multiply_center_y - digit_center_y) <= max(8, int(digit["h"] * 0.35))
 
 
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
