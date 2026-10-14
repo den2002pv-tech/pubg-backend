@@ -445,6 +445,38 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
     return best
 
 
+def _refine_digit_prediction(
+    mask: np.ndarray,
+    predicted_digit: int,
+    scores: dict[int, float],
+) -> tuple[int, float]:
+    """Use glyph shape only to resolve the known low-confidence 0/6 and 4/6 ties."""
+    if mask is None or mask.size == 0:
+        return predicted_digit, scores[predicted_digit]
+
+    normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
+    glyph = normalized >= 128
+    top_right = glyph[3:9, 5:9]
+    bottom_left = glyph[12:19, 0:4]
+    top_right_fill = float(top_right.mean()) if top_right.size else 0.0
+    bottom_left_fill = float(bottom_left.mean()) if bottom_left.size else 0.0
+
+    # A 6 opens on the upper-right side; a 0 keeps its outer right wall closed.
+    if predicted_digit in (0, 6) and abs(scores[0] - scores[6]) <= 0.12:
+        if top_right_fill < 0.22:
+            return 6, scores[6]
+        return 0, scores[0]
+
+    # When template matching is weak, 4 leaves the lower-left area open while
+    # 6 closes it with the lower bowl. Avoid applying this heuristic to strong matches.
+    if predicted_digit in (4, 6) and max(scores[4], scores[6]) < 0.65:
+        if bottom_left_fill < 0.20:
+            return 4, scores[4]
+        return 6, scores[6]
+
+    return predicted_digit, scores[predicted_digit]
+
+
 def _multiply_score(mask: np.ndarray) -> float:
     if mask is None or mask.size == 0 or mask.shape[0] < 3 or mask.shape[1] < 3:
         return 0.0
@@ -484,6 +516,19 @@ def _multiply_score(mask: np.ndarray) -> float:
                 union = candidate.sum() + target.sum() - inter
                 best = max(best, float(inter / union) if union else 0.0)
     return best
+
+
+def _counter_digit_aligned(
+    multiply: dict[str, Any],
+    digit: dict[str, Any],
+) -> bool:
+    """Reject bright noise not horizontally aligned with the multiplication sign."""
+    dx = int(digit["x"]) - (int(multiply["x"]) + int(multiply["w"]))
+    if not (-2 <= dx <= max(10, int(digit["h"] * 0.45))):
+        return False
+    multiply_center_y = float(multiply["y"]) + float(multiply["h"]) / 2.0
+    digit_center_y = float(digit["y"]) + float(digit["h"]) / 2.0
+    return abs(multiply_center_y - digit_center_y) <= max(6, int(digit["h"] * 0.25))
 
 
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
@@ -530,7 +575,10 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 scores = {d: _digit_score(digit_mask, d) for d in range(10)}
                 ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
                 best_digit, best_score = ordered[0]
-                runner_up = ordered[1][1]
+                best_digit, best_score = _refine_digit_prediction(
+                    digit_mask, best_digit, scores,
+                )
+                runner_up = max(score for digit, score in scores.items() if digit != best_digit)
                 if best_score >= 0.45 and (best_score - runner_up >= 0.03 or best_score >= 0.65):
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
@@ -544,12 +592,20 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         x_before, digits_before = len(x_candidates), len(digit_candidates)
         _process_contours(contours)
+        # Once a multiplication sign is found, only keep digits on the same
+        # badge row and immediately to its right. Otherwise bright noise below
+        # the badge can suppress the lower-threshold fallback pass.
+        if x_candidates:
+            digit_candidates = [
+                digit for digit in digit_candidates
+                if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
+            ]
         threshold_runs.append({
             "threshold": thresh,
             "contours": len(contours),
             "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
             "x_candidates_added": len(x_candidates) - x_before,
-            "digit_candidates_added": len(digit_candidates) - digits_before,
+            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
         })
         if x_candidates and digit_candidates:
             break
@@ -708,21 +764,56 @@ def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
 
 
-def is_gray_locked_card(card: Image.Image) -> bool:
+def is_card_darkened(card: Image.Image) -> bool:
+    """Detect locked/dimmed cards from their frame and bottom badge, not the artwork."""
     arr = np.asarray(card.convert("RGB"))
     if arr.size == 0:
         return False
-    hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
-    h, w = hsv.shape[:2]
-    border = np.concatenate([
-        hsv[:max(1, int(h * 0.12)), :, 1].ravel(),
-        hsv[max(0, int(h * 0.88)):, :, 1].ravel(),
-        hsv[:, :max(1, int(w * 0.10)), 1].ravel(),
-        hsv[:, max(0, int(w * 0.90)):, 1].ravel(),
-    ])
-    if border.size == 0:
+    h, w = arr.shape[:2]
+    if h < 20 or w < 20:
         return False
-    return float(np.mean(border)) < 20.0 and float(np.percentile(border, 90)) < 48.0
+
+    hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+    frame_parts = [
+        hsv[:max(1, int(h * 0.07)), :, :],
+        hsv[max(0, int(h * 0.93)):, :, :],
+        hsv[:, :max(1, int(w * 0.06)), :],
+        hsv[:, max(0, int(w * 0.94)):, :],
+    ]
+    frame = np.concatenate([part.reshape(-1, 3) for part in frame_parts if part.size], axis=0)
+    if frame.size == 0:
+        return False
+
+    # OpenCV HSV uses H in [0, 179]. Look for gold only around the frame,
+    # never across the artwork where dark illustrations are normal.
+    gold = (
+        (frame[:, 0] >= 15) & (frame[:, 0] <= 38)
+        & (frame[:, 1] >= 45) & (frame[:, 2] >= 80)
+    )
+    bright_white = (frame[:, 1] < 70) & (frame[:, 2] > 205)
+    gold_ratio = float(np.count_nonzero(gold)) / float(frame.shape[0])
+    bright_frame_ratio = float(np.count_nonzero(bright_white)) / float(frame.shape[0])
+
+    # The centered bottom emblem is a separate signal from the artwork.
+    badge = hsv[int(h * 0.88):max(int(h * 0.88) + 1, int(h * 0.98)),
+                int(w * 0.38):max(int(w * 0.38) + 1, int(w * 0.62))]
+    if badge.size == 0:
+        return False
+    badge_value = badge[:, :, 2]
+    badge_median = float(np.median(badge_value))
+    badge_bright_ratio = float(np.count_nonzero(badge_value > 205)) / float(badge_value.size)
+
+    return (
+        badge_median < 150
+        and badge_bright_ratio < 0.18
+        and bright_frame_ratio < 0.10
+        and gold_ratio < 0.015
+    )
+
+
+def is_gray_locked_card(card: Image.Image) -> bool:
+    """Backward-compatible name for the frame/badge-based locked-card check."""
+    return is_card_darkened(card)
 
 
 def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
@@ -769,6 +860,17 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
 
     stage_started = time.perf_counter()
     detected = detect_inventory_cards(image)
+    # A darkened/unowned card can be geometrically detected, but must not enter
+    # the inventory. Classify from the frame and bottom badge before OCR/hash.
+    detected = [
+        item for item in detected
+        if not is_card_darkened(
+            image.crop((
+                item["box"][0], item["box"][1],
+                item["box"][0] + item["box"][2], item["box"][1] + item["box"][3],
+            ))
+        )
+    ]
     detection_ms = (time.perf_counter() - stage_started) * 1000
     counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0
     cards = []
