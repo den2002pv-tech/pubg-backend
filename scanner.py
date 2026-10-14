@@ -575,11 +575,15 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 scores = {d: _digit_score(digit_mask, d) for d in range(10)}
                 ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
                 best_digit, best_score = ordered[0]
+                initial_digit = best_digit
                 best_digit, best_score = _refine_digit_prediction(
                     digit_mask, best_digit, scores,
                 )
+                was_refined = best_digit != initial_digit
                 runner_up = max(score for digit, score in scores.items() if digit != best_digit)
-                if best_score >= 0.45 and (best_score - runner_up >= 0.03 or best_score >= 0.65):
+                if best_score >= 0.45 and (
+                    best_score - runner_up >= 0.03 or best_score >= 0.65 or was_refined
+                ):
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
                         "digit": best_digit, "score": best_score,
