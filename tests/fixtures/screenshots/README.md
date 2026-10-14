@@ -62,7 +62,7 @@ For each original screenshot, the tests verify:
 - Each saved card label includes versioned visual features (luminance, saturation, contrast, and separate center/title/bottom/frame measurements) extracted from the original-resolution crop.
 - The admin **Анализ отличий** report compares the manually labelled `owned` and `unowned` groups and ranks exploratory single-feature thresholds. These are fitted to the collected samples and are not independent validation or an automatic ownership decision.
 
-The manifest currently contains no labelled screenshot cases, so the end-to-end screenshot test is skipped until at least one real, manually checked screenshot is added. The manifest validation test still runs. Do not claim full screenshot coverage until the fixture list contains representative screenshots, including different resolutions/layouts, multiple rows, gray/dimmed cards, and cards with and without quantity badges.
+The manifest contains a small number of manually labelled screenshot cases. This is useful regression coverage, but it is not comprehensive: add more independently checked examples across resolutions/layouts, multiple rows, different card artwork, dimmed cards, and cards with and without quantity badges before relying on generalization.
 
 
 ## Admin workflow
