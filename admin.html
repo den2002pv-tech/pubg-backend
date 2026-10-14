@@ -19,7 +19,18 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .card-grid,.temp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .item{background:#292929;border:1px solid #444;border-radius:10px;padding:12px}
 .item img{width:100%;height:240px;object-fit:contain;background:#000;border-radius:7px}
-.icon{width:120px!important;height:180px!important;display:block;margin:auto}
+.icon{width:180px!important;height:270px!important;display:block;margin:auto;object-fit:contain;cursor:zoom-in;border-radius:7px;transition:width .15s,height .15s}
+body.icon-size-large .icon{width:260px!important;height:390px!important}
+.icon-zoomable{display:block;max-width:100%;max-height:420px;object-fit:contain;cursor:zoom-in;border-radius:7px}
+.icon-size-control{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:#222;border:1px solid #444;border-radius:9px}
+.icon-size-control label{flex:0 0 auto;color:#ddd;font-size:14px}
+.icon-size-control select{max-width:220px;margin:0}
+#iconZoomModal{position:fixed;inset:0;z-index:11000;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+#iconZoomModal[hidden]{display:none}
+#iconZoomModal img{display:block;max-width:96vw;max-height:82vh;width:auto;height:auto;object-fit:contain;background:#111;border-radius:8px}
+#iconZoomModal .icon-zoom-title{max-width:92vw;margin:0 48px 14px;text-align:center;font-size:18px;font-weight:700;overflow-wrap:anywhere}
+#iconZoomModal .icon-zoom-close{position:absolute;top:12px;right:12px;width:44px;height:44px;padding:0;margin:0;border-radius:50%;font-size:28px;line-height:1;background:#333;color:#fff}
+@media(max-width:520px){.icon-size-control{align-items:stretch;flex-direction:column}.icon-size-control select{max-width:none}.icon{width:180px!important;height:270px!important}body.icon-size-large .icon{width:230px!important;height:345px!important}}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#444;font-size:12px;margin-top:5px}
 .has{background:#1e6b3a}.missing{background:#704d18}
 textarea{height:260px;font-family:monospace}
@@ -104,6 +115,15 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
       <div class="stat"><span id="statMissing">0</span><small>Без иконки</small></div>
       <div class="stat"><span id="statTemp">0</span><small>Временных файлов</small></div>
     </div>
+  </div>
+
+  <div class="icon-size-control">
+    <label for="iconSizeSelect">Размер иконок</label>
+    <select id="iconSizeSelect" aria-label="Размер иконок">
+      <option value="normal" selected>Увеличенный</option>
+      <option value="large">Крупный</option>
+    </select>
+    <span class="muted">Нажми на иконку, чтобы открыть её крупно.</span>
   </div>
 
   <div class="tabs">
@@ -320,6 +340,38 @@ function assetUrl(url){
 
 const TOKEN_KEY = 'pubg_admin_token';
 
+function openIconZoom(src,title){
+  if(!src)return;
+  let modal=document.getElementById('iconZoomModal');
+  if(!modal){
+    modal=document.createElement('div');modal.id='iconZoomModal';modal.hidden=true;
+    modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','Увеличенная иконка карты');
+    const close=document.createElement('button');close.type='button';close.className='icon-zoom-close';close.textContent='×';close.setAttribute('aria-label','Закрыть увеличенную иконку');
+    const heading=document.createElement('div');heading.className='icon-zoom-title';
+    const img=document.createElement('img');img.alt='Увеличенная иконка карты';
+    modal.append(close,heading,img);document.body.appendChild(modal);
+    close.addEventListener('click',()=>{modal.hidden=true});
+    modal.addEventListener('click',event=>{if(event.target===modal)modal.hidden=true});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!modal.hidden)modal.hidden=true});
+  }
+  modal.querySelector('.icon-zoom-title').textContent=title||'Иконка карты';
+  const image=modal.querySelector('img');image.src=src;image.alt=title||'Увеличенная иконка карты';
+  modal.hidden=false;modal.querySelector('.icon-zoom-close').focus();
+}
+
+document.getElementById('iconSizeSelect').addEventListener('change',event=>{
+  document.body.classList.toggle('icon-size-large',event.target.value==='large');
+});
+document.addEventListener('click',event=>{
+  const image=event.target.closest('img.icon, img.icon-zoomable');
+  if(!image)return;
+  openIconZoom(image.currentSrc||image.src,image.dataset.iconTitle||image.alt||image.closest('.item')?.querySelector('h3,h4,b')?.textContent||'Иконка карты');
+});
+document.addEventListener('keydown',event=>{
+  const image=event.target.closest?.('img.icon, img.icon-zoomable');
+  if(image&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openIconZoom(image.currentSrc||image.src,image.dataset.iconTitle||image.alt||image.closest('.item')?.querySelector('h3,h4,b')?.textContent||'Иконка карты')}
+});
+
 function getToken(){
   return sessionStorage.getItem(TOKEN_KEY);
 }
@@ -490,7 +542,7 @@ function renderCardList(){
     if(filter==='missing'&&has)continue;
     if(q&&!(`${id} ${info.name||''}`.toLowerCase().includes(q)))continue;
     const el=document.createElement('div');el.className='item';
-    const img=has?`<img class="icon" src="${esc(assetUrl(info.icon))}" onerror="this.style.display='none'">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
+    const img=has?`<img class="icon" src="${esc(assetUrl(info.icon))}" alt="Иконка ${esc(info.name||id)}" data-icon-title="${esc(info.name||id)}" role="button" tabindex="0" title="Открыть иконку крупно" onerror="this.style.display='none'">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
     el.innerHTML=`${img}
       <h3>${esc(info.name||id)}</h3>
       <div class="muted">${esc(id)} · редкость ${info.rarity||1}</div>
@@ -1139,7 +1191,7 @@ function renderIconQueue(){
     el.className='item';
 
     const preview=item.previewUrl
-      ? `<img src="${esc(item.previewUrl)}" style="max-height:380px;object-fit:contain">`
+      ? `<img class="icon-zoomable" src="${esc(item.previewUrl)}" alt="Предпросмотр ${esc(item.file.name)}" data-icon-title="${esc(item.file.name)}" role="button" tabindex="0" title="Открыть иконку крупно">`
       : '<div class="muted">Нет предпросмотра</div>';
 
     let action='';
@@ -1171,8 +1223,8 @@ function renderIconQueue(){
         <div class="muted" style="margin-top:8px">
           Это исходный скриншот, который не удалось определить:
         </div>
-        <img src="${esc(item.previewUrl)}"
-             alt="Скриншот не определён"
+        <img class="icon-zoomable" src="${esc(item.previewUrl)}"
+             alt="Скриншот не определён" data-icon-title="${esc(item.file.name)}" role="button" tabindex="0" title="Открыть скриншот крупно"
              style="display:block;max-width:100%;max-height:520px;object-fit:contain;margin:8px 0;border:1px solid #555;border-radius:8px">
         <div class="row">
           <a href="${esc(item.previewUrl)}" target="_blank" rel="noopener" class="btn-secondary">Открыть скриншот</a>
