@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+from card_state_features import best_feature_splits, extract_card_visual_features
 from scanner import _detect_counter
 
 from pydantic import BaseModel
@@ -1223,6 +1224,59 @@ def get_screenshot_tests(authorization: str | None = Header(default=None)):
     ]}
 
 
+@app.get("/admin/screenshot-tests/analysis")
+def analyze_screenshot_test_features(authorization: str | None = Header(default=None)):
+    """Compare measured visual features of manually labelled owned/unowned cards."""
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    cases = _screenshot_test_manifest(branch)["cases"]
+    samples: list[dict[str, Any]] = []
+    analyzed_cases = 0
+    skipped_cases = []
+    for case in cases:
+        path = case.get("image_path", "")
+        if not isinstance(path, str) or not path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") or ".." in Path(path).parts:
+            skipped_cases.append(str(case.get("id", "?")))
+            continue
+        raw = _github_read_bytes(path, branch)
+        if raw is None:
+            skipped_cases.append(str(case.get("id", "?")))
+            continue
+        try:
+            with Image.open(BytesIO(raw)) as source:
+                source.load()
+                image = source.convert("RGB")
+            for card in case.get("cards", []):
+                state = card.get("state", "owned")
+                box = card.get("box")
+                if state not in {"owned", "unowned"} or not isinstance(box, list) or len(box) != 4:
+                    continue
+                x, y, w, h = (int(value) for value in box)
+                if x < 0 or y < 0 or w < 2 or h < 2 or x + w > image.width or y + h > image.height:
+                    continue
+                features = card.get("visual_features")
+                if not isinstance(features, dict) or features.get("version") != 1:
+                    features = extract_card_visual_features(image.crop((x, y, x + w, y + h)))
+                samples.append({
+                    "state": state,
+                    "features": features,
+                    "case_id": str(case.get("id", "?")),
+                    "card_id": str(card.get("card_id", "")),
+                })
+            analyzed_cases += 1
+        except Exception:
+            skipped_cases.append(str(case.get("id", "?")))
+    report = best_feature_splits(samples)
+    return {
+        **report,
+        "branch": branch,
+        "cases_analyzed": analyzed_cases,
+        "cases_skipped": skipped_cases,
+        "sample_count": len(samples),
+        "feature_version": 1,
+    }
+
+
 @app.post("/admin/screenshot-tests/preview")
 async def preview_screenshot_test(file: UploadFile = File(...), authorization: str | None = Header(default=None)):
     require_admin(authorization)
@@ -1310,6 +1364,7 @@ def save_screenshot_test(data: ScreenshotFixtureSaveSchema, authorization: str |
             width, height = image.size
             if image.format != "PNG":
                 raise ValueError("not png")
+            source_image = image.convert("RGB")
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Некорректный PNG") from exc
     for i, card in enumerate(data.cards, 1):
@@ -1328,8 +1383,16 @@ def save_screenshot_test(data: ScreenshotFixtureSaveSchema, authorization: str |
         raise HTTPException(status_code=409, detail="Такой ID уже существует")
     image_path = f"{SCREENSHOT_TEST_IMAGES_PATH}/{case_id}.png"
     payload["version"] = 1
+    labelled_cards = []
+    for card in data.cards:
+        x, y, w, h = card.box
+        labelled = card.model_dump()
+        labelled["visual_features"] = extract_card_visual_features(
+            source_image.crop((x, y, x + w, y + h))
+        )
+        labelled_cards.append(labelled)
     payload["cases"].append({"id": case_id, "title": data.title.strip()[:120], "image_path": image_path,
-        "source_screenshot_size": [width, height], "cards": [c.model_dump() for c in data.cards],
+        "source_screenshot_size": [width, height], "cards": labelled_cards,
         "image_sha256": hashlib.sha256(image_data).hexdigest()})
     files = {image_path: image_data, SCREENSHOT_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"}
     commit = _github_commit_files(files, f"Add screenshot quality fixture {case_id}", branch)
