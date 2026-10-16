@@ -481,16 +481,37 @@ def _refine_digit_prediction(
             return 6, scores[6]
 
     # A 6 opens on the upper-right side; a 0 keeps its outer right wall closed.
-    # Use a tolerant gap threshold for thick, anti-aliased glyphs.
-    if predicted_digit in (0, 6) and (
-        predicted_digit == 0 or abs(scores[0] - scores[6]) <= 0.25
-    ):
+    # Do not rewrite a 0 here: it can be the second digit of quantity 10.
+    # The single-digit badge resolver below uses this shape cue only when a
+    # standalone zero would otherwise be rejected as an impossible quantity.
+    if predicted_digit == 6 and abs(scores[0] - scores[6]) <= 0.25:
+        if top_right_fill >= 0.38 and scores[0] > scores[6]:
+            return 0, scores[0]
         if top_right_fill < 0.38 and scores[6] >= 0.35:
             return 6, scores[6]
-        if top_right_fill >= 0.38 and predicted_digit == 6 and scores[0] > scores[6]:
-            return 0, scores[0]
 
     return predicted_digit, scores[predicted_digit]
+
+
+def _single_digit_alternative(
+    mask: np.ndarray,
+    predicted_digit: int,
+    scores: dict[int, float],
+) -> tuple[int, float] | None:
+    """Suggest 6 instead of 0 only for a standalone, shape-compatible badge digit."""
+    if predicted_digit != 0 or mask is None or mask.size == 0 or scores.get(6, 0.0) < 0.35:
+        return None
+    normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
+    glyph = normalized >= 128
+    top_right = glyph[3:9, 5:9]
+    bottom_left = glyph[12:19, 0:4]
+    if not top_right.size or not bottom_left.size:
+        return None
+    top_right_fill = float(top_right.mean())
+    bottom_left_fill = float(bottom_left.mean())
+    if top_right_fill < 0.38 and bottom_left_fill >= 0.10:
+        return 6, scores[6]
+    return None
 
 
 def _multiply_score(mask: np.ndarray) -> float:
@@ -620,9 +641,12 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                     best_score >= 0.40
                     and (best_score - runner_up >= 0.015 or best_score >= 0.65 or was_refined)
                 ) or (was_refined and raw_best_score >= 0.40):
+                    alternative = _single_digit_alternative(digit_mask, best_digit, scores)
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
                         "digit": best_digit, "score": best_score,
+                        "alt_digit": alternative[0] if alternative else None,
+                        "alt_score": alternative[1] if alternative else None,
                     })
 
     for thresh in (180, 160, 140, 120):
@@ -738,6 +762,12 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             combinations: list[tuple[list[dict[str, Any]], int]] = []
             if d1["digit"] >= 2:
                 combinations.append(([d1], d1["digit"]))
+            elif d1["digit"] == 0 and d1.get("alt_digit") == 6:
+                # A standalone ×0 is not a valid PUBG count; use the glyph's
+                # 6-shape alternative only here, never for the trailing zero
+                # in a two-digit quantity such as 10.
+                alternate = {**d1, "digit": 6, "score": float(d1.get("alt_score") or d1["score"])}
+                combinations.append(([alternate], 6))
             if d1["digit"] >= 1:
                 matching = []
                 for d2 in digit_candidates:
