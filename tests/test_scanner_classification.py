@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 from scanner import (
     _counter_digit_aligned,
     _refine_digit_prediction,
+    _single_digit_alternative,
     is_card_darkened,
 )
 
@@ -30,7 +31,10 @@ def test_refine_digit_prediction_distinguishes_open_six_from_zero():
     scores[6] = 0.79
 
     digit, _ = _refine_digit_prediction(glyph, 0, scores)
-    assert digit == 6
+    # Keep 0 as 0 at glyph level so a trailing zero in quantity 10 is preserved.
+    assert digit == 0
+    # Only a standalone badge may reinterpret this shape as 6.
+    assert _single_digit_alternative(glyph, digit, scores) == (6, scores[6])
 
 
 def _make_card(darkened=False, dark_art=True):
