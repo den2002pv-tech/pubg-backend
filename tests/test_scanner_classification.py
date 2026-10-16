@@ -59,3 +59,18 @@ def test_dark_art_does_not_make_an_active_card_look_locked():
 
 def test_dimmed_frame_and_badge_are_classified_as_locked():
     assert is_card_darkened(_make_card(darkened=True, dark_art=True))
+
+
+def test_refine_digit_prediction_uses_upper_right_stem_for_four():
+    glyph = np.zeros((24, 12), dtype=np.uint8)
+    cv2 = __import__("cv2")
+    # Four: right vertical stem, crossbar, and an open lower-left quadrant.
+    cv2.line(glyph, (2, 2), (2, 11), 255, 2)
+    cv2.line(glyph, (2, 11), (9, 11), 255, 2)
+    cv2.line(glyph, (8, 2), (8, 22), 255, 2)
+    scores = {digit: 0.2 for digit in range(10)}
+    scores[6] = 0.46
+    scores[4] = 0.41
+
+    digit, _ = _refine_digit_prediction(glyph, 6, scores)
+    assert digit == 4
