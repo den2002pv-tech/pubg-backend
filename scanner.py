@@ -590,31 +590,55 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 best_digit, best_score = _refine_digit_prediction(
                     digit_mask, best_digit, scores,
                 )
+                # Low-resolution glyphs can lose their distinguishing details
+                # after normalization. Use raw aspect/topology only as a prior
+                # when template scores are weak, not for confident predictions.
+                if max(scores[4], scores[6]) < 0.60 and best_digit in (4, 6):
+                    raw_glyph = cv2.resize(
+                        digit_mask.astype(np.uint8), (max(1, cw), max(1, ch)),
+                        interpolation=cv2.INTER_NEAREST,
+                    ) > 0
+                    left_lower = raw_glyph[int(ch * 0.60):int(ch * 0.95),
+                                            :max(1, int(cw * 0.42))]
+                    if left_lower.size and float(left_lower.mean()) < 0.16:
+                        best_digit, best_score = 4, scores[4]
+                    elif left_lower.size and float(left_lower.mean()) > 0.28:
+                        best_digit, best_score = 6, scores[6]
                 was_refined = best_digit != initial_digit
                 runner_up = max(score for digit, score in scores.items() if digit != best_digit)
-                if best_score >= 0.42 and (
-                    best_score - runner_up >= 0.02 or best_score >= 0.65 or was_refined
+                if best_score >= 0.40 and (
+                    best_score - runner_up >= 0.015 or best_score >= 0.65 or was_refined
                 ):
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
                         "digit": best_digit, "score": best_score,
                     })
 
-    for thresh in (180, 160, 140):
+    for thresh in (180, 160, 140, 120):
         bright = cv2.inRange(gray, thresh, 255)
         join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
         contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         x_before, digits_before = len(x_candidates), len(digit_candidates)
         _process_contours(contours)
-        # Once a multiplication sign is found, only keep digits on the same
-        # badge row and immediately to its right. Otherwise bright noise below
-        # the badge can suppress the lower-threshold fallback pass.
+        # Collapse duplicate detections across thresholds, but preserve separate
+        # glyphs in a multi-digit count. Keeping a high-scoring false multiply
+        # mark can otherwise block the actual badge's digit or win by geometry.
         if x_candidates:
             digit_candidates = [
                 digit for digit in digit_candidates
                 if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
             ]
+            deduplicated: list[dict[str, Any]] = []
+            for digit in sorted(digit_candidates, key=lambda item: item["score"], reverse=True):
+                duplicate = next((
+                    existing for existing in deduplicated
+                    if abs(existing["x"] - digit["x"]) <= max(2, int(digit["w"] * 0.35))
+                    and abs(existing["y"] - digit["y"]) <= max(3, int(digit["h"] * 0.20))
+                ), None)
+                if duplicate is None:
+                    deduplicated.append(digit)
+            digit_candidates = deduplicated
         threshold_runs.append({
             "threshold": thresh,
             "contours": len(contours),
@@ -646,7 +670,19 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         }
 
     badge_candidates: list[dict[str, Any]] = []
-    for xc in x_candidates:
+    # Merge overlapping detections of the multiplication sign across threshold
+    # passes, preferring the best visual score for each physical symbol.
+    unique_x_candidates: list[dict[str, Any]] = []
+    for xc in sorted(x_candidates, key=lambda item: item["score"], reverse=True):
+        if any(
+            abs(existing["x"] - xc["x"]) <= max(2, int(xc["w"] * 0.30))
+            and abs(existing["y"] - xc["y"]) <= max(3, int(xc["h"] * 0.25))
+            for existing in unique_x_candidates
+        ):
+            continue
+        unique_x_candidates.append(xc)
+
+    for xc in unique_x_candidates:
         for d1 in digit_candidates:
             if d1["x"] <= xc["x"]:
                 continue
@@ -718,12 +754,21 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 bg_median = float(np.percentile(flat, 25))
                 glyph_mean = float(np.percentile(flat, 90))
                 contrast = glyph_mean - bg_median
-                if contrast < 38.0 or bg_median > 205.0:
+                if contrast < 28.0 or bg_median > 220.0:
                     continue
 
                 digit_scores = [d["score"] for d in digits]
                 confidence = min(xc["score"], min(digit_scores))
                 avg_confidence = (xc["score"] + sum(digit_scores)) / (1.0 + len(digits))
+                # Penalize a lone glyph that is geometrically suspicious for its
+                # label instead of letting a weak false-positive digit win.
+                if len(digits) == 1:
+                    digit = digits[0]
+                    aspect_ratio = digit["w"] / float(digit["h"] or 1)
+                    if digit["digit"] == 1 and aspect_ratio > 0.38:
+                        confidence *= 0.70
+                    if digit["digit"] in (0, 6, 8, 9) and aspect_ratio < 0.24:
+                        confidence *= 0.75
                 badge_candidates.append({
                     "quantity": quantity, "confidence": confidence, "avg_confidence": avg_confidence,
                     "xc": xc, "digits": digits,
@@ -741,7 +786,10 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
 
     badge_candidates.sort(
         key=lambda b: (
-            len(b["digits"]) if b["confidence"] >= 0.40 else 0,
+            # Badge position in the top-right is a stronger signal than a noisy
+            # high template score detected elsewhere in the ROI.
+            -(abs((b["xc"]["y"] + b["xc"]["h"] / 2.0) - h * 0.055)),
+            len(b["digits"]) if b["confidence"] >= 0.38 else 0,
             b["confidence"], b["avg_confidence"],
         ),
         reverse=True,
