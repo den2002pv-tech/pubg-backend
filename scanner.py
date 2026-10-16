@@ -442,6 +442,17 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
     expected_holes = {0: 1, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 0, 8: 2, 9: 1}[digit]
     if hole_count != expected_holes:
         best *= 0.30
+
+    # Resizing every glyph to the same 9x20 canvas discards its original
+    # aspect ratio. That makes a wide 0 (or 6) look deceptively similar to a
+    # narrow 1, especially in low-resolution crops. Keep the original ratio
+    # as a weak prior rather than letting it override the actual glyph shape.
+    aspect = mask.shape[1] / float(mask.shape[0])
+    if digit == 1 and aspect > 0.38:
+        best *= max(0.25, 1.0 - (aspect - 0.38) * 2.0)
+    elif digit in (0, 6, 8, 9) and aspect < 0.24:
+        best *= max(0.25, aspect / 0.24)
+
     return best
 
 
@@ -697,14 +708,17 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 if patch.size == 0:
                     continue
                 patch_gray = cv2.cvtColor(patch, cv2.COLOR_RGB2GRAY)
-                bg_pixels = patch_gray[patch_gray < 165]
-                if bg_pixels.size < 8:
+                # A fixed dark-pixel cutoff rejected valid badges on gray/gold
+                # backgrounds and at larger crop resolutions. Estimate the
+                # background and glyph from the patch distribution instead;
+                # geometry and the explicit X+digit alignment remain required.
+                flat = patch_gray.reshape(-1)
+                if flat.size < 16:
                     continue
-                bg_median = float(np.median(bg_pixels))
-                glyph_pixels = patch_gray[patch_gray >= 165]
-                glyph_mean = float(np.mean(glyph_pixels)) if glyph_pixels.size else 255.0
+                bg_median = float(np.percentile(flat, 25))
+                glyph_mean = float(np.percentile(flat, 90))
                 contrast = glyph_mean - bg_median
-                if contrast < 55.0 or bg_median > 155.0:
+                if contrast < 38.0 or bg_median > 205.0:
                     continue
 
                 digit_scores = [d["score"] for d in digits]
