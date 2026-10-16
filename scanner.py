@@ -786,11 +786,11 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
 
     badge_candidates.sort(
         key=lambda b: (
-            # Badge position in the top-right is a stronger signal than a noisy
-            # high template score detected elsewhere in the ROI.
-            -(abs((b["xc"]["y"] + b["xc"]["h"] / 2.0) - h * 0.055)),
             len(b["digits"]) if b["confidence"] >= 0.38 else 0,
             b["confidence"], b["avg_confidence"],
+            # Prefer candidates near the known top-right badge row only after
+            # confidence. A fixed row prior can reject cards with alternate crops.
+            -abs((b["xc"]["y"] + b["xc"]["h"] / 2.0) - h * 0.055),
         ),
         reverse=True,
     )
