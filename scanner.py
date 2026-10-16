@@ -472,18 +472,23 @@ def _refine_digit_prediction(
     top_right_fill = float(top_right.mean()) if top_right.size else 0.0
     bottom_left_fill = float(bottom_left.mean()) if bottom_left.size else 0.0
 
-    # A 6 opens on the upper-right side; a 0 keeps its outer right wall closed.
-    if predicted_digit in (0, 6) and abs(scores[0] - scores[6]) <= 0.20:
-        if top_right_fill < 0.22:
-            return 6, scores[6]
-        return 0, scores[0]
-
-    # When template matching is weak, 4 leaves the lower-left area open while
-    # 6 closes it with the lower bowl. Avoid applying this heuristic to strong matches.
-    if predicted_digit in (4, 6) and max(scores[4], scores[6]) < 0.65:
-        if bottom_left_fill < 0.20:
+    # Resolve 4/6 first. A 4 has an upper-right vertical stem and a relatively
+    # open lower-left quadrant; a 6 has an open upper-right and a filled lower bowl.
+    if predicted_digit in (4, 6) and max(scores[4], scores[6]) < 0.70:
+        if top_right_fill >= 0.22 and bottom_left_fill < 0.38:
             return 4, scores[4]
-        return 6, scores[6]
+        if top_right_fill < 0.38 and bottom_left_fill >= 0.18:
+            return 6, scores[6]
+
+    # A 6 opens on the upper-right side; a 0 keeps its outer right wall closed.
+    # Use a tolerant gap threshold for thick, anti-aliased glyphs.
+    if predicted_digit in (0, 6) and (
+        predicted_digit == 0 or abs(scores[0] - scores[6]) <= 0.25
+    ):
+        if top_right_fill < 0.38 and scores[6] >= 0.35:
+            return 6, scores[6]
+        if top_right_fill >= 0.38 and predicted_digit == 6 and scores[0] > scores[6]:
+            return 0, scores[0]
 
     return predicted_digit, scores[predicted_digit]
 
@@ -593,22 +598,28 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 # Low-resolution glyphs can lose their distinguishing details
                 # after normalization. Use raw aspect/topology only as a prior
                 # when template scores are weak, not for confident predictions.
-                if max(scores[4], scores[6]) < 0.60 and best_digit in (4, 6):
+                if max(scores[4], scores[6]) < 0.70 and best_digit in (4, 6):
                     raw_glyph = cv2.resize(
                         digit_mask.astype(np.uint8), (max(1, cw), max(1, ch)),
                         interpolation=cv2.INTER_NEAREST,
                     ) > 0
                     left_lower = raw_glyph[int(ch * 0.60):int(ch * 0.95),
                                             :max(1, int(cw * 0.42))]
-                    if left_lower.size and float(left_lower.mean()) < 0.16:
+                    right_upper = raw_glyph[:max(1, int(ch * 0.48)),
+                                             int(cw * 0.55):]
+                    left_fill = float(left_lower.mean()) if left_lower.size else 0.0
+                    right_fill = float(right_upper.mean()) if right_upper.size else 0.0
+                    if right_fill >= 0.18 and left_fill < 0.38:
                         best_digit, best_score = 4, scores[4]
-                    elif left_lower.size and float(left_lower.mean()) > 0.28:
+                    elif right_fill < 0.30 and left_fill >= 0.18:
                         best_digit, best_score = 6, scores[6]
                 was_refined = best_digit != initial_digit
                 runner_up = max(score for digit, score in scores.items() if digit != best_digit)
-                if best_score >= 0.40 and (
-                    best_score - runner_up >= 0.015 or best_score >= 0.65 or was_refined
-                ):
+                raw_best_score = scores[initial_digit]
+                if (
+                    best_score >= 0.40
+                    and (best_score - runner_up >= 0.015 or best_score >= 0.65 or was_refined)
+                ) or (was_refined and raw_best_score >= 0.40):
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
                         "digit": best_digit, "score": best_score,
@@ -649,6 +660,32 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         if x_candidates and digit_candidates:
             break
 
+    if x_candidates and not digit_candidates:
+        # A pale glyph on a mid-tone gray/gold badge may be below every fixed
+        # brightness threshold. Remove the local background and threshold the
+        # residual as a final, bounded fallback.
+        local_background = cv2.GaussianBlur(gray, (0, 0), sigmaX=2.0, sigmaY=2.0)
+        local_contrast = cv2.subtract(gray, local_background)
+        _, local_mask = cv2.threshold(
+            local_contrast, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+        )
+        join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        glyph_mask = cv2.morphologyEx(local_mask, cv2.MORPH_CLOSE, join_kernel, iterations=1)
+        contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        digits_before = len(digit_candidates)
+        _process_contours(contours)
+        digit_candidates = [
+            digit for digit in digit_candidates
+            if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
+        ]
+        threshold_runs.append({
+            "threshold": "local_contrast_otsu",
+            "contours": len(contours),
+            "bright_pixel_ratio": round(float(np.count_nonzero(local_mask)) / float(local_mask.size or 1), 4),
+            "x_candidates_added": 0,
+            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+        })
+
     candidate_diagnostics = {
         "threshold_runs": threshold_runs,
         "x_candidates_found": len(x_candidates),
@@ -683,6 +720,10 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         unique_x_candidates.append(xc)
 
     for xc in unique_x_candidates:
+        # Reject weak diagonal art/noise that resembles × and otherwise turns
+        # a card with no count badge into a false positive such as ×7.
+        if xc["score"] < 0.58:
+            continue
         for d1 in digit_candidates:
             if d1["x"] <= xc["x"]:
                 continue
