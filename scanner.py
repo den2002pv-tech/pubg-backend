@@ -719,7 +719,14 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             for item in sorted(x_candidates, key=lambda item: item["score"], reverse=True)[:5]
         ],
         "digit_candidates": [
-            {k: round(float(v), 3) if k == "score" else int(v) for k, v in item.items()}
+            {
+                k: (
+                    round(float(v), 3)
+                    if k in {"score", "alt_score"} and v is not None
+                    else int(v) if v is not None else None
+                )
+                for k, v in item.items()
+            }
             for item in sorted(digit_candidates, key=lambda item: item["score"], reverse=True)[:10]
         ],
     }
