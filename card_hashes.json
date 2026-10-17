@@ -987,19 +987,6 @@
     "rarity": 1,
     "icon": "/static/cards/card_76.webp"
   },
-  "card_77": {
-    "name": "Чечевичный суп",
-    "hashes": {
-      "full_phash": "8f3f3e20c2d09a4f",
-      "full_dhash": "1f7f71cce0fe6861",
-      "visual_phash": "803a3fe0f09ecb78",
-      "visual_dhash": "3f3f71ec8ce0ba9e",
-      "frame_colorhash": "07000000000"
-    },
-    "hash": "1f7f71cce0fe6861",
-    "rarity": 1,
-    "icon": "/static/cards/card_77.webp"
-  },
   "card_78": {
     "name": "Каштан",
     "hashes": {
