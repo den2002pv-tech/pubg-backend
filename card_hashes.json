@@ -974,19 +974,6 @@
     "rarity": 1,
     "icon": "/static/cards/card_75.webp"
   },
-  "card_76": {
-    "name": "Чечевичный суп",
-    "hashes": {
-      "full_phash": "8f3f3e20c2d09a4f",
-      "full_dhash": "1f7f71cce0fe6861",
-      "visual_phash": "803a3fe0f09ecb78",
-      "visual_dhash": "3f3f71ec8ce0ba9e",
-      "frame_colorhash": "07000000000"
-    },
-    "hash": "1f7f71cce0fe6861",
-    "rarity": 1,
-    "icon": "/static/cards/card_76.webp"
-  },
   "card_78": {
     "name": "Каштан",
     "hashes": {
@@ -1090,5 +1077,18 @@
     "hash": "3c2c4d7327869ee8",
     "rarity": 2,
     "icon": "/static/cards/card_85.webp"
+  },
+  "card_86": {
+    "name": "Бурек",
+    "hashes": {
+      "full_phash": "8f3f3830c2c08f7d",
+      "full_dhash": "1f7f61ccf0be3069",
+      "visual_phash": "812f3cb0e08f1fe5",
+      "visual_dhash": "3f3f73e8ccd0bebe",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f7f61ccf0be3069",
+    "rarity": 1,
+    "icon": "/static/cards/card_86.webp"
   }
 }
