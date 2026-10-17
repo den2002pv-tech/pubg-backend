@@ -439,8 +439,15 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
                 iou = float(inter / union) if union else 0.0
                 best = max(best, iou)
 
-    expected_holes = {0: 1, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 0, 8: 2, 9: 1}[digit]
-    if hole_count != expected_holes:
+    # PUBG's counter font uses a closed-top 4 in some crops. Its triangular
+    # counter can form one enclosed background component, just like a 6.
+    # Treating every 4 with one hole as impossible suppresses the correct 4 score
+    # and makes low-resolution ×4 badges look like ×6.
+    allowed_holes = {
+        0: {1}, 1: {0}, 2: {0}, 3: {0}, 4: {0, 1},
+        5: {0}, 6: {1}, 7: {0}, 8: {2}, 9: {1},
+    }[digit]
+    if hole_count not in allowed_holes:
         best *= 0.30
 
     # Resizing every glyph to the same 9x20 canvas discards its original
@@ -478,9 +485,14 @@ def _refine_digit_prediction(
         if top_right_fill >= 0.22 and bottom_left_fill < 0.38:
             return 4, scores[4]
         if top_right_fill < 0.38 and bottom_left_fill >= 0.30:
-            return 6, scores[6]
+            # The quadrant cue alone is ambiguous for a closed-top 4. Require
+            # the 6 template to beat the 4 template before overriding it.
+            if scores[6] > scores[4] + 0.06:
+                return 6, scores[6]
+            return 4, scores[4]
         # A compressed 4 often has a few pixels in its lower-left quadrant.
-        # Do not call that a 6 unless the lower bowl is visibly filled.
+        # Do not call that a 6 unless the lower bowl is visibly filled and its
+        # template score is meaningfully better.
         if bottom_left_fill < 0.30 and scores[4] >= scores[6] - 0.10:
             return 4, scores[4]
 
@@ -646,7 +658,12 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                     if right_fill >= 0.18 and left_fill < 0.38:
                         best_digit, best_score = 4, scores[4]
                     elif right_fill < 0.30 and left_fill >= 0.18:
-                        best_digit, best_score = 6, scores[6]
+                        # Raw low-resolution geometry is not enough to tell a
+                        # closed-top 4 from a 6; defer to the template margin.
+                        if scores[6] > scores[4] + 0.06:
+                            best_digit, best_score = 6, scores[6]
+                        elif scores[4] >= scores[6] - 0.06:
+                            best_digit, best_score = 4, scores[4]
                 was_refined = best_digit != initial_digit
                 runner_up = max(score for digit, score in scores.items() if digit != best_digit)
                 raw_best_score = scores[initial_digit]
