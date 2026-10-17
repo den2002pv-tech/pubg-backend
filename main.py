@@ -372,15 +372,17 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     """
     Match by hash voting, with a conservative confidence-margin fallback.
 
-    Normal matches still require the configured strong/acceptable vote. For
-    animated cards, where every hash can shift by a few bits, a candidate may
-    pass without two strong hashes only when:
-      - it has at least 3 acceptable grayscale hashes;
-      - it passes the existing outlier safety ceiling;
-      - its frame color is compatible;
-      - it is clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
+    Every match must have enough acceptable hash votes and a clear score
+    margin over the runner-up. Strong votes alone are not enough: duplicate or
+    visually similar catalogue entries can otherwise receive the wrong ID.
+    Animated cards may pass without two strong hashes only when:
+      - they have at least 3 acceptable grayscale hashes;
+      - they pass the existing outlier safety ceiling;
+      - their frame color is compatible;
+      - they are clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
 
-    This avoids globally relaxing the strong threshold.
+    Ambiguous scans intentionally remain unmatched rather than being assigned
+    to a different card.
     """
     candidates: list[dict[str, Any]] = []
     standard_keys = (
