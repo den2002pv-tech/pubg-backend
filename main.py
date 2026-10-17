@@ -1039,6 +1039,8 @@ async def scan_preview(
         log_entry.update({
             "status": "ok",
             "detected_count": result.get("count", len(result.get("cards", []))),
+            "geometric_detected_count": result.get("profile", {}).get("geometric_detected_count"),
+            "darkened_filtered_count": result.get("profile", {}).get("darkened_filtered_count"),
             "duration_ms": duration_ms,
             "cards": [
                 {
