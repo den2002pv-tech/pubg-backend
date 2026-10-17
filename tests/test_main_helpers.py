@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 
@@ -127,6 +128,34 @@ def test_match_card_returns_exact_hash_match():
     assert distance == 0
 
 
+def test_match_card_rejects_ambiguous_near_duplicate_cards():
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    # This competing card is almost as close in every hash. A vote-count-only
+    # matcher could confidently attach the scan to the wrong catalogue entry.
+    near_hashes = {
+        "full_phash": "aaaaaaab",
+        "full_dhash": "bbbbbbba",
+        "visual_phash": "cccccccd",
+        "visual_dhash": "dddddddc",
+        "frame_colorhash": "eeeeeeef",
+    }
+    db = {
+        "card_burek": {"name": "Бурек", "hashes": hashes},
+        "card_lentil_soup": {"name": "Чечевичный суп", "hashes": near_hashes},
+    }
+
+    card_id, distance = main._match_card(hashes, db)
+
+    assert card_id is None
+    assert distance == float("inf")
+
+
 def test_match_card_does_not_match_when_hashes_are_missing():
     hashes = {
         "full_phash": "aaaaaaaa",
@@ -175,3 +204,152 @@ def test_normalize_collection_updates_clamps_quantity_and_rejects_invalid_values
         main._normalize_collection_updates([{"id": "card_1", "quantity": "not-a-number"}])
 
     assert exc.value.status_code == 400
+
+
+
+def test_save_card_reuses_scanned_preview_as_permanent_icon(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
+    monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
+    monkeypatch.setattr(main, "DB_FILE", tmp_path / "card_hashes.json")
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path / "temp_images")
+    monkeypatch.setattr(main, "CARDS_DIR", tmp_path / "static" / "cards")
+    main.TEMP_DIR.mkdir(parents=True)
+
+    preview_path = main.TEMP_DIR / "scan-card.jpg"
+    main.Image.new("RGB", (120, 180), (240, 30, 30)).save(preview_path, "JPEG")
+    token = main._make_session()
+
+    result = asyncio.run(main.save_card(
+        main.CardSaveSchema(
+            name="Test card",
+            rarity=2,
+            preview="/temp-images/scan-card.jpg",
+            hashes={"full_dhash": "abcd", "full_phash": "1234"},
+        ),
+        authorization=f"Bearer {token}",
+    ))
+
+    assert result["card_id"] == "card_1"
+    assert result["card"]["icon"] == "/static/cards/card_1.webp"
+    assert (main.CARDS_DIR / "card_1.webp").is_file()
+    assert main.load_db()["card_1"]["icon"] == "/static/cards/card_1.webp"
+
+
+def test_admin_preview_rejects_paths_outside_temp_images(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path / "temp_images")
+    main.TEMP_DIR.mkdir(parents=True)
+
+    with pytest.raises(main.HTTPException) as exc:
+        main._load_admin_preview("/static/cards/card_1.webp")
+
+    assert exc.value.status_code == 400
+
+
+def test_github_commit_always_targets_working_branch(monkeypatch):
+    monkeypatch.delenv("GITHUB_BRANCH", raising=False)
+    assert main._github_commit_branch() == "feature/card-counter"
+
+    # A stale Render setting must not redirect admin data commits to main.
+    monkeypatch.setenv("GITHUB_BRANCH", "main")
+    assert main._github_commit_branch() == "feature/card-counter"
+
+
+
+def test_manual_counter_runner_reports_pass_and_mismatch(monkeypatch):
+    from io import BytesIO
+    import hashlib
+    from PIL import Image
+
+    image_buffer = BytesIO()
+    Image.new("RGB", (32, 48), "white").save(image_buffer, format="PNG")
+    image_bytes = image_buffer.getvalue()
+    image_sha = hashlib.sha256(image_bytes).hexdigest()
+    manifest = {
+        "version": 1,
+        "cases": [
+            {
+                "id": "fixture-pass",
+                "card_name": "Fixture passes",
+                "image_path": "tests/fixtures/counter/images/manual-run-pass.png",
+                "image_sha256": image_sha,
+                "expected_quantity": 1,
+            },
+            {
+                "id": "fixture-mismatch",
+                "card_name": "Fixture mismatch",
+                "image_path": "tests/fixtures/counter/images/manual-run-mismatch.png",
+                "image_sha256": image_sha,
+                "expected_quantity": 2,
+            },
+        ],
+    }
+    monkeypatch.setattr(main, "_counter_test_branch", lambda: "feature/card-counter")
+    monkeypatch.setattr(main, "_github_read_text", lambda path, branch: json.dumps(manifest))
+    monkeypatch.setattr(main, "_github_read_bytes", lambda path, branch: image_bytes)
+    monkeypatch.setattr(main, "_detect_counter", lambda image: (None, 1, 0.9, {"method": "test"}))
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+
+    result = main.run_counter_tests(authorization="Bearer test-token")
+
+    assert result["total"] == 2
+    assert result["passed"] == 1
+    assert result["failed"] == 1
+    assert result["results"][0]["status"] == "passed"
+    assert result["results"][1]["status"] == "failed"
+    assert result["results"][1]["expected_quantity"] == 2
+    assert result["results"][1]["detected_quantity"] == 1
+    assert result["results"][1]["error"] == "Ожидалось 2, распознано 1"
+
+
+def test_manual_counter_runner_requires_admin(monkeypatch):
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(
+        main,
+        "require_admin",
+        lambda authorization: (_ for _ in ()).throw(HTTPException(status_code=401, detail="Unauthorized")),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        main.run_counter_tests(authorization=None)
+
+    assert exc.value.status_code == 401
+
+
+def test_scan_screenshot_keeps_gray_rarity_cards(monkeypatch):
+    from PIL import Image
+    import scanner
+
+    image = Image.new("RGB", (120, 180), (120, 120, 120))
+    monkeypatch.setattr(
+        scanner,
+        "detect_inventory_cards",
+        lambda image: [{"row": 0, "col": 0, "box": [0, 0, 120, 180]}],
+    )
+    monkeypatch.setattr(
+        scanner,
+        "_detect_counter",
+        lambda crop: (crop, 5, 0.95, {"reason": "test"}),
+    )
+    monkeypatch.setattr(
+        scanner,
+        "calculate_card_hashes",
+        lambda crop: {
+            "full_dhash": "abcd",
+            "full_phash": "abcd",
+            "visual_phash": "abcd",
+            "visual_dhash": "abcd",
+            "frame_colorhash": "abcd",
+        },
+    )
+    monkeypatch.setattr(scanner, "encode_preview", lambda crop: "preview")
+    # Even if the old low-saturation heuristic would label this frame gray/locked,
+    # scan_screenshot must not silently discard a geometrically detected card.
+    monkeypatch.setattr(scanner, "is_gray_locked_card", lambda crop: True)
+    monkeypatch.setattr(scanner, "is_card_darkened", lambda crop: False)
+
+    result = scanner.scan_screenshot(image)
+
+    assert result["count"] == 1
+    assert result["cards"][0]["quantity"] == 5
+    assert result["cards"][0]["hashes"]["full_dhash"] == "abcd"

@@ -895,5 +895,252 @@
     "hash": "66259c90323e2b2b",
     "rarity": 3,
     "icon": "/static/cards/card_69.webp"
+  },
+  "card_70": {
+    "name": "Серия Вампир 1",
+    "hashes": {
+      "full_phash": "bf3895923ab48267",
+      "full_dhash": "3c5a071f4d4d6ae8",
+      "visual_phash": "bb9d911b9c966892",
+      "visual_dhash": "7c5a07171b4d4ddc",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c5a071f4d4d6ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_70.webp"
+  },
+  "card_71": {
+    "name": "Рывок в Мире Чудес",
+    "hashes": {
+      "full_phash": "9f9a152cec4a82f5",
+      "full_dhash": "3c78597133695ce8",
+      "visual_phash": "9b913fac1fa434c8",
+      "visual_dhash": "7878dcf871376975",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c78597133695ce8",
+    "rarity": 2,
+    "icon": "/static/cards/card_71.webp"
+  },
+  "card_72": {
+    "name": "Ледяной дракон",
+    "hashes": {
+      "full_phash": "973e9139ca6862e5",
+      "full_dhash": "3c7c4c6975ab6ae8",
+      "visual_phash": "8737b99c5ba361c0",
+      "visual_dhash": "787ccc686155ef3f",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7c4c6975ab6ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_72.webp"
+  },
+  "card_73": {
+    "name": "Ледяной дракон",
+    "hashes": {
+      "full_phash": "973e9139ca6862e5",
+      "full_dhash": "3c7c4c6975ab6ae8",
+      "visual_phash": "8737b99c5ba361c0",
+      "visual_dhash": "787ccc686155ef3f",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7c4c6975ab6ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_73.webp"
+  },
+  "card_74": {
+    "name": "Кролик созерцающий луну",
+    "hashes": {
+      "full_phash": "973b11a14e6862f7",
+      "full_dhash": "3c581c7165d6eee8",
+      "visual_phash": "9d33b1ce4e603699",
+      "visual_dhash": "7cd89c3571e4b3f4",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c581c7165d6eee8",
+    "rarity": 2,
+    "icon": "/static/cards/card_74.webp"
+  },
+  "card_75": {
+    "name": "Менемен",
+    "hashes": {
+      "full_phash": "bf3f58a1eb588460",
+      "full_dhash": "1f5f37790efe3061",
+      "visual_phash": "ab3e30b1de9c6883",
+      "visual_dhash": "3f7f3771598ffebe",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f5f37790efe3061",
+    "rarity": 1,
+    "icon": "/static/cards/card_75.webp"
+  },
+  "card_78": {
+    "name": "Каштан",
+    "hashes": {
+      "full_phash": "b09ad761d28dc3f0",
+      "full_dhash": "bc1c19308d8f36ec",
+      "visual_phash": "b09f63748ff06207",
+      "visual_dhash": "3c7c9db0258d9e4b",
+      "frame_colorhash": "07c03000000"
+    },
+    "hash": "bc1c19308d8f36ec",
+    "rarity": 2,
+    "icon": "/static/cards/card_78.webp"
+  },
+  "card_79": {
+    "name": "Хамст тава",
+    "hashes": {
+      "full_phash": "9d395322e2e586d5",
+      "full_dhash": "3c3070be78fe2ae8",
+      "visual_phash": "9d1d3b722785551c",
+      "visual_dhash": "7c3870fa3efafdfe",
+      "frame_colorhash": "07206000000"
+    },
+    "hash": "3c3070be78fe2ae8",
+    "rarity": 1,
+    "icon": "/static/cards/card_79.webp"
+  },
+  "card_80": {
+    "name": "Хамст тава",
+    "hashes": {
+      "full_phash": "9d395322e2e586d5",
+      "full_dhash": "3c3070be78fe2ae8",
+      "visual_phash": "9d1d3b722785551c",
+      "visual_dhash": "7c3870fa3efafdfe",
+      "frame_colorhash": "07206000000"
+    },
+    "hash": "3c3070be78fe2ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_80.webp"
+  },
+  "card_81": {
+    "name": "Тулумба",
+    "hashes": {
+      "full_phash": "9f3a942962e1c2f5",
+      "full_dhash": "3974c84d53f332e8",
+      "visual_phash": "98949d2b63e36b86",
+      "visual_dhash": "7834ec89cdd3bbfb",
+      "frame_colorhash": "07c03000000"
+    },
+    "hash": "3974c84d53f332e8",
+    "rarity": 2,
+    "icon": "/static/cards/card_81.webp"
+  },
+  "card_82": {
+    "name": "Генос",
+    "hashes": {
+      "full_phash": "b24bdd31cf6402cd",
+      "full_dhash": "1c59090f0f9c96e8",
+      "visual_phash": "b2cf919774a14b92",
+      "visual_dhash": "585c89070d0f8d9d",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "1c59090f0f9c96e8",
+    "rarity": 2,
+    "icon": "/static/cards/card_82.webp"
+  },
+  "card_83": {
+    "name": "Сторожевой пёс",
+    "hashes": {
+      "full_phash": "9b3a94bc9361c2d3",
+      "full_dhash": "3c34495b3bf632e8",
+      "visual_phash": "9b16249b79835bcc",
+      "visual_dhash": "7c3469d91b79f796",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c34495b3bf632e8",
+    "rarity": 2,
+    "icon": "/static/cards/card_83.webp"
+  },
+  "card_84": {
+    "name": "Гаро",
+    "hashes": {
+      "full_phash": "be6ad5949a7042e5",
+      "full_dhash": "6c680f0b2f7e9ee8",
+      "visual_phash": "be63859f70ce44b0",
+      "visual_dhash": "6c698d2d296f6fac",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "6c680f0b2f7e9ee8",
+    "rarity": 2,
+    "icon": "/static/cards/card_84.webp"
+  },
+  "card_85": {
+    "name": "Сильнейшей человек",
+    "hashes": {
+      "full_phash": "a71a902ccb7162f7",
+      "full_dhash": "3c2c4d7327869ee8",
+      "visual_phash": "ae96348d99937265",
+      "visual_dhash": "7c248d497367a796",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c2c4d7327869ee8",
+    "rarity": 2,
+    "icon": "/static/cards/card_85.webp"
+  },
+  "card_86": {
+    "name": "Бурек",
+    "hashes": {
+      "full_phash": "8f3f3830c2c08f7d",
+      "full_dhash": "1f7f61ccf0be3069",
+      "visual_phash": "812f3cb0e08f1fe5",
+      "visual_dhash": "3f3f73e8ccd0bebe",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f7f61ccf0be3069",
+    "rarity": 1,
+    "icon": "/static/cards/card_86.webp"
+  },
+  "card_87": {
+    "name": "Лахмаджун",
+    "hashes": {
+      "full_phash": "d16a1fbe783890e1",
+      "full_dhash": "3d40d29783fc3ae8",
+      "visual_phash": "d043177e3cb87097",
+      "visual_dhash": "3cc0c03b3589e23c",
+      "frame_colorhash": "07c03000000"
+    },
+    "hash": "3d40d29783fc3ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_87.webp"
+  },
+  "card_88": {
+    "name": "Пиздец с мясом",
+    "hashes": {
+      "full_phash": "8d6d523292e0cafd",
+      "full_dhash": "3476f2a27ef0aae8",
+      "visual_phash": "8d6d16b6f2c03d0b",
+      "visual_dhash": "7613f3e3adbef0a6",
+      "frame_colorhash": "07606000000"
+    },
+    "hash": "3476f2a27ef0aae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_88.webp"
+  },
+  "card_89": {
+    "name": "Долма",
+    "hashes": {
+      "full_phash": "cccf1738c063c2bd",
+      "full_dhash": "3c3063e3b3337ae8",
+      "visual_phash": "cc8137fc43a50f72",
+      "visual_dhash": "7c34e3c3a1333759",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c3063e3b3337ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_89.webp"
+  },
+  "card_90": {
+    "name": "Манты",
+    "hashes": {
+      "full_phash": "9b3b1734e0684af5",
+      "full_dhash": "3c7839998ef132e8",
+      "visual_phash": "9a1b3fa5649a70a6",
+      "visual_dhash": "7c7879b98e9ee8ff",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7839998ef132e8",
+    "rarity": 2,
+    "icon": "/static/cards/card_90.webp"
   }
 }

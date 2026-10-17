@@ -414,6 +414,16 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
         return 0.0
     normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
     candidate = normalized >= 128
+
+    # Preserve glyph topology as well as pixel similarity. In particular, a
+    # 6 has one enclosed area while an 8 has two; plain IoU can confuse them.
+    padded = np.pad(candidate.astype(np.uint8), 1, constant_values=0)
+    background = (padded == 0).astype(np.uint8)
+    _, component_labels = cv2.connectedComponents(background, connectivity=8)
+    exterior_label = int(component_labels[0, 0])
+    background_labels = np.unique(component_labels[background > 0])
+    hole_count = sum(int(label) != exterior_label for label in background_labels)
+
     templates = [_COUNTER_TEMPLATES[digit]] + _COUNTER_VARIANTS.get(digit, [])
     best = 0.0
     for tmpl_str in templates:
@@ -428,7 +438,105 @@ def _digit_score(mask: np.ndarray, digit: int) -> float:
                 union = candidate.sum() + target.sum() - inter
                 iou = float(inter / union) if union else 0.0
                 best = max(best, iou)
+
+    # PUBG's counter font uses a closed-top 4 in some crops. Its triangular
+    # counter can form one enclosed background component, just like a 6.
+    # Treating every 4 with one hole as impossible suppresses the correct 4 score
+    # and makes low-resolution ×4 badges look like ×6.
+    allowed_holes = {
+        0: {1}, 1: {0}, 2: {0}, 3: {0}, 4: {0, 1},
+        5: {0}, 6: {1}, 7: {0}, 8: {2}, 9: {1},
+    }[digit]
+    if hole_count not in allowed_holes:
+        best *= 0.30
+
+    # Resizing every glyph to the same 9x20 canvas discards its original
+    # aspect ratio. That makes a wide 0 (or 6) look deceptively similar to a
+    # narrow 1, especially in low-resolution crops. Keep the original ratio
+    # as a weak prior rather than letting it override the actual glyph shape.
+    aspect = mask.shape[1] / float(mask.shape[0])
+    if digit == 1 and aspect > 0.38:
+        best *= max(0.25, 1.0 - (aspect - 0.38) * 2.0)
+    elif digit in (0, 6, 8, 9) and aspect < 0.24:
+        best *= max(0.25, aspect / 0.24)
+
     return best
+
+
+def _refine_digit_prediction(
+    mask: np.ndarray,
+    predicted_digit: int,
+    scores: dict[int, float],
+) -> tuple[int, float]:
+    """Use glyph shape only to resolve the known low-confidence 0/6 and 4/6 ties."""
+    if mask is None or mask.size == 0:
+        return predicted_digit, scores[predicted_digit]
+
+    normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
+    glyph = normalized >= 128
+    top_right = glyph[3:9, 5:9]
+    bottom_left = glyph[12:19, 0:4]
+    top_right_fill = float(top_right.mean()) if top_right.size else 0.0
+    bottom_left_fill = float(bottom_left.mean()) if bottom_left.size else 0.0
+
+    # Resolve 4/6 first. A 4 has an upper-right vertical stem and a relatively
+    # open lower-left quadrant; a 6 has an open upper-right and a filled lower bowl.
+    if predicted_digit in (4, 6) and max(scores[4], scores[6]) < 0.70:
+        if top_right_fill >= 0.22 and bottom_left_fill < 0.38:
+            return 4, scores[4]
+        if top_right_fill < 0.38 and bottom_left_fill >= 0.30:
+            # The quadrant cue alone is ambiguous for a closed-top 4. Require
+            # the 6 template to beat the 4 template before overriding it.
+            if scores[6] > scores[4] + 0.06:
+                return 6, scores[6]
+            return 4, scores[4]
+        # A compressed 4 often has a few pixels in its lower-left quadrant.
+        # Do not call that a 6 unless the lower bowl is visibly filled and its
+        # template score is meaningfully better.
+        if bottom_left_fill < 0.30 and scores[4] >= scores[6] - 0.10:
+            return 4, scores[4]
+
+    # A 6 opens on the upper-right side; a 0 keeps its outer right wall closed.
+    # Do not rewrite a 0 here: it can be the second digit of quantity 10.
+    # The single-digit badge resolver below uses this shape cue only when a
+    # standalone zero would otherwise be rejected as an impossible quantity.
+    if predicted_digit == 6 and abs(scores[0] - scores[6]) <= 0.25:
+        if top_right_fill >= 0.38 and scores[0] > scores[6]:
+            return 0, scores[0]
+        if top_right_fill < 0.38 and scores[6] >= 0.35:
+            return 6, scores[6]
+
+    return predicted_digit, scores[predicted_digit]
+
+
+def _single_digit_alternative(
+    mask: np.ndarray,
+    predicted_digit: int,
+    scores: dict[int, float],
+) -> tuple[int, float] | None:
+    """Suggest 6 instead of 0 only for a standalone, shape-compatible badge digit."""
+    if predicted_digit != 0 or mask is None or mask.size == 0 or scores.get(6, 0.0) < 0.35:
+        return None
+    normalized = cv2.resize(mask.astype(np.uint8), (9, 20), interpolation=cv2.INTER_AREA)
+    glyph = normalized >= 128
+    top_right = glyph[3:9, 5:9]
+    bottom_left = glyph[12:19, 0:4]
+    if not top_right.size or not bottom_left.size:
+        return None
+    top_right_fill = float(top_right.mean())
+    bottom_left_fill = float(bottom_left.mean())
+    # A low-resolution 6 can retain the closed upper-right pixels of a 0
+    # after thresholding. Use a softer shape boundary plus the relative template
+    # score; this alternative is only consumed for a standalone badge digit.
+    # It is never used for the trailing zero in a multi-digit quantity such as 10.
+    if (
+        top_right_fill < 0.56
+        and bottom_left_fill >= 0.07
+        and scores.get(6, 0.0) >= 0.35
+        and scores.get(0, 0.0) - scores.get(6, 0.0) <= 0.30
+    ):
+        return 6, scores[6]
+    return None
 
 
 def _multiply_score(mask: np.ndarray) -> float:
@@ -472,6 +580,19 @@ def _multiply_score(mask: np.ndarray) -> float:
     return best
 
 
+def _counter_digit_aligned(
+    multiply: dict[str, Any],
+    digit: dict[str, Any],
+) -> bool:
+    """Reject bright noise not horizontally aligned with the multiplication sign."""
+    dx = int(digit["x"]) - (int(multiply["x"]) + int(multiply["w"]))
+    if not (-2 <= dx <= max(10, int(digit["h"] * 0.45))):
+        return False
+    multiply_center_y = float(multiply["y"]) + float(multiply["h"]) / 2.0
+    digit_center_y = float(digit["y"]) + float(digit["h"]) / 2.0
+    return abs(multiply_center_y - digit_center_y) <= max(8, int(digit["h"] * 0.35))
+
+
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
     card = card.convert("RGB")
     arr = np.asarray(card)
@@ -498,9 +619,14 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 continue
             if cw < 2 or cw > max(8, int(roi_w * 0.40)) or area < 3.0:
                 continue
+            # Keep the filled external contour for the multiply-sign shape test,
+            # but preserve the thresholded glyph pixels for digit matching. Filling
+            # an external contour erases the holes in 0/6/8/9 and makes them look
+            # like solid 1-shaped blobs.
             mask = np.zeros((ch, cw), dtype=np.uint8)
             shifted = contour - np.array([[[cx, cy]]], dtype=np.int32)
             cv2.drawContours(mask, [shifted], -1, 255, thickness=-1)
+            digit_mask = glyph_mask[cy:cy + ch, cx:cx + cw]
 
             if cw >= 3 and ch >= 3 and 0.55 <= cw / float(ch) <= 1.45:
                 x_score = _multiply_score(mask)
@@ -508,32 +634,111 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                     x_candidates.append({"x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch, "score": x_score})
 
             if ch >= max(5, int(roi_h * 0.16)) and cw / float(ch) <= 0.88:
-                scores = {d: _digit_score(mask, d) for d in range(10)}
+                scores = {d: _digit_score(digit_mask, d) for d in range(10)}
                 ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
                 best_digit, best_score = ordered[0]
-                runner_up = ordered[1][1]
-                if best_score >= 0.45 and (best_score - runner_up >= 0.03 or best_score >= 0.65):
+                initial_digit = best_digit
+                best_digit, best_score = _refine_digit_prediction(
+                    digit_mask, best_digit, scores,
+                )
+                # Low-resolution glyphs can lose their distinguishing details
+                # after normalization. Use raw aspect/topology only as a prior
+                # when template scores are weak, not for confident predictions.
+                if max(scores[4], scores[6]) < 0.70 and best_digit in (4, 6):
+                    raw_glyph = cv2.resize(
+                        digit_mask.astype(np.uint8), (max(1, cw), max(1, ch)),
+                        interpolation=cv2.INTER_NEAREST,
+                    ) > 0
+                    left_lower = raw_glyph[int(ch * 0.60):int(ch * 0.95),
+                                            :max(1, int(cw * 0.42))]
+                    right_upper = raw_glyph[:max(1, int(ch * 0.48)),
+                                             int(cw * 0.55):]
+                    left_fill = float(left_lower.mean()) if left_lower.size else 0.0
+                    right_fill = float(right_upper.mean()) if right_upper.size else 0.0
+                    if right_fill >= 0.18 and left_fill < 0.38:
+                        best_digit, best_score = 4, scores[4]
+                    elif right_fill < 0.30 and left_fill >= 0.18:
+                        # Raw low-resolution geometry is not enough to tell a
+                        # closed-top 4 from a 6; defer to the template margin.
+                        if scores[6] > scores[4] + 0.06:
+                            best_digit, best_score = 6, scores[6]
+                        elif scores[4] >= scores[6] - 0.06:
+                            best_digit, best_score = 4, scores[4]
+                was_refined = best_digit != initial_digit
+                runner_up = max(score for digit, score in scores.items() if digit != best_digit)
+                raw_best_score = scores[initial_digit]
+                if (
+                    best_score >= 0.40
+                    and (best_score - runner_up >= 0.015 or best_score >= 0.65 or was_refined)
+                ) or (was_refined and raw_best_score >= 0.40):
+                    alternative = _single_digit_alternative(digit_mask, best_digit, scores)
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
                         "digit": best_digit, "score": best_score,
+                        "alt_digit": alternative[0] if alternative else None,
+                        "alt_score": alternative[1] if alternative else None,
                     })
 
-    for thresh in (180, 160):
+    for thresh in (180, 160, 140, 120):
         bright = cv2.inRange(gray, thresh, 255)
         join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
         contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         x_before, digits_before = len(x_candidates), len(digit_candidates)
         _process_contours(contours)
+        # Collapse duplicate detections across thresholds, but preserve separate
+        # glyphs in a multi-digit count. Keeping a high-scoring false multiply
+        # mark can otherwise block the actual badge's digit or win by geometry.
+        if x_candidates:
+            digit_candidates = [
+                digit for digit in digit_candidates
+                if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
+            ]
+            deduplicated: list[dict[str, Any]] = []
+            for digit in sorted(digit_candidates, key=lambda item: item["score"], reverse=True):
+                duplicate = next((
+                    existing for existing in deduplicated
+                    if abs(existing["x"] - digit["x"]) <= max(2, int(digit["w"] * 0.35))
+                    and abs(existing["y"] - digit["y"]) <= max(3, int(digit["h"] * 0.20))
+                ), None)
+                if duplicate is None:
+                    deduplicated.append(digit)
+            digit_candidates = deduplicated
         threshold_runs.append({
             "threshold": thresh,
             "contours": len(contours),
             "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
             "x_candidates_added": len(x_candidates) - x_before,
-            "digit_candidates_added": len(digit_candidates) - digits_before,
+            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
         })
         if x_candidates and digit_candidates:
             break
+
+    if x_candidates and not digit_candidates:
+        # A pale glyph on a mid-tone gray/gold badge may be below every fixed
+        # brightness threshold. Remove the local background and threshold the
+        # residual as a final, bounded fallback.
+        local_background = cv2.GaussianBlur(gray, (0, 0), sigmaX=2.0, sigmaY=2.0)
+        local_contrast = cv2.subtract(gray, local_background)
+        _, local_mask = cv2.threshold(
+            local_contrast, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+        )
+        join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        glyph_mask = cv2.morphologyEx(local_mask, cv2.MORPH_CLOSE, join_kernel, iterations=1)
+        contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        digits_before = len(digit_candidates)
+        _process_contours(contours)
+        digit_candidates = [
+            digit for digit in digit_candidates
+            if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
+        ]
+        threshold_runs.append({
+            "threshold": "local_contrast_otsu",
+            "contours": len(contours),
+            "bright_pixel_ratio": round(float(np.count_nonzero(local_mask)) / float(local_mask.size or 1), 4),
+            "x_candidates_added": 0,
+            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+        })
 
     candidate_diagnostics = {
         "threshold_runs": threshold_runs,
@@ -544,7 +749,14 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             for item in sorted(x_candidates, key=lambda item: item["score"], reverse=True)[:5]
         ],
         "digit_candidates": [
-            {k: round(float(v), 3) if k == "score" else int(v) for k, v in item.items()}
+            {
+                k: (
+                    round(float(v), 3)
+                    if k in {"score", "alt_score"} and v is not None
+                    else int(v) if v is not None else None
+                )
+                for k, v in item.items()
+            }
             for item in sorted(digit_candidates, key=lambda item: item["score"], reverse=True)[:10]
         ],
     }
@@ -556,7 +768,23 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         }
 
     badge_candidates: list[dict[str, Any]] = []
-    for xc in x_candidates:
+    # Merge overlapping detections of the multiplication sign across threshold
+    # passes, preferring the best visual score for each physical symbol.
+    unique_x_candidates: list[dict[str, Any]] = []
+    for xc in sorted(x_candidates, key=lambda item: item["score"], reverse=True):
+        if any(
+            abs(existing["x"] - xc["x"]) <= max(2, int(xc["w"] * 0.30))
+            and abs(existing["y"] - xc["y"]) <= max(3, int(xc["h"] * 0.25))
+            for existing in unique_x_candidates
+        ):
+            continue
+        unique_x_candidates.append(xc)
+
+    for xc in unique_x_candidates:
+        # Reject weak diagonal art/noise that resembles × and otherwise turns
+        # a card with no count badge into a false positive such as ×7.
+        if xc["score"] < 0.58:
+            continue
         for d1 in digit_candidates:
             if d1["x"] <= xc["x"]:
                 continue
@@ -571,6 +799,12 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             combinations: list[tuple[list[dict[str, Any]], int]] = []
             if d1["digit"] >= 2:
                 combinations.append(([d1], d1["digit"]))
+            elif d1["digit"] == 0 and d1.get("alt_digit") == 6:
+                # A standalone ×0 is not a valid PUBG count; use the glyph's
+                # 6-shape alternative only here, never for the trailing zero
+                # in a two-digit quantity such as 10.
+                alternate = {**d1, "digit": 6, "score": float(d1.get("alt_score") or d1["score"])}
+                combinations.append(([alternate], 6))
             if d1["digit"] >= 1:
                 matching = []
                 for d2 in digit_candidates:
@@ -618,19 +852,31 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 if patch.size == 0:
                     continue
                 patch_gray = cv2.cvtColor(patch, cv2.COLOR_RGB2GRAY)
-                bg_pixels = patch_gray[patch_gray < 165]
-                if bg_pixels.size < 8:
+                # A fixed dark-pixel cutoff rejected valid badges on gray/gold
+                # backgrounds and at larger crop resolutions. Estimate the
+                # background and glyph from the patch distribution instead;
+                # geometry and the explicit X+digit alignment remain required.
+                flat = patch_gray.reshape(-1)
+                if flat.size < 16:
                     continue
-                bg_median = float(np.median(bg_pixels))
-                glyph_pixels = patch_gray[patch_gray >= 165]
-                glyph_mean = float(np.mean(glyph_pixels)) if glyph_pixels.size else 255.0
+                bg_median = float(np.percentile(flat, 25))
+                glyph_mean = float(np.percentile(flat, 90))
                 contrast = glyph_mean - bg_median
-                if contrast < 55.0 or bg_median > 155.0:
+                if contrast < 28.0 or bg_median > 220.0:
                     continue
 
                 digit_scores = [d["score"] for d in digits]
                 confidence = min(xc["score"], min(digit_scores))
                 avg_confidence = (xc["score"] + sum(digit_scores)) / (1.0 + len(digits))
+                # Penalize a lone glyph that is geometrically suspicious for its
+                # label instead of letting a weak false-positive digit win.
+                if len(digits) == 1:
+                    digit = digits[0]
+                    aspect_ratio = digit["w"] / float(digit["h"] or 1)
+                    if digit["digit"] == 1 and aspect_ratio > 0.38:
+                        confidence *= 0.70
+                    if digit["digit"] in (0, 6, 8, 9) and aspect_ratio < 0.24:
+                        confidence *= 0.75
                 badge_candidates.append({
                     "quantity": quantity, "confidence": confidence, "avg_confidence": avg_confidence,
                     "xc": xc, "digits": digits,
@@ -648,8 +894,11 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
 
     badge_candidates.sort(
         key=lambda b: (
-            len(b["digits"]) if b["confidence"] >= 0.40 else 0,
+            len(b["digits"]) if b["confidence"] >= 0.38 else 0,
             b["confidence"], b["avg_confidence"],
+            # Prefer candidates near the known top-right badge row only after
+            # confidence. A fixed row prior can reject cards with alternate crops.
+            -abs((b["xc"]["y"] + b["xc"]["h"] / 2.0) - h * 0.055),
         ),
         reverse=True,
     )
@@ -689,21 +938,58 @@ def normalize_card(card: Image.Image) -> Image.Image:
     return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
 
 
-def is_gray_locked_card(card: Image.Image) -> bool:
+def is_card_darkened(card: Image.Image) -> bool:
+    """Detect locked/dimmed cards from their frame and bottom badge, not the artwork."""
     arr = np.asarray(card.convert("RGB"))
     if arr.size == 0:
         return False
-    hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
-    h, w = hsv.shape[:2]
-    border = np.concatenate([
-        hsv[:max(1, int(h * 0.12)), :, 1].ravel(),
-        hsv[max(0, int(h * 0.88)):, :, 1].ravel(),
-        hsv[:, :max(1, int(w * 0.10)), 1].ravel(),
-        hsv[:, max(0, int(w * 0.90)):, 1].ravel(),
-    ])
-    if border.size == 0:
+    h, w = arr.shape[:2]
+    if h < 20 or w < 20:
         return False
-    return float(np.mean(border)) < 20.0 and float(np.percentile(border, 90)) < 48.0
+
+    hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+    frame_parts = [
+        hsv[:max(1, int(h * 0.07)), :, :],
+        hsv[max(0, int(h * 0.93)):, :, :],
+        hsv[:, :max(1, int(w * 0.06)), :],
+        hsv[:, max(0, int(w * 0.94)):, :],
+    ]
+    frame = np.concatenate([part.reshape(-1, 3) for part in frame_parts if part.size], axis=0)
+    if frame.size == 0:
+        return False
+
+    # OpenCV HSV uses H in [0, 179]. Look for gold only around the frame,
+    # never across the artwork where dark illustrations are normal.
+    gold = (
+        (frame[:, 0] >= 15) & (frame[:, 0] <= 38)
+        & (frame[:, 1] >= 45) & (frame[:, 2] >= 80)
+    )
+    bright_white = (frame[:, 1] < 70) & (frame[:, 2] > 205)
+    gold_ratio = float(np.count_nonzero(gold)) / float(frame.shape[0])
+    bright_frame_ratio = float(np.count_nonzero(bright_white)) / float(frame.shape[0])
+    frame_brightness_p75 = float(np.percentile(frame[:, 2], 75))
+
+    # The centered bottom emblem is a separate signal from the artwork.
+    badge = hsv[int(h * 0.88):max(int(h * 0.88) + 1, int(h * 0.98)),
+                int(w * 0.38):max(int(w * 0.38) + 1, int(w * 0.62))]
+    if badge.size == 0:
+        return False
+    badge_value = badge[:, :, 2]
+    badge_median = float(np.median(badge_value))
+    badge_bright_ratio = float(np.count_nonzero(badge_value > 205)) / float(badge_value.size)
+
+    return (
+        badge_median < 150
+        and badge_median < frame_brightness_p75 - 8
+        and badge_bright_ratio < 0.18
+        and bright_frame_ratio < 0.18
+        and gold_ratio < 0.04
+    )
+
+
+def is_gray_locked_card(card: Image.Image) -> bool:
+    """Backward-compatible name for the frame/badge-based locked-card check."""
+    return is_card_darkened(card)
 
 
 def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
@@ -741,17 +1027,48 @@ def _json_safe(value: Any) -> Any:
 
 
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
+    import time
+
+    total_started = time.perf_counter()
+    stage_started = time.perf_counter()
     image = _image_from_any(image)
+    decode_ms = (time.perf_counter() - stage_started) * 1000
+
+    stage_started = time.perf_counter()
     detected = detect_inventory_cards(image)
+    geometric_detected_count = len(detected)
+    detection_ms = (time.perf_counter() - stage_started) * 1000
+    counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0
+    darkened_filtered_count = 0
     cards = []
     for item in detected:
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
-        if is_gray_locked_card(crop):
-            continue
+
+        # A visible counter is positive evidence that a card is owned, even if
+        # its gray frame/badge resembles a dimmed card. Run counter detection
+        # before the conservative darkened-card heuristic so valid gray cards
+        # are not silently discarded before matching.
+        stage_started = time.perf_counter()
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
+        counter_ms += (time.perf_counter() - stage_started) * 1000
+
+        has_counter_evidence = (
+            quantity_confidence > 0
+            or int(counter_debug.get("candidates", 0) or 0) > 0
+            or counter_debug.get("reason") == "ok"
+        )
+        if not has_counter_evidence and is_card_darkened(crop):
+            darkened_filtered_count += 1
+            continue
+
+        stage_started = time.perf_counter()
         raw_hashes = calculate_card_hashes(crop)
+        raw_hash_ms += (time.perf_counter() - stage_started) * 1000
+
+        stage_started = time.perf_counter()
         hashes = calculate_card_hashes(clean_crop)
+        clean_hash_ms += (time.perf_counter() - stage_started) * 1000
         entry = {
             "row": item["row"],
             "col": item["col"],
@@ -768,6 +1085,20 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         }
         if save_previews:
             # Keep the original card in the preview; UI cleanup is hash-only.
+            stage_started = time.perf_counter()
             entry["preview"] = encode_preview(crop)
+            preview_ms += (time.perf_counter() - stage_started) * 1000
         cards.append(entry)
-    return _json_safe({"cards": cards, "count": len(cards), "image_size": list(image.size)})
+
+    profile = {
+        "geometric_detected_count": geometric_detected_count,
+        "darkened_filtered_count": darkened_filtered_count,
+        "rgb_convert_ms": round(decode_ms, 1),
+        "detection_ms": round(detection_ms, 1),
+        "counter_ms": round(counter_ms, 1),
+        "raw_hash_ms": round(raw_hash_ms, 1),
+        "clean_hash_ms": round(clean_hash_ms, 1),
+        "preview_ms": round(preview_ms, 1),
+        "total_ms": round((time.perf_counter() - total_started) * 1000, 1),
+    }
+    return _json_safe({"cards": cards, "count": len(cards), "image_size": list(image.size), "profile": profile})

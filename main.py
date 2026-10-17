@@ -6,7 +6,9 @@ import hmac
 import json
 import math
 import os
+import re
 import time
+import uuid
 from collections import deque
 from datetime import datetime, timezone
 from io import BytesIO
@@ -16,16 +18,32 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+import sentry_sdk
+
 from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+from card_state_features import best_feature_splits, extract_card_visual_features
+from scanner import _detect_counter
 
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from database import add_zero_cards, clear_user_cards, get_desired_cards, get_or_create_user, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+from analytics import get_analytics_summary, init_analytics_db, record_analytics_events
+from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
+
+# Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
+SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+        # Avoid collecting request PII by default.
+        send_default_pii=False,
+    )
 
 app = FastAPI(title="PUBG Card Scanner")
 
@@ -33,8 +51,10 @@ app = FastAPI(title="PUBG Card Scanner")
 @app.on_event("startup")
 def startup_database() -> None:
     init_db()
+    init_analytics_db()
     _migrate_frame_color_hashes()
     sync_cards(load_db())
+    init_trade_request_schema()
 
 app.add_middleware(
     CORSMiddleware,
@@ -265,6 +285,21 @@ class CounterTestBatchSchema(BaseModel):
     cases: list[CounterTestCaseSchema]
 
 
+class ScreenshotFixtureCardSchema(BaseModel):
+    box: list[int]
+    expected_quantity: int = 1
+    state: str = "owned"
+    card_name: str = ""
+    card_id: str = ""
+
+
+class ScreenshotFixtureSaveSchema(BaseModel):
+    upload_id: str
+    id: str
+    title: str = ""
+    cards: list[ScreenshotFixtureCardSchema]
+
+
 class CardSaveSchema(BaseModel):
     id: str = ""
     name: str
@@ -272,6 +307,10 @@ class CardSaveSchema(BaseModel):
     preview: str = ""
     hash: str | None = None
     hashes: dict[str, str] | None = None
+
+
+class CardPreviewSchema(BaseModel):
+    preview: str
 
 
 def _hamming(a: str, b: str) -> int | None:
@@ -333,15 +372,17 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     """
     Match by hash voting, with a conservative confidence-margin fallback.
 
-    Normal matches still require the configured strong/acceptable vote. For
-    animated cards, where every hash can shift by a few bits, a candidate may
-    pass without two strong hashes only when:
-      - it has at least 3 acceptable grayscale hashes;
-      - it passes the existing outlier safety ceiling;
-      - its frame color is compatible;
-      - it is clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
+    Every match must have enough acceptable hash votes and a clear score
+    margin over the runner-up. Strong votes alone are not enough: duplicate or
+    visually similar catalogue entries can otherwise receive the wrong ID.
+    Animated cards may pass without two strong hashes only when:
+      - they have at least 3 acceptable grayscale hashes;
+      - they pass the existing outlier safety ceiling;
+      - their frame color is compatible;
+      - they are clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
 
-    This avoids globally relaxing the strong threshold.
+    Ambiguous scans intentionally remain unmatched rather than being assigned
+    to a different card.
     """
     candidates: list[dict[str, Any]] = []
     standard_keys = (
@@ -419,18 +460,26 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     best = candidates[0]
     runner_up = candidates[1] if len(candidates) > 1 else None
 
-    # Preferred path: the original strong-vote rule.
-    if best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES:
-        return best["id"], best["score"]
-
-    # Conservative fallback for animated/dynamic cards. Do not simply raise
-    # the strong threshold globally: that would weaken discrimination for
-    # visually similar static cards. Instead require a clear score margin.
+    # Never select a card merely because it has enough passing hash votes:
+    # two different cards can share similar artwork/frame hashes. Ambiguous
+    # results must remain unmatched instead of silently assigning the wrong ID.
     margin = (
         runner_up["score"] - best["score"]
         if runner_up is not None
         else float("inf")
     )
+
+    # Strong votes are necessary, but not sufficient when another catalogue
+    # entry is nearly as close. Keep the same explicit confidence margin for
+    # both the normal and animated-card fallback paths.
+    if best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES:
+        if runner_up is None or margin > CARD_MATCH_CONFIDENT_MARGIN:
+            return best["id"], best["score"]
+        return None, float("inf")
+
+    # Conservative fallback for animated/dynamic cards. Do not simply lower
+    # the strong-vote threshold globally; require enough acceptable hashes,
+    # compatible frame colour, and a clear lead over every alternative.
     if (
         best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
         and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO
@@ -748,6 +797,48 @@ def _extract_single_card(image: Image.Image) -> Image.Image:
     return image
 
 
+def _load_admin_preview(preview: str) -> Image.Image:
+    """Load only a scanner-produced preview or an inline image for admin icon creation."""
+    if not preview:
+        raise HTTPException(status_code=400, detail="Нет изображения карточки для постоянной иконки")
+
+    try:
+        if preview.startswith("data:image/") and "," in preview:
+            encoded = preview.split(",", 1)[1]
+            payload = base64.b64decode(encoded, validate=True)
+        elif preview.startswith("/temp-images/"):
+            filename = preview[len("/temp-images/"):]
+            if not filename or Path(filename).name != filename:
+                raise HTTPException(status_code=400, detail="Некорректный путь временного изображения")
+            path = TEMP_DIR / filename
+            if not path.is_file() or path.resolve().parent != TEMP_DIR.resolve():
+                raise HTTPException(status_code=400, detail="Временное изображение не найдено; отсканируй скриншот ещё раз")
+            payload = path.read_bytes()
+        else:
+            raise HTTPException(status_code=400, detail="Можно использовать только изображение из текущего сканирования")
+
+        if not payload or len(payload) > 8 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Размер изображения для иконки должен быть меньше 8 МБ")
+        return Image.open(BytesIO(payload)).convert("RGB")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Не удалось прочитать изображение карточки") from exc
+
+
+def _save_permanent_icon(card_id: str, image: Image.Image) -> str:
+    """Persist a card crop as the canonical icon without a second browser upload."""
+    if not card_id or Path(card_id).name != card_id or card_id in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Некорректный ID карты для сохранения иконки")
+    CARDS_DIR.mkdir(parents=True, exist_ok=True)
+    path = CARDS_DIR / f"{card_id}.webp"
+    try:
+        _prepare_icon(image).save(path, "WEBP", quality=86, method=6)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Не удалось сохранить постоянную иконку") from exc
+    return f"/static/cards/{path.name}"
+
+
 @app.get("/")
 async def serve_index():
     return FileResponse("index.html")
@@ -780,6 +871,122 @@ async def admin_status(authorization: str | None = Header(default=None)):
         "icons": sum(1 for x in load_db().values() if x.get("icon")),
         "temporary_files": sum(1 for p in TEMP_DIR.iterdir() if p.is_file()),
     }
+
+
+@app.get("/admin/pubg-club/posts")
+async def admin_pubg_club_posts(authorization: str | None = Header(default=None)):
+    """Show recent public posts from the PUBG MOBILE Club cardexchange topic."""
+    require_admin(authorization)
+
+    topic_url = "https://share.club.gpubgm.com/2vRUE5jmLe0"
+    try:
+        request = Request(
+            topic_url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; PUBGCardAdmin/1.0)"},
+        )
+        with urlopen(request, timeout=15) as response:
+            page = response.read(2_000_000).decode("utf-8", "replace")
+        marker = "window.__INITIAL_STATE__"
+        marker_index = page.find(marker)
+        if marker_index < 0:
+            raise ValueError("Страница темы не содержит начальное состояние")
+        equals_index = page.find("=", marker_index + len(marker))
+        if equals_index < 0:
+            raise ValueError("Не найдено состояние темы")
+        state, _ = json.JSONDecoder().raw_decode(page[equals_index + 1:].lstrip())
+        feed = state.get("topicFeedList") or {}
+        topic = feed.get("topicDetail") or {}
+        bodies = feed.get("bodys") or []
+    except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Не удалось загрузить публикации PUBG MOBILE Club: {type(exc).__name__}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ошибка чтения темы PUBG MOBILE Club: {type(exc).__name__}",
+        ) from exc
+
+    posts = []
+    for item in bodies[:20]:
+        if not isinstance(item, dict):
+            continue
+        video = item.get("video") if isinstance(item.get("video"), dict) else {}
+        images = item.get("image_urls") or []
+        if not isinstance(images, list):
+            images = []
+        posts.append({
+            "iid": str(item.get("iid") or ""),
+            "content": str(item.get("content") or "")[:5000],
+            "image_urls": [str(url) for url in images[:10] if isinstance(url, str)],
+            "video_preview": str(video.get("img_url") or ""),
+            "published_at": str(item.get("sendDate") or item.get("time") or ""),
+            "type": str(item.get("type") or ""),
+        })
+
+    return {
+        "topic": str(topic.get("topicName") or "cardexchange"),
+        "topic_url": topic_url,
+        "count": len(posts),
+        "posts": posts,
+        "source": "PUBG MOBILE Club public topic page",
+    }
+
+
+@app.post("/me/analytics/events")
+async def submit_analytics_events(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    """Store privacy-conscious, allowlisted product analytics for an authenticated Telegram user."""
+    auth = _validate_telegram_init_data(init_data)
+    profile = auth.get("user", {})
+    user = get_or_create_user(
+        auth["id"],
+        username=str(profile.get("username") or ""),
+        first_name=str(profile.get("first_name") or ""),
+        last_name=str(profile.get("last_name") or ""),
+    )
+    events = data.get("events", [])
+    if not isinstance(events, list):
+        raise HTTPException(status_code=400, detail="events должен быть массивом")
+    accepted = record_analytics_events(int(user["id"]), events[:20])
+    return {"status": "ok", "accepted": accepted}
+
+
+@app.get("/admin/analytics")
+async def admin_analytics(
+    authorization: str | None = Header(default=None),
+    days: int = 30,
+):
+    require_admin(authorization)
+    return get_analytics_summary(days=days)
+
+
+@app.get("/admin/users")
+async def admin_users(authorization: str | None = Header(default=None), search: str = "", online_seconds: int = 90, limit: int = 50, offset: int = 0):
+    require_admin(authorization)
+    return get_admin_users(search=search, online_seconds=online_seconds, limit=limit, offset=offset)
+
+
+@app.get("/admin/users/{telegram_id}")
+async def admin_user_detail(telegram_id: int, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    user = get_admin_user(telegram_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return user
+
+
+@app.post("/me/activity")
+async def record_my_activity(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    """Authenticated heartbeat for Telegram Mini App online presence."""
+    auth = _validate_telegram_init_data(init_data)
+    user = auth["user"]
+    saved = get_or_create_user(auth["id"], username=str(user.get("username") or ""),
+        first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
+    return {"status": "ok", "telegram_id": saved["telegram_id"]}
 
 
 @app.post("/admin/login")
@@ -832,6 +1039,8 @@ async def scan_preview(
         log_entry.update({
             "status": "ok",
             "detected_count": result.get("count", len(result.get("cards", []))),
+            "geometric_detected_count": result.get("profile", {}).get("geometric_detected_count"),
+            "darkened_filtered_count": result.get("profile", {}).get("darkened_filtered_count"),
             "duration_ms": duration_ms,
             "cards": [
                 {
@@ -926,6 +1135,10 @@ def _github_commit_files(files: dict[str, bytes], message: str, branch: str) -> 
     parent = _github_request("GET", f"{api}/git/commits/{parent_sha}", token)
     entries = []
     for path, content in files.items():
+        if content is None:
+            # Git Trees API requires mode and type even for deletion entries.
+            entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+            continue
         blob = _github_request("POST", f"{api}/git/blobs", token, {
             "content": base64.b64encode(content).decode("ascii"),
             "encoding": "base64",
@@ -947,34 +1160,538 @@ def _github_commit_files(files: dict[str, bytes], message: str, branch: str) -> 
     return {"sha": commit["sha"], "url": commit.get("html_url", ""), "branch": branch}
 
 
+def _github_read_bytes(path: str, branch: str) -> bytes | None:
+    """Read a binary fixture from the selected branch without trusting local deploy files."""
+    token = os.getenv("GITHUB_TOKEN", "")
+    repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
+    if not token:
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+    url = f"https://api.github.com/repos/{repo}/contents/{quote(path, safe='/')}?ref={quote(branch, safe='')}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "pubg-card-admin",
+    }
+    try:
+        with urlopen(Request(url, headers=headers), timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        encoded = payload.get("content", "")
+        if encoded:
+            return base64.b64decode(encoded)
+        # GitHub's Contents API may omit base64 content for files larger than 1 MB.
+        # Fall back to its download URL so full-size original screenshots remain usable.
+        download_url = payload.get("download_url")
+        if not download_url:
+            raise HTTPException(status_code=502, detail=f"GitHub не вернул содержимое файла {path}")
+        download_headers = {"User-Agent": "pubg-card-admin"}
+        if token:
+            download_headers["Authorization"] = f"Bearer {token}"
+        with urlopen(Request(download_url, headers=download_headers), timeout=30) as response:
+            return response.read()
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"GitHub API: {exc.code} {detail[:300]}") from exc
+    except URLError as exc:
+        raise HTTPException(status_code=502, detail=f"GitHub API недоступен: {exc}") from exc
+
+
+SCREENSHOT_TEST_CASES_PATH = "tests/fixtures/screenshots/cases.json"
+SCREENSHOT_TEST_IMAGES_PATH = "tests/fixtures/screenshots/images"
+
+
+def _screenshot_test_branch() -> str:
+    return os.getenv("COUNTER_TEST_BRANCH", "feature/card-counter").strip() or "feature/card-counter"
+
+
+def _screenshot_test_manifest(branch: str) -> dict[str, Any]:
+    raw = _github_read_text(SCREENSHOT_TEST_CASES_PATH, branch)
+    if not raw:
+        return {"version": 1, "cases": []}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Некорректный cases.json тестов скриншотов") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("cases"), list):
+        raise HTTPException(status_code=500, detail="Некорректная структура cases.json")
+    return payload
+
+
+def _safe_screenshot_upload_id(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{32}", value or ""):
+        raise HTTPException(status_code=400, detail="Некорректный ID временного скриншота")
+    return value
+
+
+@app.get("/admin/screenshot-tests")
+def get_screenshot_tests(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    cases = _screenshot_test_manifest(branch)["cases"]
+    return {"count": len(cases), "branch": branch, "cases": [
+        {**item, "image_url": f"/admin/screenshot-tests/image/{quote(str(item['id']), safe='')}"}
+        for item in cases if isinstance(item, dict) and item.get("id")
+    ]}
+
+
+@app.get("/admin/screenshot-tests/analysis")
+def analyze_screenshot_test_features(authorization: str | None = Header(default=None)):
+    """Compare measured visual features of manually labelled owned/unowned cards."""
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    cases = _screenshot_test_manifest(branch)["cases"]
+    samples: list[dict[str, Any]] = []
+    analyzed_cases = 0
+    skipped_cases = []
+    for case in cases:
+        path = case.get("image_path", "")
+        if not isinstance(path, str) or not path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") or ".." in Path(path).parts:
+            skipped_cases.append(str(case.get("id", "?")))
+            continue
+        raw = _github_read_bytes(path, branch)
+        if raw is None:
+            skipped_cases.append(str(case.get("id", "?")))
+            continue
+        try:
+            with Image.open(BytesIO(raw)) as source:
+                source.load()
+                image = source.convert("RGB")
+            for card in case.get("cards", []):
+                state = card.get("state", "owned")
+                box = card.get("box")
+                if state not in {"owned", "unowned"} or not isinstance(box, list) or len(box) != 4:
+                    continue
+                x, y, w, h = (int(value) for value in box)
+                if x < 0 or y < 0 or w < 2 or h < 2 or x + w > image.width or y + h > image.height:
+                    continue
+                features = card.get("visual_features")
+                if not isinstance(features, dict) or features.get("version") != 1:
+                    features = extract_card_visual_features(image.crop((x, y, x + w, y + h)))
+                samples.append({
+                    "state": state,
+                    "features": features,
+                    "case_id": str(case.get("id", "?")),
+                    "card_id": str(card.get("card_id", "")),
+                })
+            analyzed_cases += 1
+        except Exception:
+            skipped_cases.append(str(case.get("id", "?")))
+    report = best_feature_splits(samples)
+    return {
+        **report,
+        "branch": branch,
+        "cases_analyzed": analyzed_cases,
+        "cases_skipped": skipped_cases,
+        "sample_count": len(samples),
+        "feature_version": 1,
+    }
+
+
+@app.post("/admin/screenshot-tests/preview")
+async def preview_screenshot_test(file: UploadFile = File(...), authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    if Path(file.filename or "").suffix.lower() != ".png":
+        raise HTTPException(status_code=400, detail="Загрузи оригинальный PNG-скриншот")
+    data = await file.read()
+    if not data or len(data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PNG должен быть не пустым и не больше 15 МБ")
+    try:
+        with Image.open(BytesIO(data)) as opened:
+            if opened.format != "PNG":
+                raise ValueError("not png")
+            opened.load()
+            size = [opened.width, opened.height]
+            image = opened.convert("RGB")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Не удалось прочитать PNG-скриншот") from exc
+    if image.width * image.height > 30_000_000:
+        raise HTTPException(status_code=400, detail="Разрешение превышает 30 мегапикселей")
+    upload_id = uuid.uuid4().hex
+    (TEMP_DIR / f"screenshot-fixture-{upload_id}.png").write_bytes(data)
+    result = scan_screenshot(image, save_previews=False)
+    # Match each detected crop against saved card hashes so the fixture editor can
+    # show the known icon/name next to its editable label.
+    enriched_cards = _enrich_admin_scan(result.get("cards", []), load_db())
+    return {
+        "upload_id": upload_id,
+        "image_url": f"/admin/screenshot-tests/upload/{upload_id}",
+        "image_size": size,
+        "cards": [
+            {
+                "box": c["box"],
+                "quantity": c.get("quantity", 1),
+                "matched": bool(c.get("matched")),
+                "card_id": c.get("id"),
+                "card_name": c.get("name", ""),
+                "icon": c.get("icon", ""),
+                "match_distance": c.get("distance"),
+            }
+            for c in enriched_cards
+        ],
+    }
+
+
+@app.get("/admin/screenshot-tests/upload/{upload_id}")
+def get_screenshot_test_upload(upload_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    path = TEMP_DIR / f"screenshot-fixture-{_safe_screenshot_upload_id(upload_id)}.png"
+    if not path.is_file():
+        raise HTTPException(status_code=410, detail="Временный скриншот истёк. Загрузи его повторно.")
+    return Response(path.read_bytes(), media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/screenshot-tests/image/{case_id}")
+def get_screenshot_test_image(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    case = next((c for c in _screenshot_test_manifest(branch)["cases"] if str(c.get("id")) == case_id), None)
+    if not case:
+        raise HTTPException(status_code=404, detail="Эталонный скриншот не найден")
+    path = case.get("image_path", "")
+    if not isinstance(path, str) or not path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") or ".." in Path(path).parts:
+        raise HTTPException(status_code=400, detail="Некорректный путь изображения")
+    data = _github_read_bytes(path, branch)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Файл скриншота отсутствует в GitHub")
+    return Response(data, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/admin/screenshot-tests")
+def save_screenshot_test(data: ScreenshotFixtureSaveSchema, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    case_id = data.id.strip()
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{2,79}", case_id):
+        raise HTTPException(status_code=400, detail="ID: от 3 до 80 символов, латиница, цифры, _ и -")
+    if not data.cards or len(data.cards) > 100:
+        raise HTTPException(status_code=400, detail="Добавь от 1 до 100 карт")
+    upload_path = TEMP_DIR / f"screenshot-fixture-{_safe_screenshot_upload_id(data.upload_id)}.png"
+    if not upload_path.is_file():
+        raise HTTPException(status_code=410, detail="Временный скриншот истёк. Загрузи его повторно.")
+    image_data = upload_path.read_bytes()
+    try:
+        with Image.open(BytesIO(image_data)) as image:
+            image.load()
+            width, height = image.size
+            if image.format != "PNG":
+                raise ValueError("not png")
+            source_image = image.convert("RGB")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Некорректный PNG") from exc
+    for i, card in enumerate(data.cards, 1):
+        if len(card.box) != 4:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: box должен содержать x, y, ширину и высоту")
+        x, y, w, h = card.box
+        if x < 0 or y < 0 or w < 20 or h < 20 or x + w > width or y + h > height:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: рамка выходит за границы или слишком мала")
+        if card.expected_quantity < 1 or card.expected_quantity > 999:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: количество должно быть 1–999")
+        if card.state not in {"owned", "unowned"}:
+            raise HTTPException(status_code=400, detail=f"Карта {i}: неизвестное состояние")
+    branch = _screenshot_test_branch()
+    payload = _screenshot_test_manifest(branch)
+    if any(str(c.get("id")) == case_id for c in payload["cases"]):
+        raise HTTPException(status_code=409, detail="Такой ID уже существует")
+    image_path = f"{SCREENSHOT_TEST_IMAGES_PATH}/{case_id}.png"
+    payload["version"] = 1
+    labelled_cards = []
+    for card in data.cards:
+        x, y, w, h = card.box
+        labelled = card.model_dump()
+        labelled["visual_features"] = extract_card_visual_features(
+            source_image.crop((x, y, x + w, y + h))
+        )
+        labelled_cards.append(labelled)
+    payload["cases"].append({"id": case_id, "title": data.title.strip()[:120], "image_path": image_path,
+        "source_screenshot_size": [width, height], "cards": labelled_cards,
+        "image_sha256": hashlib.sha256(image_data).hexdigest()})
+    files = {image_path: image_data, SCREENSHOT_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"}
+    commit = _github_commit_files(files, f"Add screenshot quality fixture {case_id}", branch)
+    upload_path.unlink(missing_ok=True)
+    return {"ok": True, "id": case_id, "branch": branch, "git_commit": commit["sha"]}
+
+
+@app.delete("/admin/screenshot-tests/{case_id}")
+def delete_screenshot_test(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    payload = _screenshot_test_manifest(branch)
+    case = next((c for c in payload["cases"] if str(c.get("id")) == case_id), None)
+    if not case:
+        raise HTTPException(status_code=404, detail="Эталон не найден")
+    payload["cases"] = [c for c in payload["cases"] if str(c.get("id")) != case_id]
+    files: dict[str, bytes | None] = {SCREENSHOT_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"}
+    path = case.get("image_path", "")
+    if isinstance(path, str) and path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") and ".." not in Path(path).parts:
+        files[path] = None
+    commit = _github_commit_files(files, f"Delete screenshot quality fixture {case_id}", branch)
+    return {"ok": True, "id": case_id, "branch": branch, "git_commit": commit["sha"]}
+
+
+@app.post("/admin/screenshot-tests/run")
+def run_screenshot_tests(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _screenshot_test_branch()
+    results = []
+    for case in _screenshot_test_manifest(branch)["cases"]:
+        errors = []
+        path = case.get("image_path", "")
+        if not isinstance(path, str) or not path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") or ".." in Path(path).parts:
+            data = None
+        else:
+            data = _github_read_bytes(path, branch)
+        if data is None:
+            results.append({"id": case.get("id", "?"), "passed": False, "errors": ["Файл скриншота отсутствует"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0})
+            continue
+        try:
+            with Image.open(BytesIO(data)) as source:
+                source.load()
+                result = scan_screenshot(source.convert("RGB"), save_previews=False)
+        except Exception as exc:
+            results.append({"id": case.get("id", "?"), "passed": False, "errors": [f"Ошибка сканирования: {type(exc).__name__}"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0})
+            continue
+        owned = [c for c in case.get("cards", []) if c.get("state", "owned") == "owned"]
+        detected = list(result.get("cards", []))
+        if len(owned) != len(detected):
+            errors.append(f"Количество карт: ожидалось {len(owned)}, найдено {len(detected)}")
+        unmatched = list(detected)
+        matched = checked = 0
+        for expected in owned:
+            box = expected.get("box", [])
+            if not isinstance(box, list) or len(box) != 4:
+                errors.append("Некорректная эталонная рамка")
+                continue
+            ex, ey, ew, eh = box
+            best, best_iou = None, 0.0
+            for actual in unmatched:
+                ax, ay, aw, ah = actual.get("box", [0, 0, 0, 0])
+                ix, iy = max(ex, ax), max(ey, ay)
+                iw, ih = max(0, min(ex + ew, ax + aw) - ix), max(0, min(ey + eh, ay + ah) - iy)
+                inter = iw * ih
+                union = ew * eh + aw * ah - inter
+                score = inter / union if union else 0.0
+                if score > best_iou:
+                    best, best_iou = actual, score
+            label = expected.get("card_name") or expected.get("card_id") or "Карта"
+            if best is None or best_iou < 0.70:
+                errors.append(f"{label}: IoU {best_iou:.2f}, требуется не менее 0.70")
+                continue
+            unmatched.remove(best)
+            ax, ay, aw, ah = best["box"]
+            ix, iy = max(ex, ax), max(ey, ay)
+            inter = max(0, min(ex + ew, ax + aw) - ix) * max(0, min(ey + eh, ay + ah) - iy)
+            coverage = inter / (ew * eh) if ew * eh else 0
+            precision = inter / (aw * ah) if aw * ah else 0
+            if coverage < 0.90: errors.append(f"{label}: покрытие карты {coverage:.0%}, требуется ≥ 90%")
+            if precision < 0.75: errors.append(f"{label}: точность кропа {precision:.0%}, требуется ≥ 75%")
+            checked += 1
+            if int(best.get("quantity", 1)) == int(expected.get("expected_quantity", 1)): matched += 1
+            else: errors.append(f"{label}: ожидалось {expected.get('expected_quantity', 1)}, найдено {best.get('quantity', 1)}")
+        results.append({"id": case.get("id", "?"), "passed": not errors, "errors": errors, "expected_cards": len(owned), "detected_cards": len(detected), "quantity_matches": matched, "quantity_checked": checked})
+    passed = sum(x["passed"] for x in results)
+    return {"count": len(results), "passed": passed, "failed": len(results) - passed, "results": results}
+
+
+@app.post("/admin/counter-tests/run")
+def run_counter_tests(authorization: str | None = Header(default=None)):
+    """Run the current counter detector against labelled fixture images; no data is modified."""
+    require_admin(authorization)
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    if not raw:
+        raise HTTPException(status_code=404, detail="В рабочей ветке нет tests/fixtures/counter/cases.json")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    cases = payload.get("cases") if isinstance(payload, dict) else None
+    if not isinstance(cases, list):
+        raise HTTPException(status_code=500, detail="В cases.json отсутствует список cases")
+    if not cases:
+        return {
+            "branch": branch,
+            "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+            "run_at": datetime.now(timezone.utc).isoformat(),
+            "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "results": [],
+            "message": "Нет эталонных тестовых случаев.",
+        }
+
+    started = time.perf_counter()
+    results: list[dict[str, Any]] = []
+    for case in cases:
+        case_id = str(case.get("id", "unknown"))[:120]
+        expected = case.get("expected_quantity")
+        image_path = case.get("image_path")
+        result: dict[str, Any] = {
+            "id": case_id,
+            "card_id": case.get("card_id"),
+            "card_name": case.get("card_name"),
+            "timestamp": case.get("timestamp"),
+            "expected_quantity": expected,
+            "image_path": image_path,
+            "status": "failed",
+            "detected_quantity": None,
+            "confidence": None,
+            "duration_ms": None,
+            "debug": None,
+            "error": None,
+        }
+        try:
+            if not isinstance(image_path, str) or not image_path.startswith(COUNTER_TEST_IMAGES_PATH + "/") or ".." in Path(image_path).parts:
+                raise ValueError("Недопустимый путь изображения в cases.json")
+            if not isinstance(expected, int) or isinstance(expected, bool) or not 1 <= expected <= 999:
+                raise ValueError("Эталонное количество должно быть целым числом от 1 до 999")
+            # Prefer a local fixture only when its SHA matches the manifest; otherwise read
+            # the exact version from GitHub so a stale Render deployment cannot test old data.
+            image_bytes = None
+            local_image = Path(image_path)
+            expected_sha = case.get("image_sha256")
+            if local_image.is_file():
+                local_bytes = local_image.read_bytes()
+                if not expected_sha or hashlib.sha256(local_bytes).hexdigest() == expected_sha:
+                    image_bytes = local_bytes
+            if image_bytes is None:
+                image_bytes = _github_read_bytes(image_path, branch)
+            if not image_bytes:
+                raise FileNotFoundError("Эталонное изображение не найдено в рабочей ветке")
+            if expected_sha and hashlib.sha256(image_bytes).hexdigest() != expected_sha:
+                raise ValueError("SHA-256 изображения не совпадает с cases.json")
+            with Image.open(BytesIO(image_bytes)) as source:
+                image = source.convert("RGB")
+            detector_started = time.perf_counter()
+            _, actual, confidence, debug = _detect_counter(image)
+            result["duration_ms"] = round((time.perf_counter() - detector_started) * 1000, 2)
+            result["detected_quantity"] = actual
+            result["confidence"] = confidence
+            result["debug"] = debug
+            result["status"] = "passed" if actual == expected else "failed"
+            if actual != expected:
+                result["error"] = f"Ожидалось {expected}, распознано {actual}"
+        except Exception as exc:
+            result["error"] = str(exc)[:500]
+        results.append(result)
+
+    passed = sum(1 for item in results if item["status"] == "passed")
+    failed = len(results) - passed
+    return {
+        "branch": branch,
+        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "run_at": datetime.now(timezone.utc).isoformat(),
+        "total": len(results),
+        "passed": passed,
+        "failed": failed,
+        "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+        "results": results,
+        "message": "Все тесты пройдены." if failed == 0 else f"Не пройдено тестов: {failed}.",
+    }
+
+
 @app.get("/admin/counter-tests")
 async def get_counter_tests(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     branch = _counter_test_branch()
     raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
     try:
-        cases = json.loads(raw) if raw else {"version": 1, "cases": []}
-        if not isinstance(cases, dict) or not isinstance(cases.get("cases"), list):
-            cases = {"version": 1, "cases": []}
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="Файл тестовых случаев в GitHub содержит некорректный JSON")
+        payload = json.loads(raw) if raw else {"version": 1, "cases": []}
+        if not isinstance(payload, dict) or not isinstance(payload.get("cases"), list):
+            raise ValueError("Некорректная структура cases.json")
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail="Файл тестовых случаев в GitHub содержит некорректный формат") from exc
     return {
         "branch": branch,
-        "count": len(cases["cases"]),
+        "count": len(payload["cases"]),
         "recent": [
             {
                 "id": item.get("id"),
                 "timestamp": item.get("timestamp"),
                 "card_name": item.get("card_name"),
+                "card_id": item.get("card_id"),
                 "expected_quantity": item.get("expected_quantity"),
                 "detected_quantity": item.get("detected_quantity"),
                 "correct": item.get("correct"),
                 "image_path": item.get("image_path"),
+                "image_url": f"/admin/counter-tests/image/{quote(str(item.get('id', '')), safe='')}",
                 "commit_url": item.get("commit_url"),
             }
-            for item in reversed(cases["cases"][-10:])
+            for item in reversed(payload["cases"])
         ],
     }
+
+
+@app.get("/admin/counter-tests/image/{case_id}")
+async def get_counter_test_image(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        payload = json.loads(raw) if raw else {"cases": []}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    case = next((item for item in payload.get("cases", []) if item.get("id") == case_id), None)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Эталонный тест не найден")
+    image_path = case.get("image_path")
+    if not isinstance(image_path, str) or not image_path.startswith(COUNTER_TEST_IMAGES_PATH + "/") or ".." in Path(image_path).parts:
+        raise HTTPException(status_code=400, detail="Недопустимый путь изображения")
+    image_bytes = _github_read_bytes(image_path, branch)
+    if not image_bytes:
+        raise HTTPException(status_code=404, detail="Изображение эталонного теста не найдено")
+    media_type = "image/png" if image_path.lower().endswith(".png") else "image/jpeg" if image_path.lower().endswith((".jpg", ".jpeg")) else "image/webp"
+    return Response(content=image_bytes, media_type=media_type, headers={"Cache-Control": "private, max-age=300"})
+
+
+@app.patch("/admin/counter-tests/{case_id}")
+async def update_counter_test(case_id: str, expected_quantity: int, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    if not 1 <= expected_quantity <= 999:
+        raise HTTPException(status_code=400, detail="Эталонное количество должно быть от 1 до 999")
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        payload = json.loads(raw) if raw else {"version": 1, "cases": []}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    cases = payload.get("cases") if isinstance(payload, dict) else None
+    if not isinstance(cases, list):
+        raise HTTPException(status_code=500, detail="В cases.json отсутствует список cases")
+    case = next((item for item in cases if item.get("id") == case_id), None)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Эталонный тест не найден")
+    case["expected_quantity"] = expected_quantity
+    case["correct"] = case.get("detected_quantity") == expected_quantity
+    files = {COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"}
+    commit = _github_commit_files(files, f"Update counter fixture label {case_id}", branch)
+    return {"ok": True, "id": case_id, "expected_quantity": expected_quantity, "branch": branch, "git_commit": commit["sha"]}
+
+
+@app.delete("/admin/counter-tests/{case_id}")
+async def delete_counter_test(case_id: str, authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    branch = _counter_test_branch()
+    raw = _github_read_text(COUNTER_TEST_CASES_PATH, branch)
+    try:
+        payload = json.loads(raw) if raw else {"version": 1, "cases": []}
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Файл cases.json содержит некорректный JSON") from exc
+    cases = payload.get("cases") if isinstance(payload, dict) else None
+    if not isinstance(cases, list):
+        raise HTTPException(status_code=500, detail="В cases.json отсутствует список cases")
+    index = next((i for i, item in enumerate(cases) if item.get("id") == case_id), None)
+    if index is None:
+        raise HTTPException(status_code=404, detail="Эталонный тест не найден")
+    removed = cases.pop(index)
+    image_path = removed.get("image_path")
+    files: dict[str, bytes | None] = {
+        COUNTER_TEST_CASES_PATH: json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    }
+    if isinstance(image_path, str) and image_path.startswith(COUNTER_TEST_IMAGES_PATH + "/") and ".." not in Path(image_path).parts:
+        files[image_path] = None
+    commit = _github_commit_files(files, f"Delete counter fixture {case_id}", branch)
+    return {"ok": True, "id": case_id, "branch": branch, "git_commit": commit["sha"]}
 
 
 @app.post("/admin/counter-tests")
@@ -1109,8 +1826,8 @@ async def delete_temp_files(authorization: str | None = Header(default=None)):
 @app.get("/me/cards")
 async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
     auth = _validate_telegram_init_data(init_data)
-    get_or_create_user(auth["id"])
     user = auth["user"]
+    get_or_create_user(auth["id"], username=str(user.get("username") or ""), first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
     return {
         "registered": True,
         "telegram_id": auth["id"],
@@ -1138,6 +1855,124 @@ async def update_desired_cards(
     get_or_create_user(auth["id"])
     desired = set_desired_cards(auth["id"], card_ids)
     return {"status": "ok", "desired_cards": desired}
+
+
+def _send_telegram_message(chat_id: int, text: str) -> None:
+    """Send a Telegram Bot API message without exposing bot credentials in errors."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
+
+    payload = json.dumps({"chat_id": chat_id, "text": text}).encode("utf-8")
+    request = Request(
+        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=8) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        # Never return or log the URL, because it contains the bot token.
+        raise HTTPException(
+            status_code=502,
+            detail="Telegram не смог доставить уведомление. Возможно, пользователь ещё не запускал бота.",
+        ) from exc
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось отправить уведомление через Telegram. Попробуйте позже.",
+        ) from exc
+
+    if not isinstance(result, dict) or not result.get("ok"):
+        raise HTTPException(
+            status_code=502,
+            detail="Telegram не смог доставить уведомление. Возможно, пользователь ещё не запускал бота.",
+        )
+
+
+def _card_icon_public_url(icon: Any) -> str:
+    """Return a public URL only for card icons hosted by this application."""
+    path = str(icon or "").strip()
+    if not path.startswith("/static/cards/") or ".." in path.split("/"):
+        return ""
+    base_url = os.getenv("PUBLIC_BASE_URL", "https://pubg-backend-3rtc.onrender.com").strip().rstrip("/")
+    return f"{base_url}{path}"
+
+
+def _send_telegram_media_group(chat_id: int, media: list[dict[str, str]]) -> None:
+    """Send card icons as a Telegram album. The caller may fall back to text-only."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
+    if not 2 <= len(media) <= 10:
+        return
+
+    payload = json.dumps({"chat_id": chat_id, "media": media}, ensure_ascii=False).encode("utf-8")
+    request = Request(
+        f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=8) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось отправить изображения карт через Telegram.",
+        ) from exc
+    if not isinstance(result, dict) or not result.get("ok"):
+        raise HTTPException(status_code=502, detail="Telegram не смог отправить изображения карт")
+
+
+@app.post("/me/trade-matches/{target_telegram_id}/contact")
+async def contact_trade_match(
+    target_telegram_id: int,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    """Create a persistent trade request and notify the recipient through the bot."""
+    if target_telegram_id <= 0:
+        raise HTTPException(status_code=400, detail="Некорректный Telegram ID")
+
+    auth = _validate_telegram_init_data(init_data)
+    sender = auth["user"]
+    get_or_create_user(
+        auth["id"],
+        username=str(sender.get("username") or ""),
+        first_name=str(sender.get("first_name") or ""),
+        last_name=str(sender.get("last_name") or ""),
+    )
+    match = next(
+        (item for item in get_trade_matches(auth["id"]) if int(item["telegram_id"]) == target_telegram_id),
+        None,
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail="Подходящий обмен с этим игроком не найден")
+
+    request = create_trade_request_for_match(auth["id"], target_telegram_id, match)
+    return {
+        "status": "created",
+        "request_id": request["id"],
+        "notification_delivered": bool(request.get("notification_delivered")),
+        "message": (
+            "Заявка сохранена и уведомление отправлено"
+            if request.get("notification_delivered")
+            else "Заявка сохранена. Игрок увидит её в разделе «Обмены», когда откроет приложение"
+        ),
+    }
+
+
+@app.get("/me/trade-matches")
+async def get_my_trade_matches(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    """Return reciprocal trade suggestions for the authenticated Telegram user."""
+    auth = _validate_telegram_init_data(init_data)
+    user = auth["user"]
+    get_or_create_user(auth["id"], username=str(user.get("username") or ""), first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
+    matches = get_trade_matches(auth["id"])
+    return {"matches": matches, "count": len(matches)}
 
 
 @app.delete("/me/desired-cards/{card_id}")
@@ -1248,9 +2083,13 @@ async def save_my_collection(
 
 @app.post("/scan")
 async def scan(file: UploadFile = File(...), init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    request_started = time.perf_counter()
     auth = _validate_telegram_init_data(init_data) if init_data else None
+    decode_started = time.perf_counter()
     image = await _read_image(file)
+    upload_decode_ms = (time.perf_counter() - decode_started) * 1000
     result = scan_screenshot(image, save_previews=True)
+    matching_started = time.perf_counter()
     db = load_db()
 
     matches = []
@@ -1290,10 +2129,15 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
                 "row": card["row"],
                 "col": card["col"],
             })
+    matching_ms = (time.perf_counter() - matching_started) * 1000
     if auth:
         get_or_create_user(auth["id"])
 
-    return {"cards": matches, "count": len(matches), "authenticated": bool(auth)}
+    profile = dict(result.get("profile", {}))
+    profile["upload_decode_ms"] = round(upload_decode_ms, 1)
+    profile["matching_ms"] = round(matching_ms, 1)
+    profile["server_total_ms"] = round((time.perf_counter() - request_started) * 1000, 1)
+    return {"cards": matches, "count": len(matches), "authenticated": bool(auth), "profile": profile}
 
 
 @app.post("/admin/save-card")
@@ -1312,6 +2156,10 @@ async def save_card(
     if not hashes:
         raise HTTPException(status_code=400, detail="Не удалось получить валидные hashes")
 
+    # The scan preview is already cropped to the card. Reuse it as the
+    # permanent icon so adding a card never requires uploading the same image twice.
+    card_image = _load_admin_preview(data.preview)
+
     db = load_db()
     card_id = data.id.strip() if data.id else _next_card_id(db)
     old = db.get(card_id, {})
@@ -1322,9 +2170,9 @@ async def save_card(
         "rarity": data.rarity,
     }
 
-    # Preserve a previously saved permanent icon when editing the card.
-    if old.get("icon"):
-        record["icon"] = old["icon"]
+    # Preserve an existing icon when editing a card; otherwise derive it from
+    # the same scanned crop used to calculate hashes.
+    record["icon"] = old.get("icon") or _save_permanent_icon(card_id, card_image)
 
     db[card_id] = record
     save_db(db)
@@ -1417,6 +2265,24 @@ async def save_icon(
     }
 
 
+@app.post("/admin/save-icon-from-preview/{card_id}")
+async def save_icon_from_preview(
+    card_id: str,
+    data: CardPreviewSchema,
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    db = load_db()
+    if card_id not in db:
+        raise HTTPException(status_code=404, detail="Карта не найдена")
+
+    image = _load_admin_preview(data.preview)
+    icon_url = _save_permanent_icon(card_id, image)
+    db[card_id]["icon"] = icon_url
+    save_db(db)
+    return {"status": "ok", "card_id": card_id, "icon": icon_url}
+
+
 @app.delete("/admin/delete-icon/{card_id}")
 async def delete_icon(
     card_id: str,
@@ -1479,10 +2345,16 @@ def _github_request(method: str, url: str, token: str, payload: dict[str, Any] |
         raise HTTPException(status_code=502, detail=f"GitHub API недоступен: {exc}") from exc
 
 
+def _github_commit_branch() -> str:
+    # Card data must never be pushed to main from the admin UI, even if an old
+    # Render environment variable still points there.
+    return "feature/card-counter"
+
+
 def _github_commit() -> dict[str, Any]:
     token = os.getenv("GITHUB_TOKEN", "")
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
-    branch = os.getenv("GITHUB_BRANCH", "main")
+    branch = _github_commit_branch()
 
     if not token:
         raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
@@ -1570,6 +2442,7 @@ def _github_commit() -> dict[str, Any]:
         "url": new_commit.get("html_url", ""),
         "cards": len(load_db()),
         "icons": len(local_icons),
+        "branch": branch,
     }
 
 
@@ -1665,3 +2538,13 @@ async def regenerate_hashes_progress(authorization: str | None = Header(default=
 async def github_commit(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     return _github_commit()
+
+
+register_trade_request_routes(
+    app,
+    _validate_telegram_init_data,
+    get_or_create_user,
+    get_trade_matches,
+    _send_telegram_media_group,
+    _card_icon_public_url,
+)

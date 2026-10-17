@@ -3010,6 +3010,3889 @@
           "rejection_stage": "badge_geometry_or_contrast"
         }
       }
+    },
+    {
+      "id": "20261013T192315297677-168d2903e4",
+      "timestamp": "2026-10-13T19:23:15.297677+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        138,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315297677-168d2903e4.png",
+      "image_sha256": "168d2903e485644a575906c85d9fe3e7ea6522028ac519cdfc7b16b732442445",
+      "expected_quantity": 2,
+      "detected_quantity": 2,
+      "correct": true,
+      "quantity_confidence": 0.817,
+      "scan_duration_ms": 6011.2,
+      "counter_debug": {
+        "quantity": 2,
+        "confidence": 0.817,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 2,
+            "digit": 2,
+            "digits": [
+              2
+            ],
+            "digit_score": 0.817,
+            "digit_scores": [
+              0.817
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 93.7,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1449,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.733
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315298129-71f2bb9aeb",
+      "timestamp": "2026-10-13T19:23:15.298129+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        206,
+        137,
+        239,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        239,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315298129-71f2bb9aeb.png",
+      "image_sha256": "71f2bb9aeb8dce6a790ff664ccedbe994293fa137e83511d0649fd1c19c2d8df",
+      "expected_quantity": 2,
+      "detected_quantity": 2,
+      "correct": true,
+      "quantity_confidence": 0.817,
+      "scan_duration_ms": 1480.9,
+      "counter_debug": {
+        "quantity": 2,
+        "confidence": 0.817,
+        "details": {
+          "roi": [
+            143,
+            3,
+            235,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 2,
+            "digit": 2,
+            "digits": [
+              2
+            ],
+            "digit_score": 0.817,
+            "digit_scores": [
+              0.817
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              38,
+              32
+            ],
+            "contrast": 96,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.2094,
+              "x_candidates_added": 2,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 2,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            },
+            {
+              "x": 143,
+              "y": 36,
+              "w": 24,
+              "h": 34,
+              "score": 0.54
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817
+            },
+            {
+              "x": 219,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.783
+            },
+            {
+              "x": 143,
+              "y": 36,
+              "w": 24,
+              "h": 34,
+              "digit": 1,
+              "score": 0.544
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315298531-1891c5085f",
+      "timestamp": "2026-10-13T19:23:15.298531+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        137,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315298531-1891c5085f.png",
+      "image_sha256": "1891c5085f620234f05a84451d41d8b527019809fbd38058f16baf86cb129bd6",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1480.9,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 93.1,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1538,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.722
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315298840-9577d56383",
+      "timestamp": "2026-10-13T19:23:15.298840+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        169,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315298840-9577d56383.png",
+      "image_sha256": "9577d563839af4a60b2f8e97cc75a644d59e66bd96d832c912ade07bdf7b4b45",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1867.6,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.6249,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.8206,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 217,
+              "y": 17,
+              "w": 8,
+              "h": 53,
+              "digit": 1,
+              "score": 0.718
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315299139-56c7291510",
+      "timestamp": "2026-10-13T19:23:15.299139+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315299139-56c7291510.png",
+      "image_sha256": "56c7291510dca92b9a45f00845bf23b3e5f5d8e2d924593d163325cec6f233ba",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1606.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 95.3,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.2017,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.783
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315299446-21bf6c4d6a",
+      "timestamp": "2026-10-13T19:23:15.299446+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315299446-21bf6c4d6a.png",
+      "image_sha256": "21bf6c4d6a6947edb40c739b22d4a8fd6e65903ab887948c74b00ef6d6a55ff0",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1606.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 88.7,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1518,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315299739-efe22bd7d4",
+      "timestamp": "2026-10-13T19:23:15.299739+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315299739-efe22bd7d4.png",
+      "image_sha256": "efe22bd7d45856a2d1ddac6f5e7c0fc9fcdee9fa5e8c613e0cb19ffa01a78fbb",
+      "expected_quantity": 6,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1606.5,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 8,
+              "bright_pixel_ratio": 0.2161,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 1,
+              "score": 0.856
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T192315300016-56c7291510",
+      "timestamp": "2026-10-13T19:23:15.300016+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315300016-56c7291510.png",
+      "image_sha256": "56c7291510dca92b9a45f00845bf23b3e5f5d8e2d924593d163325cec6f233ba",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1536.9,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 95.3,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.2017,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.783
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315300295-21bf6c4d6a",
+      "timestamp": "2026-10-13T19:23:15.300295+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315300295-21bf6c4d6a.png",
+      "image_sha256": "21bf6c4d6a6947edb40c739b22d4a8fd6e65903ab887948c74b00ef6d6a55ff0",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1536.9,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 88.7,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1518,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315300559-efe22bd7d4",
+      "timestamp": "2026-10-13T19:23:15.300559+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315300559-efe22bd7d4.png",
+      "image_sha256": "efe22bd7d45856a2d1ddac6f5e7c0fc9fcdee9fa5e8c613e0cb19ffa01a78fbb",
+      "expected_quantity": 6,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1536.9,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 8,
+              "bright_pixel_ratio": 0.2161,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 1,
+              "score": 0.856
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T192315300852-6578b2fe00",
+      "timestamp": "2026-10-13T19:23:15.300852+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        162,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315300852-6578b2fe00.png",
+      "image_sha256": "6578b2fe006c3a116e0f0376b943a57f969974ecc4ef46f738fbe478be667faa",
+      "expected_quantity": 6,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1886.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.152,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 1,
+              "score": 0.856
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.783
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T192315301109-0f9e449fb7",
+      "timestamp": "2026-10-13T19:23:15.301109+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        162,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315301109-0f9e449fb7.png",
+      "image_sha256": "0f9e449fb79be1a8b4bb8724f83f5b80fc57ee4a678e221e231c2908215ae3dc",
+      "expected_quantity": 7,
+      "detected_quantity": 7,
+      "correct": true,
+      "quantity_confidence": 0.753,
+      "scan_duration_ms": 1886.2,
+      "counter_debug": {
+        "quantity": 7,
+        "confidence": 0.753,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 7,
+            "digit": 7,
+            "digits": [
+              7
+            ],
+            "digit_score": 0.753,
+            "digit_scores": [
+              0.753
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 86.4,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 10,
+              "bright_pixel_ratio": 0.1418,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 7,
+              "score": 0.753
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315301408-3f7393b408",
+      "timestamp": "2026-10-13T19:23:15.301408+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        162,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315301408-3f7393b408.png",
+      "image_sha256": "3f7393b40841d4a4db47fcf0191a8470cf91e8b0ef0a8a013ce84b4e1c070aaf",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1886.2,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 93.2,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 7,
+              "bright_pixel_ratio": 0.147,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315301656-370cc014bb",
+      "timestamp": "2026-10-13T19:23:15.301656+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        162,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315301656-370cc014bb.png",
+      "image_sha256": "370cc014bbbcb18aea47d4e3f968b08907ab81adb994a711e1a9badb954ceadb",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1886.2,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 93.2,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 8,
+              "bright_pixel_ratio": 0.1598,
+              "x_candidates_added": 2,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 2,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            },
+            {
+              "x": 154,
+              "y": 59,
+              "w": 8,
+              "h": 11,
+              "score": 0.491
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315301953-99cf9f7721",
+      "timestamp": "2026-10-13T19:23:15.301953+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "card_60",
+      "card_name": "Адана-кебаб",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        88,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315301953-99cf9f7721.png",
+      "image_sha256": "99cf9f772143a9f447a6f51cf70ead2b10225be2d62178ec5b0006cc01f065fe",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1927.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 41,
+              "bright_pixel_ratio": 0.178,
+              "x_candidates_added": 3,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 3,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 190,
+              "y": 35,
+              "w": 9,
+              "h": 10,
+              "score": 0.496
+            },
+            {
+              "x": 178,
+              "y": 48,
+              "w": 9,
+              "h": 8,
+              "score": 0.466
+            },
+            {
+              "x": 182,
+              "y": 21,
+              "w": 11,
+              "h": 15,
+              "score": 0.415
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 144,
+              "y": 57,
+              "w": 5,
+              "h": 12,
+              "digit": 1,
+              "score": 0.683
+            },
+            {
+              "x": 147,
+              "y": 24,
+              "w": 5,
+              "h": 13,
+              "digit": 1,
+              "score": 0.569
+            },
+            {
+              "x": 182,
+              "y": 21,
+              "w": 11,
+              "h": 15,
+              "digit": 4,
+              "score": 0.451
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T192315302266-8a40234e2f",
+      "timestamp": "2026-10-13T19:23:15.302266+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "card_59",
+      "card_name": "Симит",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        88,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315302266-8a40234e2f.png",
+      "image_sha256": "8a40234e2f5b61634a925166c094f7e10dbe4a562acdf0d05ebc95b0f2a9f6e5",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1927.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 9,
+              "bright_pixel_ratio": 0.5237,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 10,
+              "bright_pixel_ratio": 0.6851,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 0,
+          "x_candidates": [],
+          "digit_candidates": []
+        }
+      }
+    },
+    {
+      "id": "20261013T192315302562-1d71d874fb",
+      "timestamp": "2026-10-13T19:23:15.302562+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "card_58",
+      "card_name": "Турецкий кофе",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        87,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315302562-1d71d874fb.png",
+      "image_sha256": "1d71d874fb634ed601ea0e947e517a9590f2c28fe59c0e743eacb4a2dc34c4d0",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1927.4,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 26,
+              "bright_pixel_ratio": 0.2124,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 26,
+              "bright_pixel_ratio": 0.4088,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 144,
+              "y": 15,
+              "w": 15,
+              "h": 14,
+              "score": 0.543
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 144,
+              "y": 14,
+              "w": 21,
+              "h": 56,
+              "digit": 1,
+              "score": 0.567
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T192315302803-f81dcce780",
+      "timestamp": "2026-10-13T19:23:15.302803+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        156,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315302803-f81dcce780.png",
+      "image_sha256": "f81dcce780e6a26e366604c0e5adde826100bcbb96df33112c6cb6de06409ce6",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 2044.1,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 95.3,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1471,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.783
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315303054-2cfd6fa4b6",
+      "timestamp": "2026-10-13T19:23:15.303054+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        156,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315303054-2cfd6fa4b6.png",
+      "image_sha256": "2cfd6fa4b62b75e4a85f4c1b716e763af04c438668dd1cd53af29f4105c15ef5",
+      "expected_quantity": 2,
+      "detected_quantity": 2,
+      "correct": true,
+      "quantity_confidence": 0.817,
+      "scan_duration_ms": 2044.1,
+      "counter_debug": {
+        "quantity": 2,
+        "confidence": 0.817,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 2,
+            "digit": 2,
+            "digits": [
+              2
+            ],
+            "digit_score": 0.817,
+            "digit_scores": [
+              0.817
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 88.7,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 7,
+              "bright_pixel_ratio": 0.2468,
+              "x_candidates_added": 2,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 2,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            },
+            {
+              "x": 144,
+              "y": 25,
+              "w": 27,
+              "h": 45,
+              "score": 0.494
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            },
+            {
+              "x": 144,
+              "y": 25,
+              "w": 27,
+              "h": 45,
+              "digit": 1,
+              "score": 0.622
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315303309-7632d3c90a",
+      "timestamp": "2026-10-13T19:23:15.303309+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        156,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315303309-7632d3c90a.png",
+      "image_sha256": "7632d3c90a6577577a58a68364bbad826e05413b263816ff5c86431fe0d4112e",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 2044.1,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 93.2,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 14,
+              "bright_pixel_ratio": 0.1564,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            },
+            {
+              "x": 190,
+              "y": 59,
+              "w": 4,
+              "h": 11,
+              "digit": 1,
+              "score": 0.606
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315303585-b4a9e0c063",
+      "timestamp": "2026-10-13T19:23:15.303585+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        156,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315303585-b4a9e0c063.png",
+      "image_sha256": "b4a9e0c063296e8bc7178f7b604c42f9f403ebd28daa0d34403bfc554c9d1df4",
+      "expected_quantity": 10,
+      "detected_quantity": 11,
+      "correct": false,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 2044.1,
+      "counter_debug": {
+        "quantity": 11,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 11,
+            "digit": null,
+            "digits": [
+              1,
+              1
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.978
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              193,
+              3,
+              47,
+              32
+            ],
+            "contrast": 95.4,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1566,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 199,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 1,
+              "score": 0.978
+            },
+            {
+              "x": 215,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315303857-e896d6f228",
+      "timestamp": "2026-10-13T19:23:15.303857+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        87,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315303857-e896d6f228.png",
+      "image_sha256": "e896d6f2284af3c03f769062a63cc8adc051666ae9f59dba239469b16bda27f0",
+      "expected_quantity": 5,
+      "detected_quantity": 5,
+      "correct": true,
+      "quantity_confidence": 0.881,
+      "scan_duration_ms": 1801.3,
+      "counter_debug": {
+        "quantity": 5,
+        "confidence": 0.881,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 5,
+            "digit": 5,
+            "digits": [
+              5
+            ],
+            "digit_score": 0.881,
+            "digit_scores": [
+              0.881
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              4,
+              40,
+              32
+            ],
+            "contrast": 92,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.1817,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 15,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 8,
+              "w": 12,
+              "h": 24,
+              "digit": 5,
+              "score": 0.881
+            },
+            {
+              "x": 219,
+              "y": 39,
+              "w": 10,
+              "h": 31,
+              "digit": 1,
+              "score": 0.698
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315304114-b2ca5f3fe7",
+      "timestamp": "2026-10-13T19:23:15.304114+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315304114-b2ca5f3fe7.png",
+      "image_sha256": "b2ca5f3fe7559bcc55428d4781cf68de162315738d39aa41372a860e0025738d",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1134.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1329,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.7419,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 216,
+              "y": 17,
+              "w": 9,
+              "h": 53,
+              "digit": 1,
+              "score": 0.692
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315304400-c3af503cdb",
+      "timestamp": "2026-10-13T19:23:15.304400+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315304400-c3af503cdb.png",
+      "image_sha256": "c3af503cdb938fc2312026c905a59d4def0d1cca7d7f4faa3c840b84f214ba1f",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1134.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1324,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.7365,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 217,
+              "y": 17,
+              "w": 8,
+              "h": 53,
+              "digit": 1,
+              "score": 0.549
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315304674-c7b2b36a5e",
+      "timestamp": "2026-10-13T19:23:15.304674+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        178,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315304674-c7b2b36a5e.png",
+      "image_sha256": "c7b2b36a5e61ecc83d61850835d008e9c767e6672a4d4e7bc18917cc6b22b7e0",
+      "expected_quantity": 5,
+      "detected_quantity": 5,
+      "correct": true,
+      "quantity_confidence": 0.881,
+      "scan_duration_ms": 1881.5,
+      "counter_debug": {
+        "quantity": 5,
+        "confidence": 0.881,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 5,
+            "digit": 5,
+            "digits": [
+              5
+            ],
+            "digit_score": 0.881,
+            "digit_scores": [
+              0.881
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 94.1,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.148,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 5,
+              "score": 0.881
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.789
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315304935-898aa13166",
+      "timestamp": "2026-10-13T19:23:15.304935+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        178,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315304935-898aa13166.png",
+      "image_sha256": "898aa131663571f5be42722287b1f0385753109015fb1cad2f81d9bd6d6c018c",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1881.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 88.9,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1473,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.733
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315305238-770c59ed6c",
+      "timestamp": "2026-10-13T19:23:15.305238+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        178,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315305238-770c59ed6c.png",
+      "image_sha256": "770c59ed6c0d754290b95987c85afca7240128f62ca25380411f7e1bc1b6420e",
+      "expected_quantity": 4,
+      "detected_quantity": 4,
+      "correct": true,
+      "quantity_confidence": 0.691,
+      "scan_duration_ms": 1881.5,
+      "counter_debug": {
+        "quantity": 4,
+        "confidence": 0.691,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 4,
+            "digit": 4,
+            "digits": [
+              4
+            ],
+            "digit_score": 0.691,
+            "digit_scores": [
+              0.691
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 91.1,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1433,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.733
+            },
+            {
+              "x": 221,
+              "y": 7,
+              "w": 14,
+              "h": 24,
+              "digit": 4,
+              "score": 0.691
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T192315305507-766d5e784b",
+      "timestamp": "2026-10-13T19:23:15.305507+00:00",
+      "app_commit": "9865e667a2d6e277bf83423727e34e0b9eb9c464",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        178,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T192315305507-766d5e784b.png",
+      "image_sha256": "766d5e784b32595a2fc523f16d0f6cd9b2e517cde97db2ae90b15710e85a04b7",
+      "expected_quantity": 6,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1881.5,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.151,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 1,
+              "score": 0.856
+            },
+            {
+              "x": 220,
+              "y": 39,
+              "w": 5,
+              "h": 31,
+              "digit": 1,
+              "score": 0.733
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T201112700942-56c7291510",
+      "timestamp": "2026-10-13T20:11:12.700942+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112700942-56c7291510.png",
+      "image_sha256": "56c7291510dca92b9a45f00845bf23b3e5f5d8e2d924593d163325cec6f233ba",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 95.3,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.2017,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.783
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201112701372-21bf6c4d6a",
+      "timestamp": "2026-10-13T20:11:12.701372+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112701372-21bf6c4d6a.png",
+      "image_sha256": "21bf6c4d6a6947edb40c739b22d4a8fd6e65903ab887948c74b00ef6d6a55ff0",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 88.7,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1518,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201112701662-efe22bd7d4",
+      "timestamp": "2026-10-13T20:11:12.701662+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112701662-efe22bd7d4.png",
+      "image_sha256": "efe22bd7d45856a2d1ddac6f5e7c0fc9fcdee9fa5e8c613e0cb19ffa01a78fbb",
+      "expected_quantity": 6,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 8,
+              "bright_pixel_ratio": 0.2161,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.815
+            },
+            {
+              "x": 220,
+              "y": 40,
+              "w": 5,
+              "h": 30,
+              "digit": 1,
+              "score": 0.728
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261013T201112701947-22484475ba",
+      "timestamp": "2026-10-13T20:11:12.701947+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201112701947-22484475ba.png",
+      "image_sha256": "22484475ba0bf9bf51993d6481bb86efece0e97893e4304c6c94e4b7ba838a05",
+      "expected_quantity": 11,
+      "detected_quantity": 11,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 5523.5,
+      "counter_debug": {
+        "quantity": 11,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 11,
+            "digit": null,
+            "digits": [
+              1,
+              1
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.811
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 93.2,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0651,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 229,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811
+            },
+            {
+              "x": 222,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811
+            },
+            {
+              "x": 223,
+              "y": 40,
+              "w": 6,
+              "h": 30,
+              "digit": 1,
+              "score": 0.667
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201146705854-b2ca5f3fe7",
+      "timestamp": "2026-10-13T20:11:46.705854+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146705854-b2ca5f3fe7.png",
+      "image_sha256": "b2ca5f3fe7559bcc55428d4781cf68de162315738d39aa41372a860e0025738d",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1329,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.7419,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 216,
+              "y": 17,
+              "w": 9,
+              "h": 53,
+              "digit": 1,
+              "score": 0.692
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201146706290-c3af503cdb",
+      "timestamp": "2026-10-13T20:11:46.706290+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146706290-c3af503cdb.png",
+      "image_sha256": "c3af503cdb938fc2312026c905a59d4def0d1cca7d7f4faa3c840b84f214ba1f",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.1324,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 3,
+              "bright_pixel_ratio": 0.7365,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 217,
+              "y": 17,
+              "w": 8,
+              "h": 53,
+              "digit": 1,
+              "score": 0.549
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201146706584-60b1e98509",
+      "timestamp": "2026-10-13T20:11:46.706584+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146706584-60b1e98509.png",
+      "image_sha256": "60b1e985090b8cc37b156bbd7a108643d0d960e64b2cb8d135d16a2c9f20a3ed",
+      "expected_quantity": 10,
+      "detected_quantity": 10,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 10,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 10,
+            "digit": null,
+            "digits": [
+              1,
+              0
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.94
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              193,
+              3,
+              47,
+              32
+            ],
+            "contrast": 95.5,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0827,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 3
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 3,
+          "x_candidates": [
+            {
+              "x": 199,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.94
+            },
+            {
+              "x": 215,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811
+            },
+            {
+              "x": 223,
+              "y": 39,
+              "w": 6,
+              "h": 31,
+              "digit": 1,
+              "score": 0.656
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261013T201146706852-0df7e65c10",
+      "timestamp": "2026-10-13T20:11:46.706852+00:00",
+      "app_commit": "3618f1935c3bb61920d353f90200b0052e529a40",
+      "card_id": "",
+      "card_name": "",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        152,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261013T201146706852-0df7e65c10.png",
+      "image_sha256": "0df7e65c1087a7b4b5f590e19f5aba7de5466c628471e08a963fd0cd1910d41a",
+      "expected_quantity": 5,
+      "detected_quantity": 5,
+      "correct": true,
+      "quantity_confidence": 0.881,
+      "scan_duration_ms": 1646.2,
+      "counter_debug": {
+        "quantity": 5,
+        "confidence": 0.881,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 5,
+            "digit": 5,
+            "digits": [
+              5
+            ],
+            "digit_score": 0.881,
+            "digit_scores": [
+              0.881
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 91.8,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0636,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 5,
+              "score": 0.881
+            },
+            {
+              "x": 223,
+              "y": 39,
+              "w": 6,
+              "h": 31,
+              "digit": 1,
+              "score": 0.656
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261017T123555007184-56c7291510",
+      "timestamp": "2026-10-17T12:35:55.007184+00:00",
+      "app_commit": "3bf1f630f90edb15426d0b51bbce94a418ec5e20",
+      "card_id": "card_78",
+      "card_name": "Каштан",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261017T123555007184-56c7291510.png",
+      "image_sha256": "56c7291510dca92b9a45f00845bf23b3e5f5d8e2d924593d163325cec6f233ba",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 5953.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.2017,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261017T123555008167-21bf6c4d6a",
+      "timestamp": "2026-10-17T12:35:55.008167+00:00",
+      "app_commit": "3bf1f630f90edb15426d0b51bbce94a418ec5e20",
+      "card_id": "card_79",
+      "card_name": "Хамст тава",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261017T123555008167-21bf6c4d6a.png",
+      "image_sha256": "21bf6c4d6a6947edb40c739b22d4a8fd6e65903ab887948c74b00ef6d6a55ff0",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 5953.5,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.1518,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261017T123555008451-efe22bd7d4",
+      "timestamp": "2026-10-17T12:35:55.008451+00:00",
+      "app_commit": "3bf1f630f90edb15426d0b51bbce94a418ec5e20",
+      "card_id": "card_81",
+      "card_name": "Тулумба",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261017T123555008451-efe22bd7d4.png",
+      "image_sha256": "efe22bd7d45856a2d1ddac6f5e7c0fc9fcdee9fa5e8c613e0cb19ffa01a78fbb",
+      "expected_quantity": 6,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 5953.5,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 8,
+              "bright_pixel_ratio": 0.2161,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.815,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261017T123555008718-22484475ba",
+      "timestamp": "2026-10-17T12:35:55.008718+00:00",
+      "app_commit": "3bf1f630f90edb15426d0b51bbce94a418ec5e20",
+      "card_id": "card_76",
+      "card_name": "Чечевичный суп",
+      "row": 0,
+      "col": 3,
+      "card_box_in_screenshot": [
+        1012,
+        164,
+        240,
+        353
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        353
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261017T123555008718-22484475ba.png",
+      "image_sha256": "22484475ba0bf9bf51993d6481bb86efece0e97893e4304c6c94e4b7ba838a05",
+      "expected_quantity": 11,
+      "detected_quantity": 11,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 5953.5,
+      "counter_debug": {
+        "quantity": 11,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 11,
+            "digit": null,
+            "digits": [
+              1,
+              1
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.811
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0651,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 229,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811,
+              "alt_digit": null,
+              "alt_score": null
+            },
+            {
+              "x": 222,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
     }
   ]
 }

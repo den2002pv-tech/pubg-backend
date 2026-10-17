@@ -19,7 +19,18 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .card-grid,.temp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .item{background:#292929;border:1px solid #444;border-radius:10px;padding:12px}
 .item img{width:100%;height:240px;object-fit:contain;background:#000;border-radius:7px}
-.icon{width:120px!important;height:180px!important;display:block;margin:auto}
+.icon{width:180px!important;height:270px!important;display:block;margin:auto;object-fit:contain;cursor:zoom-in;border-radius:7px;transition:width .15s,height .15s}
+body.icon-size-large .icon{width:260px!important;height:390px!important}
+.icon-zoomable{display:block;max-width:100%;max-height:420px;object-fit:contain;cursor:zoom-in;border-radius:7px}
+.icon-size-control{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:#222;border:1px solid #444;border-radius:9px}
+.icon-size-control label{flex:0 0 auto;color:#ddd;font-size:14px}
+.icon-size-control select{max-width:220px;margin:0}
+#iconZoomModal{position:fixed;inset:0;z-index:11000;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+#iconZoomModal[hidden]{display:none}
+#iconZoomModal img{display:block;max-width:96vw;max-height:82vh;width:auto;height:auto;object-fit:contain;background:#111;border-radius:8px}
+#iconZoomModal .icon-zoom-title{max-width:92vw;margin:0 48px 14px;text-align:center;font-size:18px;font-weight:700;overflow-wrap:anywhere}
+#iconZoomModal .icon-zoom-close{position:absolute;top:12px;right:12px;width:44px;height:44px;padding:0;margin:0;border-radius:50%;font-size:28px;line-height:1;background:#333;color:#fff}
+@media(max-width:520px){.icon-size-control{align-items:stretch;flex-direction:column}.icon-size-control select{max-width:none}.icon{width:180px!important;height:270px!important}body.icon-size-large .icon{width:230px!important;height:345px!important}}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#444;font-size:12px;margin-top:5px}
 .has{background:#1e6b3a}.missing{background:#704d18}
 textarea{height:260px;font-family:monospace}
@@ -29,6 +40,61 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
 .progress-wrap{margin-top:12px;background:#111;border-radius:8px;overflow:hidden;height:24px}
 .progress-bar{height:100%;width:0;background:#2ecc71;transition:width .2s}
 .progress-text{margin-top:8px}
+.users-table th,.users-table td{vertical-align:top}.users-table tbody tr:hover{background:#292929}
+.presence-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#777}.presence-dot.online{background:#2ecc71}
+/* Counter fixture workspace: compact, touch-friendly and responsive. */
+#counterTests .counter-intro{max-width:760px;line-height:1.5}
+#counterTests .counter-toolbar{align-items:center}
+#counterTests .counter-toolbar .stat{flex:0 0 auto;min-width:120px}
+#counterTests .counter-toolbar button{width:auto;min-width:140px}
+#counterTests .counter-run-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+#counterTests .counter-fixture-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:10px;margin-top:12px}
+.counter-fixture{position:relative;display:grid;grid-template-columns:92px minmax(0,1fr);gap:12px;align-items:start;padding:10px;background:#222;border:1px solid #3d3d3d;border-radius:12px;min-width:0}
+.counter-fixture-thumb{width:92px;height:118px;object-fit:contain;background:#111;border-radius:8px;border:1px solid #393939}
+.counter-fixture-body{min-width:0;padding-right:28px}
+.counter-fixture-title{font-size:14px;line-height:1.35;margin:2px 0 8px;overflow-wrap:anywhere}
+.counter-fixture-meta{font-size:12px;color:#aaa;line-height:1.45;overflow-wrap:anywhere}
+.counter-fixture-quantity{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.counter-fixture-quantity span{font-size:12px;padding:4px 7px;border-radius:7px;background:#333}
+.counter-fixture-menu{position:absolute;right:8px;top:8px;z-index:5}
+.counter-fixture-menu>summary{list-style:none;cursor:pointer;width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:#333;color:#fff;font-size:21px;line-height:1}
+.counter-fixture-menu>summary::-webkit-details-marker{display:none}
+.counter-fixture-menu[open]>summary,.counter-fixture-menu>summary:hover{background:#4a4a4a}
+.counter-fixture-menu-items{position:absolute;right:0;top:38px;width:180px;padding:5px;background:#181818;border:1px solid #4b4b4b;border-radius:10px;box-shadow:0 12px 30px #0009}
+.counter-fixture-menu-items button{display:block;width:100%;margin:0;padding:10px;text-align:left;background:transparent;color:#eee;font-weight:500}
+.counter-fixture-menu-items button:hover{background:#303030}
+.counter-fixture-menu-items button.danger{color:#ff8585}
+.counter-fixture-status{font-size:12px;margin-top:8px;overflow-wrap:anywhere}
+.counter-fixture-dialog{border:1px solid #555;border-radius:14px;background:#202020;color:#fff;width:min(420px,calc(100% - 28px));padding:20px;box-shadow:0 20px 70px #000b}
+.counter-fixture-dialog::backdrop{background:#000a}
+.counter-fixture-dialog h3{margin-top:0}
+.counter-fixture-dialog .dialog-actions{display:flex;gap:8px;margin-top:14px}
+.counter-fixture-dialog .dialog-actions button{flex:1}
+#counterTestsList{grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr))}
+#counterTests .counter-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.counter-workspace-tabs{display:flex;gap:8px;margin:14px 0 18px;border-bottom:1px solid #444;padding-bottom:8px}
+.counter-workspace-tab{width:auto;flex:1;min-width:0;margin:0;background:#292929;color:#eee;border:1px solid #444}
+.counter-workspace-tab.active{background:#ff9900;color:#111;border-color:#ff9900}
+.counter-workspace-panel[hidden]{display:none}
+.counter-saved-toolbar{margin-bottom:10px}
+.counter-run-grid .counter-fixture{height:100%}
+.counter-run-grid .counter-fixture-body{padding-right:0}
+.counter-run-grid .counter-fixture-status{font-weight:700}
+.counter-run-grid .counter-fixture-meta{margin-top:6px}
+.counter-run-grid .counter-fixture-thumb.image-unavailable{opacity:.45}
+@media(max-width:520px){
+ body{padding:8px}
+ .box{padding:12px}
+ #counterTests .counter-toolbar{gap:8px}
+ #counterTests .counter-toolbar button{flex:1;min-width:0}
+ .counter-fixture{grid-template-columns:78px minmax(0,1fr);gap:9px;padding:8px}
+ .counter-fixture-thumb{width:78px;height:104px}
+ .counter-fixture-title{font-size:13px}
+ .counter-fixture-menu-items{width:165px}
+}
+
+.user-link{background:transparent;color:#ffb84d;padding:2px;margin:0;text-align:left;width:auto}
+#screenshotTests .shot-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,1fr);gap:14px}#screenshotTests .shot-canvas-wrap{background:#111;border:1px solid #444;border-radius:10px;overflow:hidden;min-height:180px;display:flex;align-items:center;justify-content:center}#screenshotTests canvas{display:block;max-width:100%;height:auto;touch-action:pan-y;cursor:crosshair}#screenshotTests .shot-card,#screenshotTests .shot-result{background:#242424;border:1px solid #444;border-radius:10px;padding:12px;margin-top:10px}#screenshotTests .shot-match{display:flex;align-items:center;gap:10px;margin:8px 0 12px;padding:8px;background:#191919;border-radius:8px;min-width:0}#screenshotTests .shot-match img{width:54px;height:78px;object-fit:contain;flex:0 0 auto;background:#111;border-radius:4px}#screenshotTests .shot-match img.shot-icon-open{cursor:zoom-in}#shotIconModal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}#shotIconModal[hidden]{display:none}#shotIconModal .shot-icon-close{position:absolute;top:12px;right:12px;width:44px;height:44px;border:0;border-radius:50%;font-size:28px;line-height:1;background:#333;color:#fff;cursor:pointer}#shotIconModal .shot-icon-title{color:#fff;text-align:center;font-size:20px;font-weight:700;overflow-wrap:anywhere;max-width:95vw;margin:12px 48px 18px}#shotIconModal img{display:block;max-width:94vw;max-height:78vh;width:auto;height:auto;object-fit:contain}#shotIconModal .shot-icon-hint{color:#bbb;font-size:13px;margin-top:14px}@media(max-width:600px){#shotIconModal{padding:10px}#shotIconModal img{max-width:96vw;max-height:76vh}#shotIconModal .shot-icon-title{font-size:18px}}#screenshotTests .shot-match>div{min-width:0;overflow-wrap:anywhere}#screenshotTests .shot-match b{display:block;margin-bottom:4px}#screenshotTests .shot-card-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}#screenshotTests .shot-card-fields label{font-size:12px;color:#bbb;min-width:0}#screenshotTests .shot-card-fields input,#screenshotTests .shot-card-fields select{min-width:0;padding:8px}#screenshotTests .shot-card-fields .wide{grid-column:span 2}#screenshotTests .shot-muted{font-size:13px;color:#aaa;line-height:1.5}#screenshotTests .shot-result img{width:100%;max-height:240px;object-fit:contain;background:#111;border-radius:8px}#screenshotTests .pass{border-color:#367e4b!important}#screenshotTests .fail{border-color:#a34a4a!important}@media(max-width:760px){#screenshotTests .shot-layout{grid-template-columns:1fr}#screenshotTests .shot-card-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -51,18 +117,52 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     </div>
   </div>
 
+  <div class="icon-size-control">
+    <label for="iconSizeSelect">Размер иконок</label>
+    <select id="iconSizeSelect" aria-label="Размер иконок">
+      <option value="normal" selected>Увеличенный</option>
+      <option value="large">Крупный</option>
+    </select>
+    <span class="muted">Нажми на иконку, чтобы открыть её крупно.</span>
+  </div>
+
   <div class="tabs">
     <button class="tab active" data-tab="scan">🧪 Хеши</button>
     <button class="tab" data-tab="icons">🖼️ Иконки</button>
     <button class="tab" data-tab="cards">🃏 Карты</button>
     <button class="tab" data-tab="temp">🗑️ Временные</button>
     <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
+    <button class="tab" data-tab="screenshotTests">🖼️ Качество скриншотов</button>
+    <button class="tab" data-tab="clubPosts">🌐 PUBG Club</button>
+    <button class="tab" data-tab="users">👥 Пользователи</button>
+    <button class="tab" data-tab="analytics">📊 Метрики</button>
   </div>
 
+  <section id="analytics" class="panel"><div class="box">
+    <h2>Пользовательские метрики</h2>
+    <p class="muted">События Mini App за выбранный период. Не сохраняются поисковые запросы, изображения, названия карт или текст переписки.</p>
+    <div class="row"><select id="analyticsDays" aria-label="Период метрик"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select><button id="refreshAnalyticsBtn" class="btn-secondary" type="button">Обновить метрики</button></div>
+    <div class="row"><div class="stat"><span id="analyticsActiveUsers">—</span><small>Активные пользователи</small></div><div class="stat"><span id="analyticsScans">—</span><small>Успешные сканирования</small></div><div class="stat"><span id="analyticsFailedScans">—</span><small>Ошибки сканирования</small></div><div class="stat"><span id="analyticsAvgScan">—</span><small>Среднее время сканирования</small></div><div class="stat"><span id="analyticsFeedbackAvg">—</span><small>Средняя оценка удобства</small></div></div>
+    <h3>Популярные разделы</h3><div id="analyticsTabs" class="muted">Загрузка…</div>
+    <h3>События</h3><div id="analyticsEvents" class="muted">Загрузка…</div>
+    <h3>Что пользователи хотят улучшить</h3><div id="analyticsFeedbackCategories" class="muted">Загрузка…</div>
+    <h3>Активность по дням</h3><div id="analyticsDaily" class="muted">Загрузка…</div>
+    <div id="analyticsStatus" class="muted" role="status" aria-live="polite"></div>
+  </div></section>
+
+  <section id="users" class="panel"><div class="box">
+    <h2>Пользователи и активность</h2><p class="muted">Онлайн означает активность Telegram Mini App за последние 90 секунд. Список обновляется автоматически.</p>
+    <div class="row"><div class="stat"><span id="usersTotal">—</span><small>Всего пользователей</small></div><div class="stat"><span id="usersOnline">—</span><small>Сейчас онлайн</small></div><div class="stat"><span id="usersShown">—</span><small>В выборке</small></div></div>
+    <div class="row"><input id="usersSearch" type="search" placeholder="Поиск по Telegram ID, имени или username" autocomplete="off"><select id="usersPresence"><option value="all">Все пользователи</option><option value="online">Только онлайн</option><option value="offline">Только не в сети</option></select><button id="refreshUsersBtn" class="btn-secondary" type="button">Обновить</button></div>
+    <div id="usersStatus" class="muted" role="status" aria-live="polite"></div><div style="overflow-x:auto"><table class="users-table" style="width:100%;border-collapse:collapse;margin-top:12px;min-width:780px"><thead><tr>
+    <th style="text-align:left;padding:10px;border-bottom:1px solid #444">Статус</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Пользователь</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Telegram ID</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Регистрация</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Последний визит</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Карты</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Дубликаты</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Ищу</th>
+    </tr></thead><tbody id="usersTableBody"><tr><td colspan="8" class="muted" style="padding:16px">Загрузка…</td></tr></tbody></table></div>
+    <div class="row" style="margin-top:12px"><button id="usersPrevBtn" class="btn-secondary" type="button">← Назад</button><div id="usersPageInfo" class="muted" style="text-align:center;padding:12px">Страница 1</div><button id="usersNextBtn" class="btn-secondary" type="button">Вперёд →</button></div><div id="userDetail" class="item" style="display:none;margin-top:12px"></div>
+  </div></section>
   <section id="scan" class="panel active">
     <div class="box">
       <h2>Создание хешей</h2>
-      <p class="muted">Текущий процесс оставлен: загрузи скриншот коллекции, проверь найденные карточки и сохрани их в card_hashes.json.</p>
+      <p class="muted">Загрузи скриншот коллекции один раз. При добавлении новой карты хеши и постоянная иконка сохраняются из одного и того же изображения — повторно загружать его не нужно.</p>
       <input type="file" id="screenshotInput" accept="image/*">
       <div class="row">
         <button id="scanBtn">Сканировать</button>
@@ -73,7 +173,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
     </div>
     <div id="resultsBox" class="box" style="display:none">
       <h2>Найденные карточки</h2>
-      <p class="muted">После каждого сканирования введи реальные количества и добавь примеры в очередь. Очередь хранится в этом браузере; новые сканирования её не очищают. Render и GitHub не перезапускаются на каждом наборе из 4 карт.</p>
+      <p class="muted">Добавляй карты со всех нужных скриншотов. Иконки и хеши сохраняются на сервере по мере подтверждения, но в GitHub ничего не отправляется автоматически. Когда закончишь добавлять все изображения, нажми «Отправить все изменения одним commit» на вкладке «Карты».</p>
       <div class="row">
         <button id="queueCounterTestsBtn" type="button" class="btn-secondary">➕ Добавить отмеченные в очередь</button>
         <button id="saveCounterTestsBtn" type="button" class="btn-green">💾 Отправить всю очередь одним commit</button>
@@ -88,21 +188,77 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="counterTests" class="panel">
     <div class="box">
       <h2>Реальные тесты счётчика</h2>
-      <p class="muted">Сначала на вкладке «Хеши» добавляй результаты каждого сканирования в очередь. Когда закончишь тестирование, нажми «Отправить всю очередь одним commit». В GitHub попадут изображения, введённые эталонные количества и диагностика всех накопленных примеров за один commit. Очередь сохраняется в текущей вкладке браузера до отправки или очистки данных браузера.</p>
+      <p class="muted counter-intro">Эталоны хранятся в GitHub. Открой меню <b>⋯</b> у теста, чтобы изменить фактическое количество или удалить пример вместе с кропом. Изменения сохраняются отдельным commit в рабочую ветку.</p>
       <div class="row">
         <div class="stat"><span id="counterTestCount">—</span><small>Сохранено эталонных тестов</small></div>
         <div><label for="counterTestBranch">Рабочая ветка</label><div id="counterTestBranch" class="badge">feature/card-counter</div></div>
         <button id="refreshCounterTestsBtn" type="button" class="btn-secondary">Обновить тесты</button>
       </div>
-      <div id="counterTestsStatus" class="muted"></div>
-      <div id="counterTestsList" class="card-grid"></div>
+      <div id="counterTestsStatus" class="muted" role="status" aria-live="polite"></div>
+      <div class="counter-workspace-tabs" role="tablist" aria-label="Разделы тестов счётчика">
+        <button class="counter-workspace-tab active" id="counterRunTab" type="button" role="tab" aria-selected="true" aria-controls="counterRunPanel" data-counter-view="run">▶ Тесты</button>
+        <button class="counter-workspace-tab" id="counterSavedTab" type="button" role="tab" aria-selected="false" aria-controls="counterSavedPanel" data-counter-view="saved">▣ Сохранённые эталоны</button>
+      </div>
+      <section id="counterRunPanel" class="counter-workspace-panel" role="tabpanel" aria-labelledby="counterRunTab">
+        <div class="counter-section-heading"><h3>Проверка текущего алгоритма</h3><span class="badge">Регрессионные тесты</span></div>
+        <p class="muted">Запускает распознавание на сохранённых эталонных кропах. Результаты показаны карточками с изображениями и сравнением количества. Запуск не меняет карты, эталоны, инвентарь или метрики.</p>
+        <div class="row">
+          <button id="runCounterTestsBtn" type="button">▶ Запустить все тесты</button>
+          <select id="counterTestResultFilter" aria-label="Фильтр результатов тестирования">
+            <option value="all">Все результаты</option>
+            <option value="failed">Только ошибки</option>
+            <option value="passed">Только пройденные</option>
+          </select>
+        </div>
+        <div id="counterRunSummary" class="muted" role="status" aria-live="polite">Тесты ещё не запускались в этой сессии админки.</div>
+        <div id="counterRunResults" class="counter-fixture-list counter-run-grid"></div>
+      </section>
+      <section id="counterSavedPanel" class="counter-workspace-panel" role="tabpanel" aria-labelledby="counterSavedTab" hidden>
+        <div class="row counter-saved-toolbar">
+          <input id="counterFixtureSearch" type="search" placeholder="Фильтр по названию карты или ID теста" aria-label="Фильтр сохранённых эталонов" autocomplete="off">
+          <button id="clearCounterFixtureSearch" type="button" class="btn-secondary">Очистить фильтр</button>
+        </div>
+        <div id="counterFixtureFilterSummary" class="muted" role="status" aria-live="polite"></div>
+        <div id="counterTestsList" class="counter-fixture-list"></div>
+      </section>
+    </div>
+  </section>
+
+  <dialog id="counterFixtureEditDialog" class="counter-fixture-dialog" aria-labelledby="counterFixtureEditTitle">
+    <form id="counterFixtureEditForm">
+      <h3 id="counterFixtureEditTitle">Изменить эталон</h3>
+      <p id="counterFixtureEditName" class="muted"></p>
+      <label for="counterFixtureExpectedInput">Фактическое количество на изображении</label>
+      <input id="counterFixtureExpectedInput" name="expected_quantity" type="number" min="1" max="999" step="1" required inputmode="numeric">
+      <div id="counterFixtureEditStatus" class="muted" role="status" aria-live="polite"></div>
+      <div class="dialog-actions">
+        <button id="counterFixtureCancelEdit" type="button" class="btn-secondary">Отмена</button>
+        <button id="counterFixtureSaveEdit" type="submit">Сохранить эталон</button>
+      </div>
+    </form>
+  </dialog>
+
+<section id="screenshotTests" class="panel"><div class="box"><h2>Тесты качества распознавания</h2><p class="shot-muted">Загрузи оригинальный PNG. Система предложит рамки, а ты проверишь координаты, количество и состояние карт. Оригинал и эталон сохраняются в GitHub.</p><div class="row"><div class="stat"><span id="shotCount">—</span><small>Эталонов</small></div><div><label>Рабочая ветка</label><div id="shotBranch" class="badge">feature/card-counter</div></div><button id="shotRefresh" class="btn-secondary" type="button">Обновить</button></div><div id="shotStatus" class="muted" role="status" aria-live="polite"></div></div>
+<div class="box"><h3>1. Добавить скриншот</h3><div class="row"><input id="shotFile" type="file" accept="image/png,.png" aria-label="PNG скриншот"><button id="shotUpload" type="button">Загрузить и найти карты</button></div><div id="shotEditor" hidden><div class="row"><div><label for="shotId">ID теста</label><input id="shotId" maxlength="80" placeholder="inventory-gray-cards-01"></div><div><label for="shotTitle">Описание</label><input id="shotTitle" maxlength="120" placeholder="Серые карты"></div><div><label>Размер оригинала</label><div id="shotSize" class="badge"></div></div></div><div class="shot-layout"><div><div class="shot-canvas-wrap"><canvas id="shotCanvas"></canvas><div id="shotCanvasEmpty" class="muted">Здесь появится скриншот</div></div><div class="row"><button id="shotDraw" class="btn-secondary" type="button">＋ Нарисовать рамку</button><button id="shotReset" class="btn-secondary" type="button">Восстановить найденные</button></div><p class="shot-muted">Чтобы добавить карту вручную, нажми «Нарисовать рамку» и протяни прямоугольник по изображению.</p></div><div><div id="shotCards"></div><button id="shotSave" type="button">Сохранить эталон в GitHub</button></div></div></div></div>
+<div class="box"><div class="row"><h3 style="flex:2">2. Сохранённые эталоны</h3><button id="shotAnalyze" class="btn-secondary" type="button">🔬 Анализ отличий</button><button id="shotRun" type="button">▶ Проверить все</button></div><p class="shot-muted">Для каждой вручную размеченной карты автоматически собираются яркость, насыщенность, контраст и признаки отдельных областей. Анализ сравнивает состояния «Есть в инвентаре» и «Нет в инвентаре / затемнена».</p><div id="shotAnalysis" class="shot-result" role="status" aria-live="polite">Нажми «Анализ отличий», чтобы сравнить собранные эталоны.</div><div id="shotRunSummary" class="muted" role="status">Проверка ещё не запускалась.</div><div id="shotSaved"></div></div></section>
+  <section id="clubPosts" class="panel">
+    <div class="box">
+      <h2>Публикации PUBG MOBILE Club — #cardexchange</h2>
+      <p class="muted">Показывает последние публикации, доступные на публичной странице темы. Это просмотр: публикации не изменяют инвентарь и не запускают распознавание автоматически.</p>
+      <div class="row">
+        <div class="stat"><span id="clubPostsCount">—</span><small>Публикаций загружено</small></div>
+        <button id="refreshClubPostsBtn" type="button" class="btn-secondary">Обновить публикации</button>
+        <a id="clubTopicLink" class="btn-secondary" href="https://share.club.gpubgm.com/2vRUE5jmLe0" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;padding:10px;margin-top:6px;border-radius:7px">Открыть тему в PUBG Club ↗</a>
+      </div>
+      <div id="clubPostsStatus" class="muted" role="status" aria-live="polite">Нажми «Обновить публикации», чтобы загрузить тему.</div>
+      <div id="clubPostsList" class="card-grid"></div>
     </div>
   </section>
 
   <section id="icons" class="panel">
     <div class="box">
       <h2>Иконки карт</h2>
-      <p class="muted">Можно загрузить несколько изображений. Каждая иконка сначала определяется, а сохранить или заменить её можно только после ручного подтверждения.</p>
+      <p class="muted">Для новых карт загружай скриншот только на вкладке «Хеши»: постоянная иконка сохранится из него автоматически. Эта вкладка нужна, если требуется вручную добавить или заменить иконку уже существующей карты.</p>
 
       <div class="row">
         <input type="file" id="iconInput" accept="image/*" multiple>
@@ -126,6 +282,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="cards" class="panel">
     <div class="box">
       <h2>База карт</h2>
+      <p class="muted">Все изменения карт и постоянных иконок накапливаются на сервере. Отправь их в рабочую ветку одним commit только после того, как закончишь сканировать и добавлять изображения.</p>
       <div class="row">
         <input id="search" placeholder="Поиск по ID или названию">
         <select id="filter">
@@ -138,7 +295,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
         <button id="refreshBtn" class="btn-secondary">Обновить</button>
         <button id="regenHashesBtn" class="btn-secondary">🔄 Перегенерировать хеши из сохранённых иконок</button>
         <button id="copyBtn">Скопировать JSON</button>
-        <button id="commitBtn" class="btn-green">💾 Сохранить изменения в GitHub</button>
+        <button id="commitBtn" class="btn-green">💾 Отправить все изменения одним commit</button>
       </div>
       <div id="regenStatus" class="muted"></div>
       <div class="progress-wrap" id="regenProgressWrap" style="display:none">
@@ -182,6 +339,38 @@ function assetUrl(url){
 }
 
 const TOKEN_KEY = 'pubg_admin_token';
+
+function openIconZoom(src,title){
+  if(!src)return;
+  let modal=document.getElementById('iconZoomModal');
+  if(!modal){
+    modal=document.createElement('div');modal.id='iconZoomModal';modal.hidden=true;
+    modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','Увеличенная иконка карты');
+    const close=document.createElement('button');close.type='button';close.className='icon-zoom-close';close.textContent='×';close.setAttribute('aria-label','Закрыть увеличенную иконку');
+    const heading=document.createElement('div');heading.className='icon-zoom-title';
+    const img=document.createElement('img');img.alt='Увеличенная иконка карты';
+    modal.append(close,heading,img);document.body.appendChild(modal);
+    close.addEventListener('click',()=>{modal.hidden=true});
+    modal.addEventListener('click',event=>{if(event.target===modal)modal.hidden=true});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!modal.hidden)modal.hidden=true});
+  }
+  modal.querySelector('.icon-zoom-title').textContent=title||'Иконка карты';
+  const image=modal.querySelector('img');image.src=src;image.alt=title||'Увеличенная иконка карты';
+  modal.hidden=false;modal.querySelector('.icon-zoom-close').focus();
+}
+
+document.getElementById('iconSizeSelect').addEventListener('change',event=>{
+  document.body.classList.toggle('icon-size-large',event.target.value==='large');
+});
+document.addEventListener('click',event=>{
+  const image=event.target.closest('img.icon, img.icon-zoomable');
+  if(!image)return;
+  openIconZoom(image.currentSrc||image.src,image.dataset.iconTitle||image.alt||image.closest('.item')?.querySelector('h3,h4,b')?.textContent||'Иконка карты');
+});
+document.addEventListener('keydown',event=>{
+  const image=event.target.closest?.('img.icon, img.icon-zoomable');
+  if(image&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openIconZoom(image.currentSrc||image.src,image.dataset.iconTitle||image.alt||image.closest('.item')?.querySelector('h3,h4,b')?.textContent||'Иконка карты')}
+});
 
 function getToken(){
   return sessionStorage.getItem(TOKEN_KEY);
@@ -303,6 +492,25 @@ document.getElementById('password').addEventListener('keydown',(e)=>{
 });
 
 async function loadAll(){await loadCards();await loadStatus();await loadTemp()}
+let usersPageOffset=0,usersSearchTimer=null;const USERS_PAGE_SIZE=50;
+function formatUserDate(value){if(!value)return 'Никогда';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString()}
+async function loadUsers(){
+ const status=document.getElementById('usersStatus'),body=document.getElementById('usersTableBody');status.className='muted';status.textContent='Загружаем пользователей…';
+ try{
+  const params=new URLSearchParams({search:document.getElementById('usersSearch').value.trim(),limit:String(USERS_PAGE_SIZE),offset:String(usersPageOffset),online_seconds:'90'});
+  const r=await api('/admin/users?'+params);if(r.status===401){clearToken();location.reload();return}if(!r.ok)throw new Error(await readError(r));const d=await r.json();
+  document.getElementById('usersTotal').textContent=d.total;document.getElementById('usersOnline').textContent=d.online;
+  const presence=document.getElementById('usersPresence').value,rows=d.users.filter(u=>presence==='all'||(presence==='online'?u.is_online:!u.is_online));document.getElementById('usersShown').textContent=rows.length;body.innerHTML='';
+  if(!rows.length)body.innerHTML='<tr><td colspan="8" class="muted" style="padding:16px">Пользователи не найдены.</td></tr>';
+  for(const u of rows){const tr=document.createElement('tr'),name=[u.first_name,u.last_name].filter(Boolean).join(' ')||(u.username?'@'+u.username:'Без имени');
+   tr.innerHTML=`<td style="padding:10px;border-bottom:1px solid #333"><span class="presence-dot ${u.is_online?'online':''}"></span>${u.is_online?'Онлайн':'Не в сети'}</td><td style="padding:10px;border-bottom:1px solid #333"><button class="user-link" data-telegram-id="${esc(u.telegram_id)}" type="button">${esc(name)}</button><div class="muted">${u.username?'@'+esc(u.username):'username отсутствует'}</div></td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.telegram_id)}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(formatUserDate(u.created_at))}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(formatUserDate(u.last_seen_at||u.last_activity_at))}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.owned_cards)}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.duplicates)}</td><td style="padding:10px;border-bottom:1px solid #333">${esc(u.wanted_cards)}</td>`;body.appendChild(tr)}
+  body.querySelectorAll('[data-telegram-id]').forEach(b=>b.addEventListener('click',()=>loadUserDetail(b.dataset.telegramId)));
+  document.getElementById('usersPageInfo').textContent=`Страница ${Math.floor(usersPageOffset/USERS_PAGE_SIZE)+1} · ${d.total} пользователей`;document.getElementById('usersPrevBtn').disabled=usersPageOffset===0;document.getElementById('usersNextBtn').disabled=usersPageOffset+USERS_PAGE_SIZE>=d.total;status.textContent='Обновлено '+new Date().toLocaleTimeString();
+ }catch(e){status.className='err';status.textContent='Не удалось загрузить пользователей: '+e.message;body.innerHTML='<tr><td colspan="8" class="err" style="padding:16px">Ошибка загрузки данных.</td></tr>'}
+}
+async function loadUserDetail(id){const p=document.getElementById('userDetail');p.style.display='block';p.className='item';p.textContent='Загрузка…';try{const r=await api('/admin/users/'+encodeURIComponent(id));if(!r.ok)throw new Error(await readError(r));const u=await r.json();p.innerHTML=`<h3>Профиль пользователя</h3><p>${esc([u.first_name,u.last_name].filter(Boolean).join(' ')||'Без имени')} ${u.username?'(@'+esc(u.username)+')':''}</p><p>Telegram ID: <b>${esc(u.telegram_id)}</b></p><p>Регистрация: ${esc(formatUserDate(u.created_at))}</p><p>Последняя активность: ${esc(formatUserDate(u.last_activity_at))}</p><p>Карты: ${esc(u.owned_cards)} · Дубликаты: ${esc(u.duplicates)} · Ищу: ${esc(u.wanted_cards)}</p>`}catch(e){p.className='item err';p.textContent='Не удалось загрузить профиль: '+e.message}}
+document.getElementById('refreshUsersBtn').addEventListener('click',loadUsers);document.getElementById('usersSearch').addEventListener('input',()=>{clearTimeout(usersSearchTimer);usersSearchTimer=setTimeout(()=>{usersPageOffset=0;loadUsers()},250)});document.getElementById('usersPresence').addEventListener('change',loadUsers);document.getElementById('usersPrevBtn').addEventListener('click',()=>{usersPageOffset=Math.max(0,usersPageOffset-USERS_PAGE_SIZE);loadUsers()});document.getElementById('usersNextBtn').addEventListener('click',()=>{usersPageOffset+=USERS_PAGE_SIZE;loadUsers()});setInterval(()=>{if(document.getElementById('app').style.display!=='none'&&document.getElementById('users').classList.contains('active'))loadUsers()},30000);
+
 
 async function loadStatus(){
   const r=await api('/admin/status');
@@ -334,7 +542,7 @@ function renderCardList(){
     if(filter==='missing'&&has)continue;
     if(q&&!(`${id} ${info.name||''}`.toLowerCase().includes(q)))continue;
     const el=document.createElement('div');el.className='item';
-    const img=has?`<img class="icon" src="${esc(assetUrl(info.icon))}" onerror="this.style.display='none'">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
+    const img=has?`<img class="icon" src="${esc(assetUrl(info.icon))}" alt="Иконка ${esc(info.name||id)}" data-icon-title="${esc(info.name||id)}" role="button" tabindex="0" title="Открыть иконку крупно" onerror="this.style.display='none'">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
     el.innerHTML=`${img}
       <h3>${esc(info.name||id)}</h3>
       <div class="muted">${esc(id)} · редкость ${info.rarity||1}</div>
@@ -446,28 +654,304 @@ async function saveCounterTestsBatch(){
     status.className="err";status.textContent="Не удалось сохранить очередь: "+e.message+". Данные оставлены в очереди — можно повторить отправку.";
   }finally{button.disabled=false;renderCounterQueueStatus();}
 }
+let counterFixtureObjectUrls=[];
+let editingCounterFixture=null;
+function revokeCounterFixtureUrls(){
+  counterFixtureObjectUrls.forEach(url=>URL.revokeObjectURL(url));
+  counterFixtureObjectUrls=[];
+}
+async function fetchCounterFixtureImage(item,img){
+  if(img.dataset.loaded==='true'||img.dataset.loading==='true')return;
+  img.dataset.loading='true';
+  try{
+    const response=await api(item.image_url);
+    if(!response.ok)throw new Error('Изображение недоступно');
+    const url=URL.createObjectURL(await response.blob());
+    counterFixtureObjectUrls.push(url);
+    img.src=url;
+    img.alt='Кроп теста '+(item.card_name||item.id||'');
+    img.dataset.loaded='true';
+  }catch(e){
+    img.alt='Не удалось загрузить кроп';
+    img.classList.add('image-unavailable');
+  }finally{delete img.dataset.loading}
+}
+const counterFixtureImageObserver=typeof IntersectionObserver==='function'
+  ?new IntersectionObserver(entries=>entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      counterFixtureImageObserver.unobserve(entry.target);
+      fetchCounterFixtureImage(entry.target._counterFixtureItem,entry.target);
+    }
+  }),{rootMargin:'160px'})
+  :null;
+function loadCounterFixtureImage(item,img){
+  img._counterFixtureItem=item;
+  if(counterFixtureImageObserver)counterFixtureImageObserver.observe(img);
+  else fetchCounterFixtureImage(item,img);
+}
+function closeCounterFixtureMenus(except){
+  document.querySelectorAll('.counter-fixture-menu[open]').forEach(menu=>{if(menu!==except)menu.open=false});
+}
+function renderCounterFixture(item){
+  const el=document.createElement('article');
+  el.className='counter-fixture';
+  const correct=Number(item.expected_quantity)===Number(item.detected_quantity);
+  const img=document.createElement('img');
+  img.className='counter-fixture-thumb';
+  img.loading='lazy';
+  img.src='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="92" height="118"%3E%3Crect width="100%25" height="100%25" fill="%23111111"/%3E%3Ctext x="50%25" y="50%25" fill="%23777777" font-size="10" text-anchor="middle"%3EЗагрузка…%3C/text%3E%3C/svg%3E';
+  const body=document.createElement('div');
+  body.className='counter-fixture-body';
+  const title=document.createElement('h4');
+  title.className='counter-fixture-title';
+  title.textContent=item.card_name||item.card_id||item.id||'Тест счётчика';
+  const status=document.createElement('div');
+  status.className='counter-fixture-status '+(correct?'ok':'err');
+  status.textContent=correct?'✓ Совпадает с текущей записью':'! Требует проверки';
+  const quantities=document.createElement('div');
+  quantities.className='counter-fixture-quantity';
+  const expected=document.createElement('span');
+  expected.textContent='Эталон: '+(item.expected_quantity??'—');
+  const detected=document.createElement('span');
+  detected.textContent='Алгоритм: '+(item.detected_quantity??'—');
+  quantities.append(expected,detected);
+  const meta=document.createElement('div');
+  meta.className='counter-fixture-meta';
+  meta.textContent=(item.id||'')+' · '+(item.timestamp?new Date(item.timestamp).toLocaleDateString():'');
+  const menu=document.createElement('details');
+  menu.className='counter-fixture-menu';
+  const trigger=document.createElement('summary');
+  trigger.textContent='⋯';
+  trigger.setAttribute('aria-label','Действия для теста '+(item.card_name||item.id||''));
+  trigger.setAttribute('title','Действия');
+  const actions=document.createElement('div');
+  actions.className='counter-fixture-menu-items';
+  const edit=document.createElement('button');
+  edit.type='button';edit.textContent='Изменить эталон';
+  edit.onclick=()=>{menu.open=false;openCounterFixtureEditor(item)};
+  const remove=document.createElement('button');
+  remove.type='button';remove.className='danger';remove.textContent='Удалить тест';
+  remove.onclick=()=>{menu.open=false;deleteCounterFixture(item)};
+  actions.append(edit,remove);
+  menu.append(trigger,actions);
+  menu.addEventListener('toggle',()=>{if(menu.open)closeCounterFixtureMenus(menu)});
+  body.append(title,status,quantities,meta);
+  el.append(img,body,menu);
+  loadCounterFixtureImage(item,img);
+  return el;
+}
+let counterFixturesCache=[];
+function renderSavedCounterFixtures(){
+  const root=document.getElementById('counterTestsList');
+  const summary=document.getElementById('counterFixtureFilterSummary');
+  const query=(document.getElementById('counterFixtureSearch').value||'').trim().toLocaleLowerCase();
+  const items=counterFixturesCache.filter(item=>
+    [item.card_name,item.card_id,item.id].some(value=>String(value||'').toLocaleLowerCase().includes(query))
+  );
+  root.innerHTML='';
+  if(!counterFixturesCache.length){
+    root.innerHTML='<p class="muted">Эталонных тестов пока нет. Просканируй изображение и сохрани первый пример.</p>';
+  }else if(!items.length){
+    root.innerHTML='<p class="muted">По этому фильтру эталоны не найдены.</p>';
+  }else{
+    const fragment=document.createDocumentFragment();
+    items.forEach(item=>fragment.appendChild(renderCounterFixture(item)));
+    root.appendChild(fragment);
+  }
+  summary.textContent='Показано '+items.length+' из '+counterFixturesCache.length+' загруженных эталонов.';
+}
+let shotUploadId=null,shotImg=null,shotDetected=[],shotBoxes=[],shotDrawMode=false,shotStart=null,shotUrls=[];const shotCanvas=document.getElementById('shotCanvas'),shotCtx=shotCanvas.getContext('2d');
+function shotMsg(t,c='muted'){const e=document.getElementById('shotStatus');e.className=c;e.textContent=t}
+function shotSlug(s){return String(s||'').trim().toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)}
+async function shotBlob(path){const r=await api(path);if(!r.ok)throw new Error(await readError(r));const u=URL.createObjectURL(await r.blob());shotUrls.push(u);return u}
+function shotPoint(e){const r=shotCanvas.getBoundingClientRect();return{x:Math.round((e.clientX-r.left)*shotImg.width/r.width),y:Math.round((e.clientY-r.top)*shotImg.height/r.height)}}
+function shotDraw(){if(!shotImg)return;const scale=Math.min(1,Math.max(260,shotCanvas.parentElement.clientWidth-4)/shotImg.width);shotCanvas.width=shotImg.width;shotCanvas.height=shotImg.height;shotCanvas.style.width=Math.round(shotImg.width*scale)+'px';shotCtx.drawImage(shotImg,0,0);shotBoxes.forEach((b,i)=>{shotCtx.strokeStyle=b.state==='unowned'?'#ff6b6b':'#52e08b';shotCtx.lineWidth=Math.max(2,shotImg.width/500);shotCtx.strokeRect(...b.box);shotCtx.fillStyle='#fff';shotCtx.font='bold '+Math.max(14,shotImg.width/70)+'px sans-serif';shotCtx.fillText(String(i+1),b.box[0]+3,Math.max(17,b.box[1]-5))})}
+function shotOpenIcon(src,title){let modal=document.getElementById('shotIconModal');if(!modal){modal=document.createElement('div');modal.id='shotIconModal';modal.hidden=true;modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','Увеличенная иконка карты');const close=document.createElement('button');close.type='button';close.className='shot-icon-close';close.textContent='×';close.setAttribute('aria-label','Закрыть увеличенную иконку');const heading=document.createElement('div');heading.className='shot-icon-title';heading.id='shotIconModalTitle';const image=document.createElement('img');image.alt='Увеличенная иконка карты';const hint=document.createElement('div');hint.className='shot-icon-hint';hint.textContent='Нажми вне изображения или ×, чтобы закрыть';modal.append(close,heading,image,hint);document.body.append(modal);close.onclick=()=>{modal.hidden=true};modal.onclick=e=>{if(e.target===modal)modal.hidden=true};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!modal.hidden)modal.hidden=true})}modal.querySelector('.shot-icon-title').textContent=title||'Иконка карты';modal.querySelector('img').src=src;modal.hidden=false;modal.querySelector('.shot-icon-close').focus()}
+function shotRenderCards(){const root=document.getElementById('shotCards');root.innerHTML='';if(!shotBoxes.length){root.innerHTML='<p class="muted">Рамок нет — нарисуй их на изображении.</p>';return}shotBoxes.forEach((b,i)=>{const el=document.createElement('article');el.className='shot-card';const head=document.createElement('div');head.className='shot-head';const h=document.createElement('b');h.textContent='Карта '+(i+1);const del=document.createElement('button');del.type='button';del.className='btn-danger';del.textContent='Удалить';del.style.width='auto';del.onclick=()=>{shotBoxes.splice(i,1);shotRenderCards();shotDraw()};head.append(h,del);const match=document.createElement('div');match.className='shot-match';const crop=document.createElement('canvas');crop.width=120;crop.height=160;crop.setAttribute('aria-label','Фрагмент скриншота для карты '+(i+1));if(shotImg){const [cx,cy,cw,ch]=b.box;const ctx=crop.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,crop.width,crop.height);if(cw>0&&ch>0)ctx.drawImage(shotImg,cx,cy,cw,ch,0,0,crop.width,crop.height)}crop.style.width='60px';crop.style.height='80px';crop.style.objectFit='contain';crop.style.flex='0 0 auto';crop.style.background='#111';crop.style.borderRadius='4px';match.append(crop);if(b.icon){const icon=document.createElement('img');icon.src=assetUrl(b.icon);icon.alt='Иконка из каталога';icon.loading='lazy';icon.className='shot-icon-open';icon.title='Открыть иконку на весь экран';icon.setAttribute('role','button');icon.tabIndex=0;icon.onclick=()=>shotOpenIcon(icon.src,b.card_name||b.card_id||'Иконка карты '+(i+1));icon.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();shotOpenIcon(icon.src,b.card_name||b.card_id||'Иконка карты '+(i+1))}};match.append(icon)}const info=document.createElement('div');const name=document.createElement('b');name.textContent=b.matched?(b.card_name||'Найденная карта'):'Карта не сопоставлена с каталогом';const id=document.createElement('div');id.className='shot-muted';id.textContent=b.card_id?(b.card_id+(b.match_distance!=null?' · расстояние '+b.match_distance:'')):'Слева — фрагмент скриншота. Введи название карты в поле ниже.';info.append(name,id);match.append(info);el.append(head,match);const grid=document.createElement('div');grid.className='shot-card-fields';const inp=(label,val,cb,wide=false,type='number')=>{const l=document.createElement('label');if(wide)l.className='wide';l.textContent=label;const x=document.createElement(type==='select'?'select':'input');if(type!=='select'){x.type=type;x.value=val??'';if(type==='number'){x.min='0';x.step='1'}x.placeholder=type==='text'?'Введите название карты':''}else{[['owned','Есть в инвентаре'],['unowned','Нет в инвентаре / затемнена']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;x.append(o)});x.value=val||'owned'}x.oninput=()=>{cb(type==='select'?x.value:type==='text'?x.value:Number(x.value));if(type==='text')name.textContent=x.value.trim()||'Название карты не указано'};x.onchange=()=>cb(type==='select'?x.value:type==='text'?x.value:Number(x.value));l.append(x);grid.append(l);return x};['X','Y','Ширина','Высота'].forEach((n,j)=>inp(n,b.box[j],v=>{b.box[j]=v;shotDraw()}));inp('Название карты',b.card_name||'',v=>b.card_name=v,true,'text');inp('Эталонное количество',b.expected_quantity,v=>b.expected_quantity=v);inp('Состояние',b.state,v=>{b.state=v;shotDraw()},true,'select');el.append(grid);root.append(el)})}
+function shotAddBox(box,q=1){shotBoxes.push({box:box.map(Number),expected_quantity:Number(q)||1,state:'owned',card_name:'',card_id:''});shotRenderCards();shotDraw()}
+async function loadShotFixtures(){const root=document.getElementById('shotSaved');root.innerHTML='<p class="muted">Загрузка…</p>';shotUrls.forEach(URL.revokeObjectURL);shotUrls=[];try{const r=await api('/admin/screenshot-tests');if(!r.ok)throw new Error(await readError(r));const d=await r.json();document.getElementById('shotCount').textContent=d.count;document.getElementById('shotBranch').textContent=d.branch;root.innerHTML='';if(!d.cases.length){root.textContent='Эталонов пока нет. Загрузи первый скриншот выше.';return}for(const c of d.cases){const el=document.createElement('article');el.className='shot-result';const img=document.createElement('img');img.alt='Исходный скриншот '+c.id;img.src=await shotBlob(c.image_url);const title=document.createElement('h4');title.textContent=(c.title||c.id)+' · '+c.cards.length+' карт';const meta=document.createElement('p');meta.className='shot-muted';meta.textContent=c.id+' · '+(c.source_screenshot_size||[]).join(' × ')+' · '+c.cards.filter(x=>(x.state||'owned')==='owned').length+' в инвентаре';const del=document.createElement('button');del.className='btn-danger';del.textContent='Удалить эталон';del.onclick=async()=>{if(!confirm('Удалить эталон '+c.id+' и PNG из GitHub?'))return;const rr=await api('/admin/screenshot-tests/'+encodeURIComponent(c.id),{method:'DELETE'});if(!rr.ok){shotMsg(await readError(rr),'err');return}shotMsg('Эталон удалён. Commit '+(await rr.json()).git_commit,'ok');loadShotFixtures()};el.append(img,title,meta,del);root.append(el)}}catch(e){root.innerHTML='';shotMsg('Не удалось загрузить эталоны: '+e.message,'err')}}
+document.getElementById('shotRefresh').onclick=loadShotFixtures;
+document.getElementById('shotUpload').onclick=async()=>{const f=document.getElementById('shotFile').files[0];if(!f){shotMsg('Выбери PNG-скриншот.','err');return}if(f.size>15*1024*1024){shotMsg('Файл больше 15 МБ.','err');return}const b=document.getElementById('shotUpload');b.disabled=true;try{const fd=new FormData();fd.append('file',f);const r=await api('/admin/screenshot-tests/preview',{method:'POST',body:fd});if(!r.ok)throw new Error(await readError(r));const d=await r.json();shotUploadId=d.upload_id;shotDetected=d.cards||[];shotBoxes=shotDetected.map(x=>({box:x.box.map(Number),expected_quantity:Number(x.quantity)||1,state:'owned',card_name:x.matched?(x.card_name||x.card_id||''):'',card_id:x.card_id||'',icon:x.icon||'',matched:!!x.matched,match_distance:x.match_distance}));shotImg=new Image();shotImg.onload=()=>{document.getElementById('shotEditor').hidden=false;document.getElementById('shotCanvasEmpty').hidden=true;document.getElementById('shotSize').textContent=d.image_size.join(' × ');document.getElementById('shotId').value='inventory-'+new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14);shotRenderCards();shotDraw();shotMsg('Найдено рамок: '+shotBoxes.length+'. Проверь рамки и вручную подтверди количество.',shotBoxes.length?'ok':'err')};shotImg.src=await shotBlob(d.image_url)}catch(e){shotMsg('Не удалось обработать PNG: '+e.message,'err')}finally{b.disabled=false}};
+document.getElementById('shotDraw').onclick=()=>{if(!shotImg)return;shotDrawMode=true;shotMsg('Нажми и протяни по изображению, чтобы нарисовать рамку.')};
+document.getElementById('shotReset').onclick=()=>{shotBoxes=shotDetected.map(x=>({box:x.box.map(Number),expected_quantity:Number(x.quantity)||1,state:'owned',card_name:x.matched?(x.card_name||x.card_id||''):'',card_id:x.card_id||'',icon:x.icon||'',matched:!!x.matched,match_distance:x.match_distance}));shotRenderCards();shotDraw();shotMsg('Восстановлены рамки алгоритма. Проверь значения.','ok')};
+shotCanvas.onpointerdown=e=>{if(shotDrawMode&&shotImg){shotStart=shotPoint(e);shotCanvas.setPointerCapture(e.pointerId)}};
+shotCanvas.onpointerup=e=>{if(!shotDrawMode||!shotStart||!shotImg)return;const p=shotPoint(e),x=Math.max(0,Math.min(p.x,shotStart.x)),y=Math.max(0,Math.min(p.y,shotStart.y)),w=Math.abs(p.x-shotStart.x),h=Math.abs(p.y-shotStart.y);shotDrawMode=false;shotStart=null;if(w<20||h<20){shotMsg('Рамка слишком мала. Попробуй ещё раз.','err');return}shotAddBox([x,y,w,h]);shotMsg('Рамка добавлена. Укажи эталонное количество.','ok')};
+document.getElementById('shotSave').onclick=async()=>{if(!shotUploadId||!shotImg||!shotBoxes.length){shotMsg('Загрузи скриншот и добавь хотя бы одну рамку.','err');return}const id=shotSlug(document.getElementById('shotId').value);if(id.length<3){shotMsg('ID должен быть длиной не менее 3 символов.','err');return}for(const [i,c] of shotBoxes.entries()){const [x,y,w,h]=c.box;if(![x,y,w,h,c.expected_quantity].every(Number.isInteger)||x<0||y<0||w<20||h<20||x+w>shotImg.width||y+h>shotImg.height||c.expected_quantity<1||c.expected_quantity>999){shotMsg('Проверь координаты и количество карты '+(i+1)+'.','err');return}}const b=document.getElementById('shotSave');b.disabled=true;try{const r=await api('/admin/screenshot-tests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({upload_id:shotUploadId,id,title:document.getElementById('shotTitle').value,cards:shotBoxes})});if(!r.ok)throw new Error(await readError(r));const d=await r.json();shotUploadId=null;shotImg=null;document.getElementById('shotEditor').hidden=true;document.getElementById('shotFile').value='';shotMsg('Эталон сохранён. Commit '+d.git_commit.slice(0,10)+' · '+d.branch,'ok');await loadShotFixtures()}catch(e){shotMsg('Сохранение не выполнено: '+e.message,'err')}finally{b.disabled=false}};
+document.getElementById('shotRun').onclick=async()=>{const b=document.getElementById('shotRun'),s=document.getElementById('shotRunSummary');b.disabled=true;s.textContent='Запуск сканера на сохранённых изображениях…';try{const r=await api('/admin/screenshot-tests/run',{method:'POST'});if(!r.ok)throw new Error(await readError(r));const d=await r.json();s.className=d.failed?'err':'ok';s.textContent='Пройдено '+d.passed+' из '+d.count+' скриншотов; ошибок: '+d.failed;document.querySelectorAll('.shot-run-result').forEach(x=>x.remove());d.results.forEach(x=>{const el=document.createElement('article');el.className='shot-result shot-run-result '+(x.passed?'pass':'fail');const h=document.createElement('h4');h.textContent=(x.passed?'✓ ':'✗ ')+x.id;const p=document.createElement('p');p.textContent='Эталонных карт: '+x.expected_cards+' · Найдено: '+x.detected_cards+' · Совпало количеств: '+x.quantity_matches+'/'+x.quantity_checked;const ul=document.createElement('ul');x.errors.forEach(msg=>{const li=document.createElement('li');li.textContent=msg;ul.append(li)});el.append(h,p,ul);document.getElementById('shotSaved').prepend(el)})}catch(e){s.className='err';s.textContent='Проверка не выполнена: '+e.message}finally{b.disabled=false}};
+
+async function loadShotAnalysis(){
+  const root=document.getElementById('shotAnalysis'),button=document.getElementById('shotAnalyze');
+  button.disabled=true;root.textContent='Считываем эталоны из GitHub и сравниваем визуальные признаки…';
+  try{
+    const r=await api('/admin/screenshot-tests/analysis');
+    if(!r.ok)throw new Error(await readError(r));
+    const d=await r.json();root.innerHTML='';
+    const summary=document.createElement('p');
+    summary.textContent='Ветка '+d.branch+' · скриншотов: '+d.cases_analyzed+' · карт: '+d.sample_count+' · обычных: '+d.owned_count+' · затемнённых: '+d.unowned_count;
+    root.append(summary);
+    if(d.cases_skipped&&d.cases_skipped.length){
+      const skipped=document.createElement('p');skipped.className='err';
+      skipped.textContent='Не удалось прочитать эталоны: '+d.cases_skipped.join(', ');root.append(skipped);
+    }
+    const note=document.createElement('p');note.className='shot-muted';note.textContent=d.message||'';
+    root.append(note);
+    if(!d.ready){root.className='shot-result';return}
+    const heading=document.createElement('h4');heading.textContent='Наиболее разделяющие признаки';root.append(heading);
+    if(!d.features||!d.features.length){const empty=document.createElement('p');empty.textContent='Пока недостаточно различий для расчёта порогов.';root.append(empty);return}
+    const table=document.createElement('table');table.style.width='100%';table.style.borderCollapse='collapse';
+    const thead=document.createElement('thead'),tr=document.createElement('tr');
+    ['Признак','Порог','Правило','Сбалансированная точность','Ошибочно исключено обычных','Пропущено затемнённых'].forEach(label=>{const th=document.createElement('th');th.textContent=label;th.style.textAlign='left';th.style.padding='6px';tr.append(th)});
+    thead.append(tr);table.append(thead);const tbody=document.createElement('tbody');
+    d.features.forEach(item=>{const row=document.createElement('tr');const values=[item.feature,item.threshold,item.direction==='lower_is_unowned'?'ниже → затемнена':'выше → затемнена',Math.round(item.balanced_accuracy*100)+'%',item.owned_false_exclusions,item.unowned_missed];values.forEach(value=>{const td=document.createElement('td');td.textContent=String(value);td.style.padding='6px';td.style.borderTop='1px solid #444';row.append(td)});tbody.append(row)});
+    table.append(tbody);root.append(table);
+    const warning=document.createElement('p');warning.className='shot-muted';warning.textContent='Важно: эти пороги проверены на тех же примерах, на которых подбирались. Это исследовательская подсказка, не готовая модель для автоматического исключения карт.';root.append(warning);
+  }catch(e){root.className='shot-result fail';root.textContent='Анализ не выполнен: '+e.message}
+  finally{button.disabled=false}
+}
+document.getElementById('shotAnalyze').addEventListener('click',loadShotAnalysis);
+
 async function loadCounterTests(){
   const status=document.getElementById('counterTestsStatus');
   try{
-    status.className='muted';status.textContent='Загружаем тесты из GitHub...';
-    const r=await api('/admin/counter-tests');const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка загрузки тестов');
+    status.className='muted';status.textContent='Загружаем тесты из GitHub…';
+    const r=await api('/admin/counter-tests');const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка загрузки тестов');
     document.getElementById('counterTestCount').textContent=d.count;
     document.getElementById('counterTestBranch').textContent=d.branch;
-    const root=document.getElementById('counterTestsList');root.innerHTML='';
-    if(!d.recent.length){root.innerHTML='<p class="muted">Эталонных тестов пока нет. Просканируй изображение и сохрани первый тест из карточки результата.</p>'}
-    d.recent.forEach(item=>{
-      const el=document.createElement('div');el.className='item';
-      const correct=item.correct===true;
-      el.innerHTML=`<h3>${esc(item.card_name||item.id||'Тест счётчика')}</h3>
-        <div>Эталон: <b>${esc(item.expected_quantity)}</b> · Алгоритм: <b>${esc(item.detected_quantity)}</b></div>
-        <div class="${correct?'ok':'err'}">${correct?'Совпало':'Ошибка распознавания'}</div>
-        <div class="muted">${esc(item.timestamp||'')}<br>${esc(item.image_path||'')}</div>
-        ${item.commit_url?'<a href="'+esc(item.commit_url)+'" target="_blank" rel="noopener">Открыть commit</a>':''}`;
-      root.appendChild(el);
-    });
-    status.className='ok';status.textContent='Тесты читаются из GitHub. Новые примеры сначала накапливаются в очереди браузера и отправляются только по твоей кнопке.';
+    revokeCounterFixtureUrls();
+    counterFixturesCache=Array.isArray(d.recent)?d.recent:[];
+    renderSavedCounterFixtures();
+    renderCounterRunResults();
+    status.className='ok';
+    status.textContent='Загружено '+counterFixturesCache.length+' из '+d.count+' тестов. Изменения записываются в GitHub одним commit на операцию.';
   }catch(e){status.className='err';status.textContent='Не удалось загрузить тесты: '+e.message}
 }
+document.getElementById('counterFixtureSearch').addEventListener('input',renderSavedCounterFixtures);
+document.getElementById('clearCounterFixtureSearch').addEventListener('click',()=>{
+  document.getElementById('counterFixtureSearch').value='';
+  renderSavedCounterFixtures();
+});
+function openCounterFixtureEditor(item){
+  editingCounterFixture=item;
+  document.getElementById('counterFixtureEditName').textContent=(item.card_name||item.card_id||item.id)+' · '+item.id;
+  document.getElementById('counterFixtureExpectedInput').value=item.expected_quantity??1;
+  document.getElementById('counterFixtureEditStatus').textContent='';
+  const dialog=document.getElementById('counterFixtureEditDialog');
+  if(typeof dialog.showModal==='function')dialog.showModal();else alert('Этот браузер не поддерживает диалог редактирования.');
+}
+document.getElementById('counterFixtureCancelEdit').addEventListener('click',()=>document.getElementById('counterFixtureEditDialog').close());
+document.getElementById('counterFixtureEditForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!editingCounterFixture)return;
+  const input=document.getElementById('counterFixtureExpectedInput');
+  const quantity=Number(input.value);
+  const status=document.getElementById('counterFixtureEditStatus');
+  const button=document.getElementById('counterFixtureSaveEdit');
+  if(!Number.isInteger(quantity)||quantity<1||quantity>999){status.className='err';status.textContent='Введи целое число от 1 до 999.';return}
+  button.disabled=true;status.className='muted';status.textContent='Сохраняем эталон и создаём commit…';
+  try{
+    const r=await api('/admin/counter-tests/'+encodeURIComponent(editingCounterFixture.id)+'?expected_quantity='+quantity,{method:'PATCH'});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Не удалось изменить эталон');
+    document.getElementById('counterFixtureEditDialog').close();
+    document.getElementById('counterTestsStatus').className='ok';
+    document.getElementById('counterTestsStatus').textContent='Эталон обновлён. Commit '+String(d.git_commit||'').slice(0,10)+' · '+d.branch;
+    await loadCounterTests();
+  }catch(e){status.className='err';status.textContent='Ошибка сохранения: '+e.message}
+  finally{button.disabled=false}
+});
+async function deleteCounterFixture(item){
+  if(!confirm('Удалить тест «'+(item.card_name||item.card_id||item.id)+'»? Эталон и изображение будут удалены из рабочей ветки GitHub.'))return;
+  const status=document.getElementById('counterTestsStatus');
+  status.className='muted';status.textContent='Удаляем тест и кроп, создаём commit…';
+  try{
+    const r=await api('/admin/counter-tests/'+encodeURIComponent(item.id),{method:'DELETE'});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Не удалось удалить тест');
+    status.className='ok';status.textContent='Тест удалён. Commit '+String(d.git_commit||'').slice(0,10)+' · '+d.branch;
+    await loadCounterTests();
+  }catch(e){status.className='err';status.textContent='Тест не удалён: '+e.message}
+}
+document.addEventListener('click',event=>{
+  if(!event.target.closest('.counter-fixture-menu'))closeCounterFixtureMenus();
+});
+let lastCounterRunResults=[];
+function renderCounterRunResults(){
+  const root=document.getElementById('counterRunResults');
+  if(!root)return;
+  const filter=document.getElementById('counterTestResultFilter').value;
+  const results=lastCounterRunResults.filter(item=>filter==='all'||item.status===filter);
+  root.innerHTML='';
+  if(!lastCounterRunResults.length){root.innerHTML='<p class="muted">Запусти тесты, чтобы увидеть результаты.</p>';return}
+  if(!results.length){root.innerHTML='<p class="muted">Для выбранного фильтра результатов нет.</p>';return}
+  results.forEach(item=>{
+    const passed=item.status==='passed';
+    const el=document.createElement('article');el.className='counter-fixture';
+    const fixture=counterFixturesCache.find(saved=>String(saved.id)===String(item.id));
+    const img=document.createElement('img');
+    img.className='counter-fixture-thumb';
+    img.loading='lazy';
+    img.alt='Кроп теста '+(item.card_name||item.card_id||item.id||'');
+    img.src='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="92" height="118"%3E%3Crect width="100%25" height="100%25" fill="%23111111"/%3E%3Ctext x="50%25" y="50%25" fill="%23777777" font-size="10" text-anchor="middle"%3EНет превью%3C/text%3E%3C/svg%3E';
+    const body=document.createElement('div');body.className='counter-fixture-body';
+    const title=document.createElement('h4');title.className='counter-fixture-title';
+    title.textContent=item.card_name||item.card_id||item.id||'Тест счётчика';
+    const status=document.createElement('div');status.className='counter-fixture-status '+(passed?'ok':'err');
+    status.textContent=passed?'✓ Тест пройден':'✗ Ошибка распознавания';
+    const quantities=document.createElement('div');quantities.className='counter-fixture-quantity';
+    const expected=document.createElement('span');expected.textContent='Эталон: '+(item.expected_quantity??'—');
+    const detected=document.createElement('span');detected.textContent='Алгоритм: '+(item.detected_quantity??'—');
+    quantities.append(expected,detected);
+    const duration=item.duration_ms==null?'—':Number(item.duration_ms).toFixed(2)+' мс';
+    const confidence=item.confidence==null?'—':String(item.confidence);
+    const meta=document.createElement('div');meta.className='counter-fixture-meta';
+    meta.textContent='ID: '+(item.id||'—')+' · Уверенность: '+confidence+' · Время: '+duration;
+    body.append(title,status,quantities,meta);
+    if(item.error){const error=document.createElement('div');error.className='counter-fixture-status err';error.textContent=item.error;body.appendChild(error)}
+    if(item.debug){
+      const details=document.createElement('details');details.style.marginTop='8px';
+      const summary=document.createElement('summary');summary.textContent='Диагностика распознавания';
+      const pre=document.createElement('pre');pre.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px';pre.textContent=JSON.stringify(item.debug,null,2);
+      details.append(summary,pre);body.appendChild(details);
+    }
+    el.append(img,body);
+    root.appendChild(el);
+    if(fixture)loadCounterFixtureImage(fixture,img);
+    else img.classList.add('image-unavailable');
+  });
+}
+async function runCounterTests(){
+  const button=document.getElementById('runCounterTestsBtn');
+  const summary=document.getElementById('counterRunSummary');
+  button.disabled=true;button.textContent='Выполняются тесты…';
+  summary.className='muted';summary.textContent='Загружаем эталоны и запускаем текущий алгоритм. Это может занять некоторое время.';
+  try{
+    const r=await api('/admin/counter-tests/run',{method:'POST'});
+    const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка запуска тестов');
+    lastCounterRunResults=d.results||[];
+    const percent=d.total?Math.round(d.passed/d.total*100):0;
+    summary.className=d.failed?'err':'ok';
+    summary.textContent=`Ветка: ${d.branch} · Пройдено: ${d.passed}/${d.total} (${percent}%) · Ошибок: ${d.failed} · Время: ${d.duration_ms??'—'} мс · Версия приложения: ${d.app_commit||'unknown'} · ${d.run_at?new Date(d.run_at).toLocaleString():''}. ${d.message||''}`;
+    document.getElementById('counterTestResultFilter').value='all';
+    renderCounterRunResults();
+  }catch(e){
+    summary.className='err';summary.textContent='Не удалось выполнить тесты: '+e.message;
+  }finally{
+    button.disabled=false;button.textContent='▶ Запустить все тесты';
+  }
+}
+document.getElementById('runCounterTestsBtn').addEventListener('click',runCounterTests);
+document.getElementById('counterTestResultFilter').addEventListener('change',renderCounterRunResults);
+document.querySelectorAll('[data-counter-view]').forEach(button=>button.addEventListener('click',()=>{
+  const view=button.dataset.counterView;
+  document.querySelectorAll('[data-counter-view]').forEach(tab=>{
+    const active=tab===button;
+    tab.classList.toggle('active',active);
+    tab.setAttribute('aria-selected',String(active));
+    tab.tabIndex=active?0:-1;
+  });
+  document.getElementById('counterRunPanel').hidden=view!=='run';
+  document.getElementById('counterSavedPanel').hidden=view!=='saved';
+  if(view==='saved'&&!counterFixturesCache.length)loadCounterTests();
+}));
 document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
 document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCounterCasesToQueue()}catch(e){const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message}};
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
@@ -501,6 +985,9 @@ function renderResults(cards){
       const icon = c.icon
         ? `<img class="icon" src="${esc(assetUrl(c.icon))}" onerror="this.style.display='none'">`
         : `<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет постоянной иконки</div>`;
+      const iconAction = !c.icon
+        ? `<button class="btn-green" onclick="saveScannedIcon(${i})">Сохранить иконку из скриншота</button>`
+        : '';
 
       el.innerHTML=`
         <img src="${esc(previewUrl)}">
@@ -527,6 +1014,7 @@ function renderResults(cards){
 
         <div style="margin-top:10px">
           ${icon}
+          ${iconAction}
         </div>
 
         <p class="muted">
@@ -672,14 +1160,40 @@ async function saveCard(i){
     card.id=d.card_id||d.card?.id;
     card.name=name;
     card.rarity=rarity;
+    card.icon=d.card?.icon||'';
 
-    alert(`Карта сохранена: ${card.id}`);
+    alert(`Карта сохранена вместе с постоянной иконкой: ${card.id}`);
 
     await loadAll();
     renderResults(window.lastScan);
 
   }catch(e){
     alert('Ошибка сохранения: '+e.message);
+  }
+}
+
+async function saveScannedIcon(i){
+  const card=window.lastScan?.[i];
+  if(!card||!card.matched||!card.id||card.icon)return;
+
+  const label=card.name||card.id;
+  if(!confirm(`Сохранить постоянную иконку для "${label}" из этого же скриншота?`))return;
+
+  try{
+    const r=await api('/admin/save-icon-from-preview/'+encodeURIComponent(card.id),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({preview:card.preview})
+    });
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'Ошибка сохранения иконки');
+
+    card.icon=d.icon;
+    await loadAll();
+    renderResults(window.lastScan);
+    status(`Иконка ${card.id} сохранена на сервере. GitHub commit будет создан только по отдельной кнопке.`,'ok');
+  }catch(e){
+    status('Не удалось сохранить иконку: '+e.message,'err');
   }
 }
 
@@ -708,7 +1222,7 @@ function renderIconQueue(){
     el.className='item';
 
     const preview=item.previewUrl
-      ? `<img src="${esc(item.previewUrl)}" style="max-height:380px;object-fit:contain">`
+      ? `<img class="icon-zoomable" src="${esc(item.previewUrl)}" alt="Предпросмотр ${esc(item.file.name)}" data-icon-title="${esc(item.file.name)}" role="button" tabindex="0" title="Открыть иконку крупно">`
       : '<div class="muted">Нет предпросмотра</div>';
 
     let action='';
@@ -740,8 +1254,8 @@ function renderIconQueue(){
         <div class="muted" style="margin-top:8px">
           Это исходный скриншот, который не удалось определить:
         </div>
-        <img src="${esc(item.previewUrl)}"
-             alt="Скриншот не определён"
+        <img class="icon-zoomable" src="${esc(item.previewUrl)}"
+             alt="Скриншот не определён" data-icon-title="${esc(item.file.name)}" role="button" tabindex="0" title="Открыть скриншот крупно"
              style="display:block;max-width:100%;max-height:520px;object-fit:contain;margin:8px 0;border:1px solid #555;border-radius:8px">
         <div class="row">
           <a href="${esc(item.previewUrl)}" target="_blank" rel="noopener" class="btn-secondary">Открыть скриншот</a>
@@ -1023,16 +1537,94 @@ document.getElementById('commitBtn').onclick=async()=>{
   const b=document.getElementById('commitBtn');b.disabled=true;b.textContent='Сохраняем...';
   try{
     const r=await api('/admin/github-commit',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка GitHub');
-    document.getElementById('commitStatus').innerHTML=`<span class="ok">✅ Commit создан: ${esc(d.commit.slice(0,10))}</span>`;
+    document.getElementById('commitStatus').innerHTML=`<span class="ok">✅ Commit создан: ${esc(d.commit.slice(0,10))} · ветка ${esc(d.branch||'feature/card-counter')} · карт: ${esc(d.cards)} · иконок: ${esc(d.icons)}</span>`;
   }catch(e){document.getElementById('commitStatus').innerHTML=`<span class="err">❌ ${esc(e.message)}</span>`}
-  finally{b.disabled=false;b.textContent='💾 Сохранить изменения в GitHub'}
+  finally{b.disabled=false;b.textContent='💾 Отправить все изменения одним commit'}
 };
+
+function safeClubMediaUrl(value){
+  try{
+    const url=new URL(String(value||''));
+    return url.protocol==='https:' ? url.href : '';
+  }catch{return ''}
+}
+async function loadClubPosts(){
+  const status=document.getElementById('clubPostsStatus');
+  const root=document.getElementById('clubPostsList');
+  const button=document.getElementById('refreshClubPostsBtn');
+  status.className='muted';status.textContent='Загружаем публичную тему PUBG MOBILE Club…';
+  button.disabled=true;root.innerHTML='';
+  try{
+    const response=await api('/admin/pubg-club/posts');
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.detail||'Не удалось загрузить публикации');
+    document.getElementById('clubPostsCount').textContent=Number(data.count||0);
+    document.getElementById('clubTopicLink').href=safeClubMediaUrl(data.topic_url)||'https://share.club.gpubgm.com/2vRUE5jmLe0';
+    const posts=Array.isArray(data.posts)?data.posts:[];
+    if(!posts.length){
+      root.innerHTML='<p class="muted">Публичная страница не вернула публикаций. Попробуй обновить позже.</p>';
+    }
+    posts.forEach(post=>{
+      const el=document.createElement('article');el.className='item';
+      const images=(Array.isArray(post.image_urls)?post.image_urls:[]).map(safeClubMediaUrl).filter(Boolean);
+      const videoPreview=safeClubMediaUrl(post.video_preview);
+      const media=images.length?images:videoPreview?[videoPreview]:[];
+      const mediaHtml=media.map(url=>'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="'+esc(url)+'" alt="Медиа публикации PUBG Club" style="height:220px;object-fit:contain" referrerpolicy="no-referrer"></a>').join('');
+      const text=String(post.content||'').trim();
+      el.innerHTML='<h3>Публикация</h3>'+
+        '<div class="muted">ID: <code>'+esc(post.iid||'—')+'</code></div>'+
+        (post.published_at?'<div class="muted">Дата: '+esc(post.published_at)+'</div>':'')+
+        '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(text||'Без текста')+'</p>'+
+        (mediaHtml?'<div class="card-grid">'+mediaHtml+'</div>':'<p class="muted">Нет доступного изображения или превью.</p>');
+      root.appendChild(el);
+    });
+    status.className='ok';status.textContent='Загружено '+posts.length+' публикаций из темы '+String(data.topic||'cardexchange')+'. Источник: публичная страница PUBG MOBILE Club.';
+  }catch(error){
+    status.className='err';status.textContent='Не удалось загрузить публикации: '+error.message;
+  }finally{button.disabled=false}
+}
+document.getElementById('refreshClubPostsBtn').addEventListener('click',loadClubPosts);
+
+async function loadAnalytics() {
+  const status = document.getElementById('analyticsStatus');
+  status.textContent = 'Загружаем метрики…';
+  try {
+    const days = Number(document.getElementById('analyticsDays').value || 30);
+    const response = await api('/admin/analytics?days=' + encodeURIComponent(days));
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Не удалось загрузить метрики');
+    const scans = data.scans || {};
+    document.getElementById('analyticsActiveUsers').textContent = data.active_users ?? 0;
+    document.getElementById('analyticsScans').textContent = (data.events || []).filter(x => x.event_name === 'scan_completed').reduce((n, x) => n + Number(x.events || 0), 0);
+    document.getElementById('analyticsFailedScans').textContent = scans.failed_scans ?? 0;
+    document.getElementById('analyticsAvgScan').textContent = scans.avg_duration_ms == null ? '—' : scans.avg_duration_ms + ' мс';
+    const feedback = data.feedback || {};
+    document.getElementById('analyticsFeedbackAvg').textContent = feedback.average_rating == null ? '—' : feedback.average_rating + ' / 5';
+    document.getElementById('analyticsFeedbackCategories').innerHTML = (data.feedback_categories || []).length
+      ? '<ul>' + data.feedback_categories.map(x => '<li>' + esc(x.category) + ': ' + esc(x.ratings) + ' оценок</li>').join('') + '</ul>'
+      : 'Пока нет оценок или выбранных причин.';
+    document.getElementById('analyticsTabs').innerHTML = (data.popular_tabs || []).length
+      ? '<ul>' + data.popular_tabs.map(x => '<li>' + esc(x.tab) + ': ' + esc(x.views) + ' открытий · ' + esc(x.users) + ' пользователей</li>').join('') + '</ul>'
+      : 'Пока нет данных о переходах между разделами.';
+    document.getElementById('analyticsEvents').innerHTML = (data.events || []).length
+      ? '<ul>' + data.events.map(x => '<li>' + esc(x.event_name) + ': ' + esc(x.events) + ' событий · ' + esc(x.users) + ' пользователей</li>').join('') + '</ul>'
+      : 'Пока нет событий. Метрики появятся после использования Mini App.';
+    document.getElementById('analyticsDaily').innerHTML = (data.daily_active || []).length
+      ? '<ul>' + data.daily_active.map(x => '<li>' + esc(x.day) + ': ' + esc(x.active_users) + ' активных пользователей</li>').join('') + '</ul>'
+      : 'Пока нет данных.';
+    status.textContent = 'Период: ' + data.days + ' дней. Событий: ' + (data.events || []).reduce((n, x) => n + Number(x.events || 0), 0) + '.';
+  } catch (error) {
+    status.textContent = 'Ошибка: ' + (error.message || 'не удалось загрузить метрики');
+  }
+}
+document.getElementById('refreshAnalyticsBtn').addEventListener('click', loadAnalytics);
+document.getElementById('analyticsDays').addEventListener('change', loadAnalytics);
 
 document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();
+  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='screenshotTests')loadShotFixtures();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();if(btn.dataset.tab==='clubPosts')loadClubPosts();
 });
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 
