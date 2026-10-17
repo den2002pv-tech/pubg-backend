@@ -1006,29 +1006,31 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
 
     stage_started = time.perf_counter()
     detected = detect_inventory_cards(image)
-    # A darkened/unowned card can be geometrically detected, but must not enter
-    # the inventory. Classify from the frame and bottom badge before OCR/hash.
-    detected = [
-        item for item in detected
-        if not is_card_darkened(
-            image.crop((
-                item["box"][0], item["box"][1],
-                item["box"][0] + item["box"][2], item["box"][1] + item["box"][3],
-            ))
-        )
-    ]
+    geometric_detected_count = len(detected)
     detection_ms = (time.perf_counter() - stage_started) * 1000
     counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0
+    darkened_filtered_count = 0
     cards = []
     for item in detected:
         x, y, w, h = item["box"]
         crop = image.crop((x, y, x + w, y + h))
-        # Low-saturation frames are not sufficient evidence that a card is locked:
-        # owned gray-rarity cards use the same gray palette and may have quantity
-        # badges. Keep every geometrically detected card for matching and labeling.
+
+        # A visible counter is positive evidence that a card is owned, even if
+        # its gray frame/badge resembles a dimmed card. Run counter detection
+        # before the conservative darkened-card heuristic so valid gray cards
+        # are not silently discarded before matching.
         stage_started = time.perf_counter()
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
         counter_ms += (time.perf_counter() - stage_started) * 1000
+
+        has_counter_evidence = (
+            quantity_confidence > 0
+            or int(counter_debug.get("candidates", 0) or 0) > 0
+            or counter_debug.get("reason") == "ok"
+        )
+        if not has_counter_evidence and is_card_darkened(crop):
+            darkened_filtered_count += 1
+            continue
 
         stage_started = time.perf_counter()
         raw_hashes = calculate_card_hashes(crop)
@@ -1059,6 +1061,8 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         cards.append(entry)
 
     profile = {
+        "geometric_detected_count": geometric_detected_count,
+        "darkened_filtered_count": darkened_filtered_count,
         "rgb_convert_ms": round(decode_ms, 1),
         "detection_ms": round(detection_ms, 1),
         "counter_ms": round(counter_ms, 1),
