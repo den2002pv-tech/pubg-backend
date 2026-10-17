@@ -1090,5 +1090,57 @@
     "hash": "1f7f61ccf0be3069",
     "rarity": 1,
     "icon": "/static/cards/card_86.webp"
+  },
+  "card_87": {
+    "name": "Лахмаджун",
+    "hashes": {
+      "full_phash": "d16a1fbe783890e1",
+      "full_dhash": "3d40d29783fc3ae8",
+      "visual_phash": "d043177e3cb87097",
+      "visual_dhash": "3cc0c03b3589e23c",
+      "frame_colorhash": "07c03000000"
+    },
+    "hash": "3d40d29783fc3ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_87.webp"
+  },
+  "card_88": {
+    "name": "Пиздец с мясом",
+    "hashes": {
+      "full_phash": "8d6d523292e0cafd",
+      "full_dhash": "3476f2a27ef0aae8",
+      "visual_phash": "8d6d16b6f2c03d0b",
+      "visual_dhash": "7613f3e3adbef0a6",
+      "frame_colorhash": "07606000000"
+    },
+    "hash": "3476f2a27ef0aae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_88.webp"
+  },
+  "card_89": {
+    "name": "Долма",
+    "hashes": {
+      "full_phash": "cccf1738c063c2bd",
+      "full_dhash": "3c3063e3b3337ae8",
+      "visual_phash": "cc8137fc43a50f72",
+      "visual_dhash": "7c34e3c3a1333759",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c3063e3b3337ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_89.webp"
+  },
+  "card_90": {
+    "name": "Манты",
+    "hashes": {
+      "full_phash": "9b3b1734e0684af5",
+      "full_dhash": "3c7839998ef132e8",
+      "visual_phash": "9a1b3fa5649a70a6",
+      "visual_dhash": "7c7879b98e9ee8ff",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7839998ef132e8",
+    "rarity": 2,
+    "icon": "/static/cards/card_90.webp"
   }
 }
