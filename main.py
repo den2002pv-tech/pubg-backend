@@ -458,18 +458,26 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     best = candidates[0]
     runner_up = candidates[1] if len(candidates) > 1 else None
 
-    # Preferred path: the original strong-vote rule.
-    if best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES:
-        return best["id"], best["score"]
-
-    # Conservative fallback for animated/dynamic cards. Do not simply raise
-    # the strong threshold globally: that would weaken discrimination for
-    # visually similar static cards. Instead require a clear score margin.
+    # Never select a card merely because it has enough passing hash votes:
+    # two different cards can share similar artwork/frame hashes. Ambiguous
+    # results must remain unmatched instead of silently assigning the wrong ID.
     margin = (
         runner_up["score"] - best["score"]
         if runner_up is not None
         else float("inf")
     )
+
+    # Strong votes are necessary, but not sufficient when another catalogue
+    # entry is nearly as close. Keep the same explicit confidence margin for
+    # both the normal and animated-card fallback paths.
+    if best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES:
+        if runner_up is None or margin > CARD_MATCH_CONFIDENT_MARGIN:
+            return best["id"], best["score"]
+        return None, float("inf")
+
+    # Conservative fallback for animated/dynamic cards. Do not simply lower
+    # the strong-vote threshold globally; require enough acceptable hashes,
+    # compatible frame colour, and a clear lead over every alternative.
     if (
         best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
         and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO
