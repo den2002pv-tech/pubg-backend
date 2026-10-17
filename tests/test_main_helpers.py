@@ -128,6 +128,34 @@ def test_match_card_returns_exact_hash_match():
     assert distance == 0
 
 
+def test_match_card_rejects_ambiguous_near_duplicate_cards():
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    # This competing card is almost as close in every hash. A vote-count-only
+    # matcher could confidently attach the scan to the wrong catalogue entry.
+    near_hashes = {
+        "full_phash": "aaaaaaab",
+        "full_dhash": "bbbbbbba",
+        "visual_phash": "cccccccd",
+        "visual_dhash": "dddddddc",
+        "frame_colorhash": "eeeeeeef",
+    }
+    db = {
+        "card_burek": {"name": "Бурек", "hashes": hashes},
+        "card_lentil_soup": {"name": "Чечевичный суп", "hashes": near_hashes},
+    }
+
+    card_id, distance = main._match_card(hashes, db)
+
+    assert card_id is None
+    assert distance == float("inf")
+
+
 def test_match_card_does_not_match_when_hashes_are_missing():
     hashes = {
         "full_phash": "aaaaaaaa",
