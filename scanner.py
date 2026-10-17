@@ -477,8 +477,12 @@ def _refine_digit_prediction(
     if predicted_digit in (4, 6) and max(scores[4], scores[6]) < 0.70:
         if top_right_fill >= 0.22 and bottom_left_fill < 0.38:
             return 4, scores[4]
-        if top_right_fill < 0.38 and bottom_left_fill >= 0.18:
+        if top_right_fill < 0.38 and bottom_left_fill >= 0.30:
             return 6, scores[6]
+        # A compressed 4 often has a few pixels in its lower-left quadrant.
+        # Do not call that a 6 unless the lower bowl is visibly filled.
+        if bottom_left_fill < 0.30 and scores[4] >= scores[6] - 0.10:
+            return 4, scores[4]
 
     # A 6 opens on the upper-right side; a 0 keeps its outer right wall closed.
     # Do not rewrite a 0 here: it can be the second digit of quantity 10.
@@ -509,7 +513,16 @@ def _single_digit_alternative(
         return None
     top_right_fill = float(top_right.mean())
     bottom_left_fill = float(bottom_left.mean())
-    if top_right_fill < 0.38 and bottom_left_fill >= 0.10:
+    # A low-resolution 6 can retain the closed upper-right pixels of a 0
+    # after thresholding. Use a softer shape boundary plus the relative template
+    # score; this alternative is only consumed for a standalone badge digit.
+    # It is never used for the trailing zero in a multi-digit quantity such as 10.
+    if (
+        top_right_fill < 0.56
+        and bottom_left_fill >= 0.07
+        and scores.get(6, 0.0) >= 0.35
+        and scores.get(0, 0.0) - scores.get(6, 0.0) <= 0.30
+    ):
         return 6, scores[6]
     return None
 
