@@ -1098,16 +1098,19 @@ def is_card_darkened(card: Image.Image) -> bool:
     if frame.size == 0:
         return False
 
-    # OpenCV HSV uses H in [0, 179]. Look for gold only around the frame,
-    # never across the artwork where dark illustrations are normal.
-    gold = (
-        (frame[:, 0] >= 15) & (frame[:, 0] <= 38)
-        & (frame[:, 1] >= 45) & (frame[:, 2] >= 80)
-    )
     bright_white = (frame[:, 1] < 70) & (frame[:, 2] > 205)
-    gold_ratio = float(np.count_nonzero(gold)) / float(frame.shape[0])
     bright_frame_ratio = float(np.count_nonzero(bright_white)) / float(frame.shape[0])
-    frame_brightness_p75 = float(np.percentile(frame[:, 2], 75))
+
+    frame_mask = np.zeros((h, w), dtype=bool)
+    frame_x = max(1, int(w * 0.10))
+    frame_y = max(1, int(h * 0.08))
+    frame_mask[:frame_y, :] = True
+    frame_mask[-frame_y:, :] = True
+    frame_mask[:, :frame_x] = True
+    frame_mask[:, -frame_x:] = True
+    frame_luminance_mean = float(
+        cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)[frame_mask].mean()
+    )
 
     # The centered bottom emblem is a separate signal from the artwork.
     badge = hsv[int(h * 0.88):max(int(h * 0.88) + 1, int(h * 0.98)),
@@ -1120,10 +1123,9 @@ def is_card_darkened(card: Image.Image) -> bool:
 
     return (
         badge_median < 150
-        and badge_median < frame_brightness_p75 - 8
+        and frame_luminance_mean < 130
         and badge_bright_ratio < 0.18
         and bright_frame_ratio < 0.18
-        and gold_ratio < 0.04
     )
 
 
