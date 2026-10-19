@@ -1168,5 +1168,31 @@
     "hash": "1f7f71cce0fe6861",
     "rarity": 1,
     "icon": "/static/cards/card_92.webp"
+  },
+  "card_93": {
+    "name": "Адская метель",
+    "hashes": {
+      "full_phash": "a73d4c249a79854f",
+      "full_dhash": "2f67470f4dc64661",
+      "visual_phash": "a40e64b233e54f9b",
+      "visual_dhash": "275757070fcd8686",
+      "frame_colorhash": "0701e000000"
+    },
+    "hash": "2f67470f4dc64661",
+    "rarity": 1,
+    "icon": "/static/cards/card_93.webp"
+  },
+  "card_94": {
+    "name": "Безлецинционый ездок",
+    "hashes": {
+      "full_phash": "a72e1bb1ae4d8172",
+      "full_dhash": "3b6f67664ed6d061",
+      "visual_phash": "a60e99b34db93269",
+      "visual_dhash": "6b6d4767078d9692",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "3b6f67664ed6d061",
+    "rarity": 1,
+    "icon": "/static/cards/card_94.webp"
   }
 }
