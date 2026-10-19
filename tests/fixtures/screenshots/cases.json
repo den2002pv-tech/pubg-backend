@@ -529,6 +529,166 @@
         }
       ],
       "image_sha256": "43174d50218d67f730422a1d7d009e935d07d574f79813569cec30f212eef9a8"
+    },
+    {
+      "id": "inventory-20261019111851",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261019111851.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": "",
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 70.139,
+            "luminance_median": 62.0,
+            "luminance_stddev": 34.213,
+            "saturation_mean": 42.2,
+            "saturation_median": 33.0,
+            "saturated_pixel_ratio": 0.2219,
+            "frame_luminance_mean": 90.042,
+            "frame_saturation_mean": 59.599,
+            "center_luminance_mean": 54.649,
+            "center_luminance_median": 48.0,
+            "center_luminance_stddev": 18.417,
+            "center_saturation_mean": 35.564,
+            "title_luminance_mean": 69.659,
+            "title_luminance_median": 66.0,
+            "title_luminance_stddev": 24.556,
+            "title_saturation_mean": 54.735,
+            "bottom_luminance_mean": 95.777,
+            "bottom_luminance_median": 100.0,
+            "bottom_luminance_stddev": 41.091,
+            "bottom_saturation_mean": 40.926
+          }
+        },
+        {
+          "box": [
+            474,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": "",
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 84.814,
+            "luminance_median": 82.0,
+            "luminance_stddev": 33.941,
+            "saturation_mean": 61.92,
+            "saturation_median": 62.0,
+            "saturated_pixel_ratio": 0.4247,
+            "frame_luminance_mean": 93.832,
+            "frame_saturation_mean": 70.483,
+            "center_luminance_mean": 78.433,
+            "center_luminance_median": 85.0,
+            "center_luminance_stddev": 28.107,
+            "center_saturation_mean": 60.004,
+            "title_luminance_mean": 75.138,
+            "title_luminance_median": 68.0,
+            "title_luminance_stddev": 20.265,
+            "title_saturation_mean": 85.582,
+            "bottom_luminance_mean": 98.225,
+            "bottom_luminance_median": 100.0,
+            "bottom_luminance_stddev": 41.938,
+            "bottom_saturation_mean": 49.112
+          }
+        },
+        {
+          "box": [
+            743,
+            169,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Кролик созерцающий луну",
+          "card_id": "card_74",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 165.929,
+            "luminance_median": 159.0,
+            "luminance_stddev": 38.657,
+            "saturation_mean": 57.846,
+            "saturation_median": 58.0,
+            "saturated_pixel_ratio": 0.3783,
+            "frame_luminance_mean": 157.506,
+            "frame_saturation_mean": 42.245,
+            "center_luminance_mean": 168.202,
+            "center_luminance_median": 158.0,
+            "center_luminance_stddev": 42.321,
+            "center_saturation_mean": 71.243,
+            "title_luminance_mean": 157.768,
+            "title_luminance_median": 158.0,
+            "title_luminance_stddev": 33.75,
+            "title_saturation_mean": 49.638,
+            "bottom_luminance_mean": 172.561,
+            "bottom_luminance_median": 191.0,
+            "bottom_luminance_stddev": 38.861,
+            "bottom_saturation_mean": 35.609
+          }
+        },
+        {
+          "box": [
+            1012,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": "",
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 71.333,
+            "luminance_median": 61.0,
+            "luminance_stddev": 34.82,
+            "saturation_mean": 33.552,
+            "saturation_median": 30.0,
+            "saturated_pixel_ratio": 0.0586,
+            "frame_luminance_mean": 90.755,
+            "frame_saturation_mean": 35.627,
+            "center_luminance_mean": 57.911,
+            "center_luminance_median": 55.0,
+            "center_luminance_stddev": 18.485,
+            "center_saturation_mean": 34.713,
+            "title_luminance_mean": 71.981,
+            "title_luminance_median": 64.0,
+            "title_luminance_stddev": 19.071,
+            "title_saturation_mean": 27.892,
+            "bottom_luminance_mean": 89.108,
+            "bottom_luminance_median": 89.0,
+            "bottom_luminance_stddev": 46.034,
+            "bottom_saturation_mean": 28.242
+          }
+        }
+      ],
+      "image_sha256": "b3aad80471bb04577e8a83088fde62a294a70b04790eadede22a4693b997aa99"
     }
   ]
 }
