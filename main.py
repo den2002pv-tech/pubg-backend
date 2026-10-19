@@ -31,7 +31,7 @@ from scanner import _detect_counter
 from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inventory_cards, scan_screenshot
-from analytics import get_analytics_summary, init_analytics_db, record_analytics_events
+from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
@@ -962,6 +962,36 @@ async def admin_analytics(
 ):
     require_admin(authorization)
     return get_analytics_summary(days=days)
+
+
+@app.get("/admin/analytics/export")
+async def export_admin_analytics(
+    authorization: str | None = Header(default=None),
+    days: int = 30,
+):
+    """Download analytics events for the selected period without user identifiers."""
+    require_admin(authorization)
+    payload = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        **get_analytics_events(days=days),
+    }
+    body = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+    filename = f"pubg-analytics-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json"
+    return Response(
+        content=body,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.delete("/admin/analytics/scan-performance")
+async def clear_admin_scan_performance(
+    authorization: str | None = Header(default=None),
+):
+    """Clear scan timing fields only; retain analytics events and other properties."""
+    require_admin(authorization)
+    cleared = clear_scan_performance_metrics()
+    return {"status": "ok", "cleared_events": cleared}
 
 
 @app.get("/admin/users")
