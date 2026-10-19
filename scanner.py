@@ -574,6 +574,19 @@ def _refine_digit_prediction(
     top_right_fill = float(top_right.mean()) if top_right.size else 0.0
     bottom_left_fill = float(bottom_left.mean()) if bottom_left.size else 0.0
 
+    # Resolve 0/9 when the templates are nearly tied. A 9 has no continuous
+    # left wall in the lower part of the glyph, while a 0 keeps that wall closed.
+    # Use a narrow lower-left strip so the cue does not rewrite trailing zeros
+    # in multi-digit quantities unless the 9 template is also competitive.
+    if (
+        predicted_digit == 0
+        and scores.get(9, 0.0) >= 0.40
+        and scores[0] - scores[9] <= 0.12
+    ):
+        lower_left_wall = glyph[12:14, 0:3]
+        if lower_left_wall.size and float(lower_left_wall.mean()) < 0.25:
+            return 9, scores[9]
+
     # Resolve 4/6 first. A 4 has an upper-right vertical stem and a relatively
     # open lower-left quadrant; a 6 has an open upper-right and a filled lower bowl.
     if predicted_digit in (4, 6) and max(scores[4], scores[6]) < 0.70:
@@ -1121,6 +1134,20 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _has_counter_evidence(quantity_confidence: float, counter_debug: dict[str, Any]) -> bool:
+    """Avoid dropping a card when a strong multiply sign was found but its digit was ambiguous."""
+    if (
+        quantity_confidence > 0
+        or int(counter_debug.get("candidates", 0) or 0) > 0
+        or counter_debug.get("reason") == "ok"
+    ):
+        return True
+    return any(
+        isinstance(candidate, dict) and float(candidate.get("score", 0) or 0) >= 0.58
+        for candidate in counter_debug.get("x_candidates", [])
+    )
+
+
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
     import time
 
@@ -1148,11 +1175,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
         counter_ms += (time.perf_counter() - stage_started) * 1000
 
-        has_counter_evidence = (
-            quantity_confidence > 0
-            or int(counter_debug.get("candidates", 0) or 0) > 0
-            or counter_debug.get("reason") == "ok"
-        )
+        has_counter_evidence = _has_counter_evidence(quantity_confidence, counter_debug)
         if not has_counter_evidence and is_card_darkened(crop):
             darkened_filtered_count += 1
             continue
