@@ -123,8 +123,14 @@ def _cluster_rows(rects: list[tuple[int, int, int, int]], image_h: int) -> list[
 
     result: list[list[tuple[int, int, int, int]]] = []
     for row in rows:
-        for run in _regular_card_runs(row):
+        runs = _regular_card_runs(row)
+        for run in runs:
             result.append(sorted(run, key=lambda r: r[0]))
+        if not runs and len(row) == 1:
+            # A lone card may be adjacent to a card whose outline merged with
+            # background artwork. _detect_rows keeps it only if a neighbour is
+            # confirmed by edges at the expected grid position.
+            result.append(list(row))
     return result
 
 
@@ -145,9 +151,34 @@ def _edge_score(gray_edges: np.ndarray, rect: tuple[int, int, int, int]) -> floa
     return float(np.mean(vals)) if vals else 0.0
 
 
+_CARD_GRID_STEP_RATIO = 1.12  # center distance / card width in the album grid
+
+
+def _complete_single(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list[tuple[int, int, int, int]]:
+    """Extend a lone card to neighbours at the album grid step; unconfirmed lone cards are dropped."""
+    if not row:
+        return row
+    h, w = img.shape[:2]
+    x, y, cw, ch = row[0]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 45, 140)
+    step = cw * _CARD_GRID_STEP_RATIO
+    result = list(row)
+    for direction in (-1, 1):
+        for k in range(1, 4):
+            nx = int(round(x + direction * step * k))
+            cand = (nx, y, cw, ch)
+            if nx < 0 or nx + cw > w:
+                break
+            if _edge_score(edges, cand) < 28.0:
+                break
+            result.append(cand)
+    return sorted(result, key=lambda r: r[0]) if len(result) >= 2 else []
+
+
 def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list[tuple[int, int, int, int]]:
     if len(row) < 2:
-        return row
+        return _complete_single(row, img)
     h, w = img.shape[:2]
     widths = np.array([r[2] for r in row], dtype=float)
     heights = np.array([r[3] for r in row], dtype=float)
@@ -295,8 +326,9 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     candidates = _candidate_rectangles(img)
     rows = _cluster_rows(candidates, img.shape[0])
     if rows:
-        rows = [_complete_row(row, img) for row in rows]
-        return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
+        rows = [r for r in (_complete_row(row, img) for row in rows) if r]
+        if rows:
+            return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
     single = _single_card_candidate(img)
     if single is not None:
@@ -360,7 +392,7 @@ def diagnose_inventory_cards(image: Image.Image) -> dict[str, Any]:
 
     raw_boxes = _candidate_rectangles(img)
     clustered = _cluster_rows(raw_boxes, height)
-    completed = [_complete_row(row, img) for row in clustered]
+    completed = [r for r in (_complete_row(row, img) for row in clustered) if r]
     if completed:
         final_rows = completed
     else:
