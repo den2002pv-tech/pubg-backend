@@ -320,6 +320,92 @@
         }
       ],
       "image_sha256": "0eb5670a2b871253c724acd899b2044953287a1f911edbb3a66e35ed00041ce3"
+    },
+    {
+      "id": "inventory-20261019111555",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261019111555.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 13,
+          "state": "owned",
+          "card_name": "Безлецинционый ездок",
+          "card_id": "card_94",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 131.758,
+            "luminance_median": 132.0,
+            "luminance_stddev": 36.513,
+            "saturation_mean": 12.265,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0736,
+            "frame_luminance_mean": 140.526,
+            "frame_saturation_mean": 2.556,
+            "center_luminance_mean": 125.494,
+            "center_luminance_median": 134.0,
+            "center_luminance_stddev": 39.969,
+            "center_saturation_mean": 21.668,
+            "title_luminance_mean": 124.334,
+            "title_luminance_median": 123.0,
+            "title_luminance_stddev": 30.013,
+            "title_saturation_mean": 8.035,
+            "bottom_luminance_mean": 137.619,
+            "bottom_luminance_median": 128.0,
+            "bottom_luminance_stddev": 32.406,
+            "bottom_saturation_mean": 3.119
+          }
+        },
+        {
+          "box": [
+            474,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 14,
+          "state": "owned",
+          "card_name": "Адская метель",
+          "card_id": "card_93",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 123.225,
+            "luminance_median": 127.0,
+            "luminance_stddev": 42.235,
+            "saturation_mean": 15.108,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.1436,
+            "frame_luminance_mean": 142.773,
+            "frame_saturation_mean": 1.797,
+            "center_luminance_mean": 113.399,
+            "center_luminance_median": 124.0,
+            "center_luminance_stddev": 44.87,
+            "center_saturation_mean": 26.461,
+            "title_luminance_mean": 116.461,
+            "title_luminance_median": 112.0,
+            "title_luminance_stddev": 33.676,
+            "title_saturation_mean": 7.258,
+            "bottom_luminance_mean": 128.846,
+            "bottom_luminance_median": 124.0,
+            "bottom_luminance_stddev": 39.101,
+            "bottom_saturation_mean": 6.19
+          }
+        }
+      ],
+      "image_sha256": "a866c43ce04e35e0adcbb1a21c4076bb3996e878ecacfd0eef16f77fe7321105"
     }
   ]
 }
