@@ -1142,5 +1142,31 @@
     "hash": "3c7839998ef132e8",
     "rarity": 2,
     "icon": "/static/cards/card_90.webp"
+  },
+  "card_91": {
+    "name": "Казандиби",
+    "hashes": {
+      "full_phash": "bf351a08c375965a",
+      "full_dhash": "1f7f4c4e63fe3061",
+      "visual_phash": "a13e1ec921b45ecb",
+      "visual_dhash": "3f7f6ddecae39ebe",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f7f4c4e63fe3061",
+    "rarity": 1,
+    "icon": "/static/cards/card_91.webp"
+  },
+  "card_92": {
+    "name": "Чечевичный суп",
+    "hashes": {
+      "full_phash": "8f3d3f20c2d09a4f",
+      "full_dhash": "1f7f71cce0fe6861",
+      "visual_phash": "803a3fe1f096cb78",
+      "visual_dhash": "3f3f71ec8ce0ba9e",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f7f71cce0fe6861",
+    "rarity": 1,
+    "icon": "/static/cards/card_92.webp"
   }
 }
