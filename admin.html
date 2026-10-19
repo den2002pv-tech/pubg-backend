@@ -1116,6 +1116,7 @@ function renderResults(cards){
       const iconAction = !c.icon
         ? `<button class="btn-green" onclick="saveScannedIcon(${i})">Сохранить иконку из скриншота</button>`
         : '';
+      const addAsNewAction = `<button class="btn-secondary" onclick="saveCard(${i}, true)">Добавить как отдельную карту</button>`;
 
       el.innerHTML=`
         <img src="${esc(previewUrl)}">
@@ -1143,10 +1144,11 @@ function renderResults(cards){
         <div style="margin-top:10px">
           ${icon}
           ${iconAction}
+          ${addAsNewAction}
         </div>
 
         <p class="muted">
-          Повторно сохранять эту карту не нужно.
+          Если это другая карта, несмотря на сходство хешей, нажми «Добавить как отдельную карту». Существующая запись не изменится.
         </p>
 
         <details>
@@ -1240,7 +1242,7 @@ document.getElementById('downloadScanLogsBtn').onclick=async()=>{
   }
 };
 
-async function saveCard(i){
+async function saveCard(i, forceNew=false){
   const el=document.querySelectorAll('#scanResults .item')[i];
   const card=window.lastScan[i];
 
@@ -1248,11 +1250,17 @@ async function saveCard(i){
     return alert('Карточка не найдена');
   }
 
-  // Дубликаты повторно не сохраняем.
-  if(card.matched){
+  // Обычное сохранение блокируется для найденной карты. Отдельная кнопка
+  // разрешает администратору подтвердить, что это другая карта с похожими хешами.
+  if(card.matched && !forceNew){
     return alert(
       `Эта карта уже существует в базе:\n${card.id} · ${card.name||''}`
     );
+  }
+  if(card.matched && forceNew && !confirm(
+    `Сканер считает эту карту похожей на существующую:\n${card.id} · ${card.name||''}\n\nДобавить её как отдельную карту? Существующая запись останется без изменений.`
+  )){
+    return;
   }
 
   const nameInput=el.querySelector('#name_'+i);
