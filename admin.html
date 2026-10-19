@@ -1266,8 +1266,10 @@ async function saveCard(i, forceNew=false){
   const nameInput=el.querySelector('#name_'+i);
   const rarityInput=el.querySelector('#rarity_'+i);
 
-  const name=nameInput ? nameInput.value.trim() : '';
-  const rarity=rarityInput ? Number(rarityInput.value) : 1;
+  const name=nameInput
+    ? nameInput.value.trim()
+    : (forceNew ? (prompt('Название новой карты', '') || '').trim() : '');
+  const rarity=rarityInput ? Number(rarityInput.value) : Number(card.rarity || 1);
 
   if(!name){
     return alert('Заполни название');
