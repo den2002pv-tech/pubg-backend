@@ -177,3 +177,44 @@ def get_analytics_summary(days: int = 30) -> dict[str, Any]:
         "feedback": feedback,
         "feedback_categories": feedback_categories,
     }
+
+def get_analytics_events(days: int = 30) -> dict[str, Any]:
+    """Export analytics events for a bounded period without internal user identifiers."""
+    days = max(1, min(int(days), 90))
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT event_name, properties, created_at
+                FROM user_analytics_events
+                WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+                ORDER BY created_at DESC, id DESC
+            """, (days,))
+            rows = cur.fetchall()
+    return {
+        "days": days,
+        "events": [
+            {
+                "event_name": row["event_name"],
+                "created_at": row["created_at"].isoformat(),
+                "properties": row["properties"],
+            }
+            for row in rows
+        ],
+    }
+
+
+def clear_scan_performance_metrics() -> int:
+    """Remove only scan timing fields, retaining events and all other analytics."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE user_analytics_events
+                SET properties = properties - 'duration_ms' - 'profile'
+                WHERE event_name IN ('scan_completed', 'scan_failed')
+                  AND (properties ? 'duration_ms' OR properties ? 'profile')
+                RETURNING id
+            """)
+            cleared = len(cur.fetchall())
+        conn.commit()
+    return cleared
+

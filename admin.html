@@ -6,42 +6,143 @@
 <title>PUBG Card Admin</title>
 <style>
 *{box-sizing:border-box}
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#121212;color:#fff;padding:16px;max-width:1200px;margin:auto}
-.box{background:#1e1e1e;padding:16px;border-radius:12px;margin-bottom:16px}
-.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:180px}
-input,select,button,textarea{width:100%;padding:10px;margin-top:6px;border-radius:7px;border:1px solid #444;background:#292929;color:#fff}
-button{background:#ff9900;color:#000;font-weight:700;cursor:pointer;border:0}
-button:disabled{opacity:.5;cursor:not-allowed}
-.btn-secondary{background:#3498db;color:#fff}.btn-danger{background:#e74c3c;color:#fff}.btn-green{background:#2ecc71;color:#071b0c}
-.muted{color:#aaa}.ok{color:#65e06f}.err{color:#ff7070}
-.tabs{display:flex;gap:8px;overflow:auto;margin-bottom:16px}.tab{white-space:nowrap;background:#292929;color:#fff}.tab.active{background:#ff9900;color:#000}
+:root{
+  --bg:#0b1020;
+  --bg-elevated:#121a2b;
+  --panel:#182338;
+  --panel-strong:#1d2a40;
+  --panel-soft:#222f45;
+  --border:rgba(148,163,184,.18);
+  --text:#ecf3ff;
+  --muted:#aebcd1;
+  --accent:#ffb454;
+  --accent-strong:#ff8a1f;
+  --secondary:#5ab0ff;
+  --success:#38d39f;
+  --danger:#ff6b6b;
+  --shadow:0 18px 40px rgba(2,6,23,.45);
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(91,177,255,.18), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(255,180,84,.14), transparent 26%),
+    var(--bg);
+  color:var(--text);
+  padding:20px 16px 40px;
+  max-width:1280px;
+  margin:0 auto;
+  line-height:1.45;
+}
+#app{padding-top:10px}
+.box{
+  background:linear-gradient(180deg, rgba(18,26,43,.98), rgba(15,21,35,.94));
+  border:1px solid var(--border);
+  box-shadow:var(--shadow);
+  padding:18px 18px 16px;
+  border-radius:18px;
+  margin-bottom:18px;
+  backdrop-filter:blur(8px);
+}
+.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1;min-width:180px}
+input,select,button,textarea{
+  width:100%;
+  padding:10px 12px;
+  margin-top:6px;
+  border-radius:10px;
+  border:1px solid rgba(148,163,184,.2);
+  background:rgba(15,23,42,.9);
+  color:var(--text);
+  transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+input:focus,select:focus,textarea:focus{
+  outline:none;
+  border-color:rgba(90,176,255,.7);
+  box-shadow:0 0 0 3px rgba(90,176,255,.18);
+}
+button{
+  background:linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color:#101826;
+  font-weight:800;
+  cursor:pointer;
+  border:0;
+  border-radius:10px;
+  padding:10px 14px;
+  transition:transform .15s ease, box-shadow .2s ease, filter .15s ease;
+  box-shadow:0 8px 18px rgba(255,138,31,.22);
+}
+button:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.03)}
+button:active:not(:disabled){transform:translateY(0)}
+button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.btn-secondary{
+  background:linear-gradient(135deg, var(--secondary), #2f6fe3);
+  color:#fff;
+  box-shadow:0 8px 18px rgba(47,111,227,.25);
+}
+.btn-danger{
+  background:linear-gradient(135deg, #ff7b7b, var(--danger));
+  color:#fff;
+  box-shadow:0 8px 18px rgba(255,107,107,.25);
+}
+.btn-green{
+  background:linear-gradient(135deg, #5ee6a8, var(--success));
+  color:#082a22;
+  box-shadow:0 8px 18px rgba(56,211,159,.24);
+}
+.muted{color:var(--muted)}.ok{color:var(--success)}.err{color:var(--danger)}
+.tabs{display:flex;gap:10px;overflow:auto;margin:0 0 18px;padding-bottom:4px}.tab{
+  white-space:nowrap;
+  background:rgba(26,35,54,.9);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 14px;
+  min-width:170px;
+  box-shadow:none;
+}
+.tab.active{
+  background:linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color:#111827;
+  border-color:transparent;
+}
 .panel{display:none}.panel.active{display:block}
-.card-grid,.temp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.item{background:#292929;border:1px solid #444;border-radius:10px;padding:12px}
-.item img{width:100%;height:240px;object-fit:contain;background:#000;border-radius:7px}
-.icon{width:180px!important;height:270px!important;display:block;margin:auto;object-fit:contain;cursor:zoom-in;border-radius:7px;transition:width .15s,height .15s}
+.card-grid,.temp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.item{
+  background:linear-gradient(180deg, rgba(29,42,64,.96), rgba(19,29,45,.96));
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px;
+  box-shadow:0 10px 20px rgba(1,5,13,.18);
+  transition:transform .15s ease, border-color .15s ease;
+}
+.item:hover{transform:translateY(-2px);border-color:rgba(255,180,84,.32)}
+.item img{width:100%;height:240px;object-fit:contain;background:#0b1220;border-radius:10px;border:1px solid rgba(148,163,184,.12)}
+.icon{width:180px!important;height:270px!important;display:block;margin:auto;object-fit:contain;cursor:zoom-in;border-radius:12px;transition:transform .15s ease,width .15s,height .15s}
+.icon:hover{transform:scale(1.02)}
 body.icon-size-large .icon{width:260px!important;height:390px!important}
-.icon-zoomable{display:block;max-width:100%;max-height:420px;object-fit:contain;cursor:zoom-in;border-radius:7px}
-.icon-size-control{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:#222;border:1px solid #444;border-radius:9px}
-.icon-size-control label{flex:0 0 auto;color:#ddd;font-size:14px}
+.icon-zoomable{display:block;max-width:100%;max-height:420px;object-fit:contain;cursor:zoom-in;border-radius:10px}
+.icon-size-control{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:rgba(19,29,45,.9);border:1px solid var(--border);border-radius:12px}
+.icon-size-control label{flex:0 0 auto;color:var(--muted);font-size:14px}
 .icon-size-control select{max-width:220px;margin:0}
-#iconZoomModal{position:fixed;inset:0;z-index:11000;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+#iconZoomModal{position:fixed;inset:0;z-index:11000;background:rgba(2,6,23,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
 #iconZoomModal[hidden]{display:none}
-#iconZoomModal img{display:block;max-width:96vw;max-height:82vh;width:auto;height:auto;object-fit:contain;background:#111;border-radius:8px}
+#iconZoomModal img{display:block;max-width:96vw;max-height:82vh;width:auto;height:auto;object-fit:contain;background:#0b1220;border-radius:12px;border:1px solid rgba(148,163,184,.15);box-shadow:var(--shadow)}
 #iconZoomModal .icon-zoom-title{max-width:92vw;margin:0 48px 14px;text-align:center;font-size:18px;font-weight:700;overflow-wrap:anywhere}
-#iconZoomModal .icon-zoom-close{position:absolute;top:12px;right:12px;width:44px;height:44px;padding:0;margin:0;border-radius:50%;font-size:28px;line-height:1;background:#333;color:#fff}
+#iconZoomModal .icon-zoom-close{position:absolute;top:12px;right:12px;width:44px;height:44px;padding:0;margin:0;border-radius:50%;font-size:28px;line-height:1;background:rgba(15,23,42,.9);color:#fff;border:1px solid rgba(148,163,184,.2)}
 @media(max-width:520px){.icon-size-control{align-items:stretch;flex-direction:column}.icon-size-control select{max-width:none}.icon{width:180px!important;height:270px!important}body.icon-size-large .icon{width:230px!important;height:345px!important}}
-.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#444;font-size:12px;margin-top:5px}
-.has{background:#1e6b3a}.missing{background:#704d18}
-textarea{height:260px;font-family:monospace}
-.stat{font-size:18px;font-weight:700}.stat small{display:block;font-size:12px;color:#aaa;font-weight:400}
-hr{border:0;border-top:1px solid #444;margin:16px 0}
-#loginBox{max-width:500px;margin:60px auto}
-.progress-wrap{margin-top:12px;background:#111;border-radius:8px;overflow:hidden;height:24px}
-.progress-bar{height:100%;width:0;background:#2ecc71;transition:width .2s}
+.badge{display:inline-block;padding:5px 10px;border-radius:999px;background:rgba(148,163,184,.14);font-size:12px;margin-top:5px;color:var(--text)}
+.has{background:rgba(56,211,159,.18);color:#9ef0d2}.missing{background:rgba(255,180,84,.15);color:#ffc877}
+textarea{height:260px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.stat{font-size:18px;font-weight:800;color:var(--text)}.stat small{display:block;font-size:12px;color:var(--muted);font-weight:500}
+hr{border:0;border-top:1px solid var(--border);margin:16px 0}
+#loginBox{max-width:520px;margin:90px auto;padding:30px 24px;border-radius:20px;background:linear-gradient(180deg, rgba(18,26,43,.98), rgba(12,18,30,.98));border:1px solid var(--border);box-shadow:var(--shadow)}
+#loginBox h2{margin-top:4px}
+.progress-wrap{margin-top:12px;background:rgba(15,23,42,.9);border-radius:10px;overflow:hidden;height:24px;border:1px solid rgba(148,163,184,.12)}
+.progress-bar{height:100%;width:0;background:linear-gradient(135deg, #69e2a8, var(--success));transition:width .2s}
 .progress-text{margin-top:8px}
-.users-table th,.users-table td{vertical-align:top}.users-table tbody tr:hover{background:#292929}
-.presence-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#777}.presence-dot.online{background:#2ecc71}
+.users-table th,.users-table td{vertical-align:top}.users-table tbody tr:hover{background:rgba(148,163,184,.06)}
+.presence-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#7c8798}.presence-dot.online{background:var(--success)}
 /* Counter fixture workspace: compact, touch-friendly and responsive. */
 #counterTests .counter-intro{max-width:760px;line-height:1.5}
 #counterTests .counter-toolbar{align-items:center}
@@ -141,7 +242,7 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
   <section id="analytics" class="panel"><div class="box">
     <h2>Пользовательские метрики</h2>
     <p class="muted">События Mini App за выбранный период. Не сохраняются поисковые запросы, изображения, названия карт или текст переписки.</p>
-    <div class="row"><select id="analyticsDays" aria-label="Период метрик"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select><button id="refreshAnalyticsBtn" class="btn-secondary" type="button">Обновить метрики</button></div>
+    <div class="row"><select id="analyticsDays" aria-label="Период метрик"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select><button id="refreshAnalyticsBtn" class="btn-secondary" type="button">Обновить метрики</button><button id="exportAnalyticsBtn" class="btn-green" type="button">Скачать метрики (JSON)</button><button id="clearScanMetricsBtn" class="btn-danger" type="button">Очистить скорость сканирования</button></div><p class="muted">Очистка удаляет только duration_ms и profile из событий сканирования. Сами события, счётчики, отзывы и остальные данные сохраняются.</p>
     <div class="row"><div class="stat"><span id="analyticsActiveUsers">—</span><small>Активные пользователи</small></div><div class="stat"><span id="analyticsScans">—</span><small>Успешные сканирования</small></div><div class="stat"><span id="analyticsFailedScans">—</span><small>Ошибки сканирования</small></div><div class="stat"><span id="analyticsAvgScan">—</span><small>Среднее время сканирования</small></div><div class="stat"><span id="analyticsFeedbackAvg">—</span><small>Средняя оценка удобства</small></div></div>
     <h3>Популярные разделы</h3><div id="analyticsTabs" class="muted">Загрузка…</div>
     <h3>События</h3><div id="analyticsEvents" class="muted">Загрузка…</div>
@@ -169,6 +270,26 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
         <button id="downloadScanLogsBtn" type="button" class="btn-secondary">⬇️ Скачать логи сканирования</button>
       </div>
       <div id="logsStatus" class="muted"></div>
+      <div class="box" style="margin-top:12px">
+        <h3>Диагностика границ карт</h3>
+        <p class="muted">Проверяет тот же скриншот отдельно от обычного сканирования. Зелёные рамки — принятые контуры, красные — отклонённые, оранжевые — итоговые границы, голубые — достроенные позиции. Диагностика не меняет инвентарь и не сохраняет изображения.</p>
+        <button id="diagnoseBoundariesBtn" type="button" class="btn-secondary">🔬 Проверить границы выбранного скриншота</button>
+        <div id="boundaryDiagnosticStatus" class="muted" role="status" aria-live="polite"></div>
+        <div id="boundaryDiagnosticResults" hidden>
+          <div id="boundaryDiagnosticSummary" class="row"></div>
+          <div style="overflow:auto;background:#111;border-radius:8px;margin-top:10px">
+            <canvas id="boundaryDiagnosticCanvas" aria-label="Скриншот с наложенными найденными и отклонёнными границами"></canvas>
+          </div>
+          <p class="muted">Зелёный — контур прошёл фильтры; красный — контур отклонён; оранжевый — итоговая рамка; голубой — рамка достроена по ряду.</p>
+          <div class="row">
+            <button id="downloadBoundaryDiagnosticBtn" type="button" class="btn-green">⬇️ Скачать диагностический JSON</button>
+          </div>
+          <h4>Причины отклонения</h4><pre id="boundaryDiagnosticRejected" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+          <h4>Кандидаты и оценки сторон</h4><pre id="boundaryDiagnosticCandidates" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto"></pre>
+          <h4>Группировка рядов</h4><pre id="boundaryDiagnosticRows" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto"></pre>
+          <h4>Итоговые рамки</h4><pre id="boundaryDiagnosticFinal" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        </div>
+      </div>
       <div id="status"></div>
     </div>
     <div id="resultsBox" class="box" style="display:none">
@@ -957,6 +1078,114 @@ document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCount
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
 renderCounterQueueStatus();
 
+let lastBoundaryDiagnostic = null;
+let boundaryDiagnosticImageUrl = null;
+
+function renderBoundaryDiagnostic(report, file){
+  lastBoundaryDiagnostic = report;
+  const root = document.getElementById('boundaryDiagnosticResults');
+  root.hidden = false;
+  const stages = report.stages || {};
+  const stats = [
+    ['Контуры', stages.contours_found ?? 0],
+    ['Принятые кандидаты', stages.candidates_after_geometry_and_side_filters ?? 0],
+    ['Ряды', stages.rows_after_grouping ?? 0],
+    ['После достройки', stages.cards_after_row_completion ?? 0],
+    ['Итоговые рамки', stages.final_cards ?? 0]
+  ];
+  const summary = document.getElementById('boundaryDiagnosticSummary');
+  summary.replaceChildren();
+  stats.forEach(([label, value])=>{
+    const item=document.createElement('div');
+    item.className='stat';
+    const number=document.createElement('span');number.textContent=String(value);
+    const caption=document.createElement('small');caption.textContent=label;
+    item.append(number,caption);summary.appendChild(item);
+  });
+
+  document.getElementById('boundaryDiagnosticRejected').textContent =
+    JSON.stringify(stages.rejected_by_reason || {}, null, 2);
+  document.getElementById('boundaryDiagnosticCandidates').textContent =
+    JSON.stringify((report.contours || []).map(c=>({
+      contour_index:c.contour_index, box:c.box, aspect_ratio:c.aspect_ratio,
+      area:c.area, side_scores:c.side_scores, passed:c.passed,
+      rejection_reason:c.rejection_reason
+    })), null, 2) + (report.contours_truncated ? '\n…список ограничен первыми 250 контурами.' : '');
+  document.getElementById('boundaryDiagnosticRows').textContent = JSON.stringify({
+    grouped_rows: report.grouped_rows || [],
+    completed_rows: report.completed_rows || []
+  }, null, 2);
+  document.getElementById('boundaryDiagnosticFinal').textContent =
+    JSON.stringify(report.final_boxes || [], null, 2);
+
+  const canvas=document.getElementById('boundaryDiagnosticCanvas');
+  const ctx=canvas.getContext('2d');
+  const image=new Image();
+  image.onload=()=>{
+    canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+    ctx.drawImage(image,0,0);
+    (report.contours || []).forEach(c=>{
+      if(!Array.isArray(c.box)||c.box.length!==4)return;
+      const [x,y,w,h]=c.box;
+      ctx.strokeStyle=c.passed?'#35e06f':'#ff4d5a';
+      ctx.lineWidth=Math.max(2,Math.min(canvas.width,canvas.height)*0.0018);
+      ctx.strokeRect(x,y,w,h);
+    });
+    (report.final_boxes || []).forEach(item=>{
+      if(!Array.isArray(item.box)||item.box.length!==4)return;
+      const [x,y,w,h]=item.box;
+      ctx.strokeStyle=item.origin==='row_completion'?'#32d7ff':'#ffad32';
+      ctx.lineWidth=Math.max(3,Math.min(canvas.width,canvas.height)*0.0035);
+      ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle=ctx.strokeStyle;
+      ctx.font='bold '+Math.max(14,Math.round(canvas.width*0.014))+'px sans-serif';
+      ctx.fillText(String(item.row+1)+'.'+String(item.col+1),x+3,y+Math.max(16,Math.round(canvas.width*0.016)));
+    });
+  };
+  image.onerror=()=>setBoundaryDiagnosticStatus('Не удалось отобразить исходное изображение. JSON диагностики доступен для скачивания.','err');
+  if(boundaryDiagnosticImageUrl)URL.revokeObjectURL(boundaryDiagnosticImageUrl);
+  boundaryDiagnosticImageUrl=URL.createObjectURL(file);
+  image.src=boundaryDiagnosticImageUrl;
+}
+
+function setBoundaryDiagnosticStatus(message, className='muted'){
+  const el=document.getElementById('boundaryDiagnosticStatus');
+  el.className=className;el.textContent=message;
+}
+
+document.getElementById('diagnoseBoundariesBtn').addEventListener('click',async()=>{
+  const file=document.getElementById('screenshotInput').files[0];
+  if(!file){setBoundaryDiagnosticStatus('Сначала выберите исходный скриншот выше.','err');return}
+  const button=document.getElementById('diagnoseBoundariesBtn');
+  button.disabled=true;button.textContent='Анализируем границы…';
+  setBoundaryDiagnosticStatus('Отправка изображения на диагностический анализ…');
+  try{
+    const fd=new FormData();fd.append('file',file);
+    const response=await api('/admin/scan-diagnostics',{method:'POST',body:fd});
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.detail||('Ошибка HTTP '+response.status));
+    renderBoundaryDiagnostic(data,file);
+    const stages=data.stages||{};
+    setBoundaryDiagnosticStatus(
+      'Диагностика завершена: '+(stages.final_cards??0)+' итоговых рамок; '+(stages.contours_found??0)+' контуров. Отчёт можно скачать в JSON.','ok'
+    );
+  }catch(error){
+    setBoundaryDiagnosticStatus('Ошибка диагностики: '+(error.message||'не удалось обработать изображение'),'err');
+  }finally{
+    button.disabled=false;button.textContent='🔬 Проверить границы выбранного скриншота';
+  }
+});
+
+document.getElementById('downloadBoundaryDiagnosticBtn').addEventListener('click',()=>{
+  if(!lastBoundaryDiagnostic)return;
+  const blob=new Blob([JSON.stringify(lastBoundaryDiagnostic,null,2)],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url;link.download='pubg-card-boundary-diagnostics-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+
 async function scan(){
   const f=document.getElementById('screenshotInput').files[0];
   if(!f){status('Сначала выбери изображение','err');return}
@@ -988,6 +1217,7 @@ function renderResults(cards){
       const iconAction = !c.icon
         ? `<button class="btn-green" onclick="saveScannedIcon(${i})">Сохранить иконку из скриншота</button>`
         : '';
+      const addAsNewAction = `<button class="btn-secondary" onclick="saveCard(${i}, true)">Добавить как отдельную карту</button>`;
 
       el.innerHTML=`
         <img src="${esc(previewUrl)}">
@@ -1015,10 +1245,11 @@ function renderResults(cards){
         <div style="margin-top:10px">
           ${icon}
           ${iconAction}
+          ${addAsNewAction}
         </div>
 
         <p class="muted">
-          Повторно сохранять эту карту не нужно.
+          Если это другая карта, несмотря на сходство хешей, нажми «Добавить как отдельную карту». Существующая запись не изменится.
         </p>
 
         <details>
@@ -1112,7 +1343,7 @@ document.getElementById('downloadScanLogsBtn').onclick=async()=>{
   }
 };
 
-async function saveCard(i){
+async function saveCard(i, forceNew=false){
   const el=document.querySelectorAll('#scanResults .item')[i];
   const card=window.lastScan[i];
 
@@ -1120,18 +1351,26 @@ async function saveCard(i){
     return alert('Карточка не найдена');
   }
 
-  // Дубликаты повторно не сохраняем.
-  if(card.matched){
+  // Обычное сохранение блокируется для найденной карты. Отдельная кнопка
+  // разрешает администратору подтвердить, что это другая карта с похожими хешами.
+  if(card.matched && !forceNew){
     return alert(
       `Эта карта уже существует в базе:\n${card.id} · ${card.name||''}`
     );
+  }
+  if(card.matched && forceNew && !confirm(
+    `Сканер считает эту карту похожей на существующую:\n${card.id} · ${card.name||''}\n\nДобавить её как отдельную карту? Существующая запись останется без изменений.`
+  )){
+    return;
   }
 
   const nameInput=el.querySelector('#name_'+i);
   const rarityInput=el.querySelector('#rarity_'+i);
 
-  const name=nameInput ? nameInput.value.trim() : '';
-  const rarity=rarityInput ? Number(rarityInput.value) : 1;
+  const name=nameInput
+    ? nameInput.value.trim()
+    : (forceNew ? (prompt('Название новой карты', '') || '').trim() : '');
+  const rarity=rarityInput ? Number(rarityInput.value) : Number(card.rarity || 1);
 
   if(!name){
     return alert('Заполни название');
@@ -1619,6 +1858,55 @@ async function loadAnalytics() {
 }
 document.getElementById('refreshAnalyticsBtn').addEventListener('click', loadAnalytics);
 document.getElementById('analyticsDays').addEventListener('change', loadAnalytics);
+
+document.getElementById('exportAnalyticsBtn').addEventListener('click', async () => {
+  const button = document.getElementById('exportAnalyticsBtn');
+  const status = document.getElementById('analyticsStatus');
+  button.disabled = true;
+  try {
+    const days = Number(document.getElementById('analyticsDays').value || 30);
+    const response = await api('/admin/analytics/export?days=' + encodeURIComponent(days));
+    if (!response.ok) throw new Error(await readError(response));
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'pubg-analytics-' + days + 'd.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    status.className = 'ok';
+    status.textContent = 'Экспорт метрик за ' + days + ' дней скачан.';
+  } catch (error) {
+    status.className = 'err';
+    status.textContent = 'Не удалось скачать метрики: ' + (error.message || 'ошибка');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById('clearScanMetricsBtn').addEventListener('click', async () => {
+  const button = document.getElementById('clearScanMetricsBtn');
+  const status = document.getElementById('analyticsStatus');
+  if (!confirm('Удалить только время обработки (duration_ms и profile) из всех сохранённых событий сканирования? Сами события и остальные метрики останутся.')) return;
+  button.disabled = true;
+  status.className = 'muted';
+  status.textContent = 'Очищаем метрики скорости…';
+  try {
+    const response = await api('/admin/analytics/scan-performance', { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Не удалось очистить метрики');
+    await loadAnalytics();
+    status.className = 'ok';
+    status.textContent = 'Очищены метрики скорости в ' + Number(data.cleared_events || 0) + ' событиях. Остальные данные сохранены.';
+  } catch (error) {
+    status.className = 'err';
+    status.textContent = 'Ошибка очистки: ' + (error.message || 'не удалось очистить метрики');
+  } finally {
+    button.disabled = false;
+  }
+});
 
 document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');

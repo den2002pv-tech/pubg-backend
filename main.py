@@ -30,8 +30,8 @@ from scanner import _detect_counter
 
 from pydantic import BaseModel
 
-from scanner import calculate_card_hashes, detect_inventory_cards, scan_screenshot
-from analytics import get_analytics_summary, init_analytics_db, record_analytics_events
+from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inventory_cards, scan_screenshot
+from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
@@ -964,6 +964,36 @@ async def admin_analytics(
     return get_analytics_summary(days=days)
 
 
+@app.get("/admin/analytics/export")
+async def export_admin_analytics(
+    authorization: str | None = Header(default=None),
+    days: int = 30,
+):
+    """Download analytics events for the selected period without user identifiers."""
+    require_admin(authorization)
+    payload = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        **get_analytics_events(days=days),
+    }
+    body = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+    filename = f"pubg-analytics-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json"
+    return Response(
+        content=body,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.delete("/admin/analytics/scan-performance")
+async def clear_admin_scan_performance(
+    authorization: str | None = Header(default=None),
+):
+    """Clear scan timing fields only; retain analytics events and other properties."""
+    require_admin(authorization)
+    cleared = clear_scan_performance_metrics()
+    return {"status": "ok", "cleared_events": cleared}
+
+
 @app.get("/admin/users")
 async def admin_users(authorization: str | None = Header(default=None), search: str = "", online_seconds: int = 90, limit: int = 50, offset: int = 0):
     require_admin(authorization)
@@ -1064,6 +1094,47 @@ async def scan_preview(
             "status": "error",
             "error_type": type(exc).__name__,
             "error": str(exc)[:500],
+            "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+        })
+        SCAN_DIAGNOSTIC_LOGS.append(log_entry)
+        raise
+
+
+
+@app.post("/admin/scan-diagnostics")
+async def scan_diagnostics(
+    file: UploadFile = File(...),
+    authorization: str | None = Header(default=None),
+):
+    """Run the boundary detector in diagnostic mode and return a shareable JSON report."""
+    require_admin(authorization)
+    started = time.perf_counter()
+    log_entry: dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event": "scan_diagnostics",
+        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+    }
+    try:
+        image = await _read_image(file)
+        report = diagnose_inventory_cards(image)
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        report["diagnostic_version"] = 1
+        report["timestamp"] = log_entry["timestamp"]
+        report["app_commit"] = log_entry["app_commit"]
+        report["duration_ms"] = duration_ms
+        log_entry.update({
+            "status": "ok",
+            "image_size": report.get("image_size"),
+            "stages": report.get("stages"),
+            "duration_ms": duration_ms,
+        })
+        SCAN_DIAGNOSTIC_LOGS.append(log_entry)
+        return report
+    except Exception as exc:
+        log_entry.update({
+            "status": "error",
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:300],
             "duration_ms": round((time.perf_counter() - started) * 1000, 1),
         })
         SCAN_DIAGNOSTIC_LOGS.append(log_entry)

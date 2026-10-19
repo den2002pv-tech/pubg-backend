@@ -320,6 +320,375 @@
         }
       ],
       "image_sha256": "0eb5670a2b871253c724acd899b2044953287a1f911edbb3a66e35ed00041ce3"
+    },
+    {
+      "id": "inventory-20261019111555",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261019111555.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 13,
+          "state": "owned",
+          "card_name": "Безлецинционый ездок",
+          "card_id": "card_94",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 131.758,
+            "luminance_median": 132.0,
+            "luminance_stddev": 36.513,
+            "saturation_mean": 12.265,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0736,
+            "frame_luminance_mean": 140.526,
+            "frame_saturation_mean": 2.556,
+            "center_luminance_mean": 125.494,
+            "center_luminance_median": 134.0,
+            "center_luminance_stddev": 39.969,
+            "center_saturation_mean": 21.668,
+            "title_luminance_mean": 124.334,
+            "title_luminance_median": 123.0,
+            "title_luminance_stddev": 30.013,
+            "title_saturation_mean": 8.035,
+            "bottom_luminance_mean": 137.619,
+            "bottom_luminance_median": 128.0,
+            "bottom_luminance_stddev": 32.406,
+            "bottom_saturation_mean": 3.119
+          }
+        },
+        {
+          "box": [
+            474,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 14,
+          "state": "owned",
+          "card_name": "Адская метель",
+          "card_id": "card_93",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 123.225,
+            "luminance_median": 127.0,
+            "luminance_stddev": 42.235,
+            "saturation_mean": 15.108,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.1436,
+            "frame_luminance_mean": 142.773,
+            "frame_saturation_mean": 1.797,
+            "center_luminance_mean": 113.399,
+            "center_luminance_median": 124.0,
+            "center_luminance_stddev": 44.87,
+            "center_saturation_mean": 26.461,
+            "title_luminance_mean": 116.461,
+            "title_luminance_median": 112.0,
+            "title_luminance_stddev": 33.676,
+            "title_saturation_mean": 7.258,
+            "bottom_luminance_mean": 128.846,
+            "bottom_luminance_median": 124.0,
+            "bottom_luminance_stddev": 39.101,
+            "bottom_saturation_mean": 6.19
+          }
+        }
+      ],
+      "image_sha256": "a866c43ce04e35e0adcbb1a21c4076bb3996e878ecacfd0eef16f77fe7321105"
+    },
+    {
+      "id": "inventory-20261019111720",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261019111720.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 5,
+          "state": "owned",
+          "card_name": "Менемен",
+          "card_id": "card_75",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 136.263,
+            "luminance_median": 132.0,
+            "luminance_stddev": 33.824,
+            "saturation_mean": 14.235,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0875,
+            "frame_luminance_mean": 140.086,
+            "frame_saturation_mean": 2.558,
+            "center_luminance_mean": 138.386,
+            "center_luminance_median": 142.0,
+            "center_luminance_stddev": 37.462,
+            "center_saturation_mean": 28.4,
+            "title_luminance_mean": 120.623,
+            "title_luminance_median": 115.0,
+            "title_luminance_stddev": 26.45,
+            "title_saturation_mean": 0.239,
+            "bottom_luminance_mean": 133.496,
+            "bottom_luminance_median": 127.0,
+            "bottom_luminance_stddev": 28.616,
+            "bottom_saturation_mean": 3.125
+          }
+        },
+        {
+          "box": [
+            474,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 9,
+          "state": "owned",
+          "card_name": "Казандиби",
+          "card_id": "card_91",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 143.264,
+            "luminance_median": 135.0,
+            "luminance_stddev": 35.762,
+            "saturation_mean": 13.794,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0648,
+            "frame_luminance_mean": 142.638,
+            "frame_saturation_mean": 1.694,
+            "center_luminance_mean": 151.194,
+            "center_luminance_median": 151.0,
+            "center_luminance_stddev": 37.317,
+            "center_saturation_mean": 28.009,
+            "title_luminance_mean": 121.088,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 27.161,
+            "title_saturation_mean": 0.302,
+            "bottom_luminance_mean": 135.74,
+            "bottom_luminance_median": 127.0,
+            "bottom_luminance_stddev": 33.288,
+            "bottom_saturation_mean": 1.723
+          }
+        },
+        {
+          "box": [
+            743,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "Чечевичный суп",
+          "card_id": "card_92",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 153.09,
+            "luminance_median": 142.0,
+            "luminance_stddev": 41.902,
+            "saturation_mean": 14.405,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0679,
+            "frame_luminance_mean": 143.159,
+            "frame_saturation_mean": 3.851,
+            "center_luminance_mean": 171.15,
+            "center_luminance_median": 167.0,
+            "center_luminance_stddev": 43.058,
+            "center_saturation_mean": 28.01,
+            "title_luminance_mean": 121.475,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 27.848,
+            "title_saturation_mean": 0.561,
+            "bottom_luminance_mean": 136.74,
+            "bottom_luminance_median": 127.0,
+            "bottom_luminance_stddev": 33.781,
+            "bottom_saturation_mean": 3.393
+          }
+        }
+      ],
+      "image_sha256": "43174d50218d67f730422a1d7d009e935d07d574f79813569cec30f212eef9a8"
+    },
+    {
+      "id": "inventory-20261019111851",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261019111851.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": "",
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 70.139,
+            "luminance_median": 62.0,
+            "luminance_stddev": 34.213,
+            "saturation_mean": 42.2,
+            "saturation_median": 33.0,
+            "saturated_pixel_ratio": 0.2219,
+            "frame_luminance_mean": 90.042,
+            "frame_saturation_mean": 59.599,
+            "center_luminance_mean": 54.649,
+            "center_luminance_median": 48.0,
+            "center_luminance_stddev": 18.417,
+            "center_saturation_mean": 35.564,
+            "title_luminance_mean": 69.659,
+            "title_luminance_median": 66.0,
+            "title_luminance_stddev": 24.556,
+            "title_saturation_mean": 54.735,
+            "bottom_luminance_mean": 95.777,
+            "bottom_luminance_median": 100.0,
+            "bottom_luminance_stddev": 41.091,
+            "bottom_saturation_mean": 40.926
+          }
+        },
+        {
+          "box": [
+            474,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": "",
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 84.814,
+            "luminance_median": 82.0,
+            "luminance_stddev": 33.941,
+            "saturation_mean": 61.92,
+            "saturation_median": 62.0,
+            "saturated_pixel_ratio": 0.4247,
+            "frame_luminance_mean": 93.832,
+            "frame_saturation_mean": 70.483,
+            "center_luminance_mean": 78.433,
+            "center_luminance_median": 85.0,
+            "center_luminance_stddev": 28.107,
+            "center_saturation_mean": 60.004,
+            "title_luminance_mean": 75.138,
+            "title_luminance_median": 68.0,
+            "title_luminance_stddev": 20.265,
+            "title_saturation_mean": 85.582,
+            "bottom_luminance_mean": 98.225,
+            "bottom_luminance_median": 100.0,
+            "bottom_luminance_stddev": 41.938,
+            "bottom_saturation_mean": 49.112
+          }
+        },
+        {
+          "box": [
+            743,
+            169,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Кролик созерцающий луну",
+          "card_id": "card_74",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 165.929,
+            "luminance_median": 159.0,
+            "luminance_stddev": 38.657,
+            "saturation_mean": 57.846,
+            "saturation_median": 58.0,
+            "saturated_pixel_ratio": 0.3783,
+            "frame_luminance_mean": 157.506,
+            "frame_saturation_mean": 42.245,
+            "center_luminance_mean": 168.202,
+            "center_luminance_median": 158.0,
+            "center_luminance_stddev": 42.321,
+            "center_saturation_mean": 71.243,
+            "title_luminance_mean": 157.768,
+            "title_luminance_median": 158.0,
+            "title_luminance_stddev": 33.75,
+            "title_saturation_mean": 49.638,
+            "bottom_luminance_mean": 172.561,
+            "bottom_luminance_median": 191.0,
+            "bottom_luminance_stddev": 38.861,
+            "bottom_saturation_mean": 35.609
+          }
+        },
+        {
+          "box": [
+            1012,
+            169,
+            239,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "unowned",
+          "card_name": "",
+          "card_id": "",
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 71.333,
+            "luminance_median": 61.0,
+            "luminance_stddev": 34.82,
+            "saturation_mean": 33.552,
+            "saturation_median": 30.0,
+            "saturated_pixel_ratio": 0.0586,
+            "frame_luminance_mean": 90.755,
+            "frame_saturation_mean": 35.627,
+            "center_luminance_mean": 57.911,
+            "center_luminance_median": 55.0,
+            "center_luminance_stddev": 18.485,
+            "center_saturation_mean": 34.713,
+            "title_luminance_mean": 71.981,
+            "title_luminance_median": 64.0,
+            "title_luminance_stddev": 19.071,
+            "title_saturation_mean": 27.892,
+            "bottom_luminance_mean": 89.108,
+            "bottom_luminance_median": 89.0,
+            "bottom_luminance_stddev": 46.034,
+            "bottom_saturation_mean": 28.242
+          }
+        }
+      ],
+      "image_sha256": "b3aad80471bb04577e8a83088fde62a294a70b04790eadede22a4693b997aa99"
     }
   ]
 }

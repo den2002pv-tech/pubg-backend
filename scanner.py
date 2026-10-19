@@ -123,8 +123,14 @@ def _cluster_rows(rects: list[tuple[int, int, int, int]], image_h: int) -> list[
 
     result: list[list[tuple[int, int, int, int]]] = []
     for row in rows:
-        for run in _regular_card_runs(row):
+        runs = _regular_card_runs(row)
+        for run in runs:
             result.append(sorted(run, key=lambda r: r[0]))
+        if not runs and len(row) == 1:
+            # A lone card may be adjacent to a card whose outline merged with
+            # background artwork. _detect_rows keeps it only if a neighbour is
+            # confirmed by edges at the expected grid position.
+            result.append(list(row))
     return result
 
 
@@ -145,9 +151,34 @@ def _edge_score(gray_edges: np.ndarray, rect: tuple[int, int, int, int]) -> floa
     return float(np.mean(vals)) if vals else 0.0
 
 
+_CARD_GRID_STEP_RATIO = 1.12  # center distance / card width in the album grid
+
+
+def _complete_single(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list[tuple[int, int, int, int]]:
+    """Extend a lone card to neighbours at the album grid step; unconfirmed lone cards are dropped."""
+    if not row:
+        return row
+    h, w = img.shape[:2]
+    x, y, cw, ch = row[0]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 45, 140)
+    step = cw * _CARD_GRID_STEP_RATIO
+    result = list(row)
+    for direction in (-1, 1):
+        for k in range(1, 4):
+            nx = int(round(x + direction * step * k))
+            cand = (nx, y, cw, ch)
+            if nx < 0 or nx + cw > w:
+                break
+            if _edge_score(edges, cand) < 28.0:
+                break
+            result.append(cand)
+    return sorted(result, key=lambda r: r[0]) if len(result) >= 2 else []
+
+
 def _complete_row(row: list[tuple[int, int, int, int]], img: np.ndarray) -> list[tuple[int, int, int, int]]:
     if len(row) < 2:
-        return row
+        return _complete_single(row, img)
     h, w = img.shape[:2]
     widths = np.array([r[2] for r in row], dtype=float)
     heights = np.array([r[3] for r in row], dtype=float)
@@ -295,13 +326,109 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     candidates = _candidate_rectangles(img)
     rows = _cluster_rows(candidates, img.shape[0])
     if rows:
-        rows = [_complete_row(row, img) for row in rows]
-        return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
+        rows = [r for r in (_complete_row(row, img) for row in rows) if r]
+        if rows:
+            return sorted(rows, key=lambda row: np.mean([r[1] for r in row]))
 
     single = _single_card_candidate(img)
     if single is not None:
         return [[single]]
     return []
+
+
+def diagnose_inventory_cards(image: Image.Image) -> dict[str, Any]:
+    """Return bounded, JSON-safe diagnostics for card-boundary detection."""
+    pil = _image_from_any(image)
+    rgb = np.asarray(pil)
+    img = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    height, width = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges = cv2.Canny(blurred, 45, 140)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    candidates: list[dict[str, Any]] = []
+    rejected: dict[str, int] = {}
+    def reject(reason: str) -> None:
+        rejected[reason] = rejected.get(reason, 0) + 1
+
+    for index, contour in enumerate(contours):
+        x, y, cw, ch = cv2.boundingRect(contour)
+        ratio = cw / float(ch or 1)
+        area = cw * ch
+        bw, bh = max(2, int(cw * 0.035)), max(2, int(ch * 0.035))
+        strips = (
+            edges[y:y + ch, x:x + bw],
+            edges[y:y + ch, max(x, x + cw - bw):x + cw],
+            edges[y:y + bh, x:x + cw],
+            edges[max(y, y + ch - bh):y + ch, x:x + cw],
+        )
+        side_scores = [round(float(s.mean()) / 255.0, 4) if s.size else 0.0 for s in strips]
+        reason = None
+        if cw < width * 0.055 or cw > width * 0.62:
+            reason = "width_out_of_range"
+        elif ch < height * 0.18 or ch > height * 0.95:
+            reason = "height_out_of_range"
+        elif not 0.45 <= ratio <= 0.90:
+            reason = "aspect_ratio_out_of_range"
+        elif area < width * height * 0.012:
+            reason = "area_too_small"
+        elif sum(value >= 0.035 for value in side_scores) < 3:
+            reason = "fewer_than_three_strong_sides"
+        if reason:
+            reject(reason)
+        candidates.append({
+            "contour_index": index,
+            "box": [int(x), int(y), int(cw), int(ch)],
+            "aspect_ratio": round(ratio, 4),
+            "area": int(area),
+            "side_scores": side_scores,
+            "side_threshold": 0.035,
+            "passed": reason is None,
+            "rejection_reason": reason,
+        })
+
+    raw_boxes = _candidate_rectangles(img)
+    clustered = _cluster_rows(raw_boxes, height)
+    completed = [r for r in (_complete_row(row, img) for row in clustered) if r]
+    if completed:
+        final_rows = completed
+    else:
+        single = _single_card_candidate(img)
+        final_rows = [[single]] if single is not None else []
+    final_boxes = [
+        {"row": row_index, "col": col_index, "box": [int(v) for v in box],
+         "origin": "detected" if any(tuple(box) == tuple(found) for found in raw_boxes) else "row_completion"}
+        for row_index, row in enumerate(final_rows)
+        for col_index, box in enumerate(row)
+    ]
+    return {
+        "image_size": [int(width), int(height)],
+        "parameters": {
+            "canny_low": 45, "canny_high": 140, "gaussian_blur": [3, 3],
+            "morphology_kernel": [5, 5], "morphology_iterations": 2,
+            "candidate_width_fraction": [0.055, 0.62],
+            "candidate_height_fraction": [0.18, 0.95],
+            "candidate_aspect_ratio": [0.45, 0.90],
+            "candidate_area_fraction_min": 0.012,
+            "side_score_min": 0.035, "required_sides": 3,
+        },
+        "stages": {
+            "contours_found": len(contours),
+            "candidates_after_geometry_and_side_filters": len(raw_boxes),
+            "rows_after_grouping": len(clustered),
+            "cards_after_row_completion": sum(len(row) for row in completed),
+            "final_cards": len(final_boxes),
+            "rejected_by_reason": rejected,
+        },
+        "contours": candidates[:250],
+        "contours_truncated": len(candidates) > 250,
+        "grouped_rows": [[list(map(int, box)) for box in row] for row in clustered],
+        "completed_rows": [[list(map(int, box)) for box in row] for row in completed],
+        "final_boxes": final_boxes,
+    }
 
 
 def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
@@ -478,6 +605,19 @@ def _refine_digit_prediction(
     bottom_left = glyph[12:19, 0:4]
     top_right_fill = float(top_right.mean()) if top_right.size else 0.0
     bottom_left_fill = float(bottom_left.mean()) if bottom_left.size else 0.0
+
+    # Resolve 0/9 when the templates are nearly tied. A 9 has no continuous
+    # left wall in the lower part of the glyph, while a 0 keeps that wall closed.
+    # Use a narrow lower-left strip so the cue does not rewrite trailing zeros
+    # in multi-digit quantities unless the 9 template is also competitive.
+    if (
+        predicted_digit == 0
+        and scores.get(9, 0.0) >= 0.40
+        and scores[0] - scores[9] <= 0.12
+    ):
+        lower_left_wall = glyph[12:14, 0:3]
+        if lower_left_wall.size and float(lower_left_wall.mean()) < 0.25:
+            return 9, scores[9]
 
     # Resolve 4/6 first. A 4 has an upper-right vertical stem and a relatively
     # open lower-left quadrant; a 6 has an open upper-right and a filled lower bowl.
@@ -958,16 +1098,19 @@ def is_card_darkened(card: Image.Image) -> bool:
     if frame.size == 0:
         return False
 
-    # OpenCV HSV uses H in [0, 179]. Look for gold only around the frame,
-    # never across the artwork where dark illustrations are normal.
-    gold = (
-        (frame[:, 0] >= 15) & (frame[:, 0] <= 38)
-        & (frame[:, 1] >= 45) & (frame[:, 2] >= 80)
-    )
     bright_white = (frame[:, 1] < 70) & (frame[:, 2] > 205)
-    gold_ratio = float(np.count_nonzero(gold)) / float(frame.shape[0])
     bright_frame_ratio = float(np.count_nonzero(bright_white)) / float(frame.shape[0])
-    frame_brightness_p75 = float(np.percentile(frame[:, 2], 75))
+
+    frame_mask = np.zeros((h, w), dtype=bool)
+    frame_x = max(1, int(w * 0.10))
+    frame_y = max(1, int(h * 0.08))
+    frame_mask[:frame_y, :] = True
+    frame_mask[-frame_y:, :] = True
+    frame_mask[:, :frame_x] = True
+    frame_mask[:, -frame_x:] = True
+    frame_luminance_mean = float(
+        cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)[frame_mask].mean()
+    )
 
     # The centered bottom emblem is a separate signal from the artwork.
     badge = hsv[int(h * 0.88):max(int(h * 0.88) + 1, int(h * 0.98)),
@@ -980,10 +1123,9 @@ def is_card_darkened(card: Image.Image) -> bool:
 
     return (
         badge_median < 150
-        and badge_median < frame_brightness_p75 - 8
+        and frame_luminance_mean < 130
         and badge_bright_ratio < 0.18
         and bright_frame_ratio < 0.18
-        and gold_ratio < 0.04
     )
 
 
@@ -1026,6 +1168,20 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _has_counter_evidence(quantity_confidence: float, counter_debug: dict[str, Any]) -> bool:
+    """Avoid dropping a card when a strong multiply sign was found but its digit was ambiguous."""
+    if (
+        quantity_confidence > 0
+        or int(counter_debug.get("candidates", 0) or 0) > 0
+        or counter_debug.get("reason") == "ok"
+    ):
+        return True
+    return any(
+        isinstance(candidate, dict) and float(candidate.get("score", 0) or 0) >= 0.58
+        for candidate in counter_debug.get("x_candidates", [])
+    )
+
+
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
     import time
 
@@ -1053,11 +1209,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
         counter_ms += (time.perf_counter() - stage_started) * 1000
 
-        has_counter_evidence = (
-            quantity_confidence > 0
-            or int(counter_debug.get("candidates", 0) or 0) > 0
-            or counter_debug.get("reason") == "ok"
-        )
+        has_counter_evidence = _has_counter_evidence(quantity_confidence, counter_debug)
         if not has_counter_evidence and is_card_darkened(crop):
             darkened_filtered_count += 1
             continue

@@ -1,4 +1,6 @@
-from analytics import sanitize_event
+from unittest.mock import MagicMock, patch
+
+from analytics import clear_scan_performance_metrics, sanitize_event
 
 
 def test_unknown_event_is_ignored():
@@ -65,3 +67,22 @@ def test_feedback_rating_and_category_are_recorded_without_free_text():
         "properties": {"rating": 4, "category": "confusing", "comment": "private free text"},
     })
     assert result == ("feedback_submitted", {"category": "confusing", "rating": 4})
+
+
+
+def test_clear_scan_performance_removes_only_timing_fields():
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    cursor_context = connection.cursor.return_value
+    cursor = cursor_context.__enter__.return_value
+    cursor.fetchall.return_value = [{"id": 1}, {"id": 2}]
+
+    with patch("analytics.get_connection", return_value=connection):
+        cleared = clear_scan_performance_metrics()
+
+    assert cleared == 2
+    query = cursor.execute.call_args.args[0]
+    assert "properties - 'duration_ms' - 'profile'" in query
+    assert "event_name IN ('scan_completed', 'scan_failed')" in query
+    assert "RETURNING id" in query
+    connection.commit.assert_called_once()
