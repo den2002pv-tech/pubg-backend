@@ -406,6 +406,129 @@
         }
       ],
       "image_sha256": "a866c43ce04e35e0adcbb1a21c4076bb3996e878ecacfd0eef16f77fe7321105"
+    },
+    {
+      "id": "inventory-20261019111720",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261019111720.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 5,
+          "state": "owned",
+          "card_name": "Менемен",
+          "card_id": "card_75",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 136.263,
+            "luminance_median": 132.0,
+            "luminance_stddev": 33.824,
+            "saturation_mean": 14.235,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0875,
+            "frame_luminance_mean": 140.086,
+            "frame_saturation_mean": 2.558,
+            "center_luminance_mean": 138.386,
+            "center_luminance_median": 142.0,
+            "center_luminance_stddev": 37.462,
+            "center_saturation_mean": 28.4,
+            "title_luminance_mean": 120.623,
+            "title_luminance_median": 115.0,
+            "title_luminance_stddev": 26.45,
+            "title_saturation_mean": 0.239,
+            "bottom_luminance_mean": 133.496,
+            "bottom_luminance_median": 127.0,
+            "bottom_luminance_stddev": 28.616,
+            "bottom_saturation_mean": 3.125
+          }
+        },
+        {
+          "box": [
+            474,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 9,
+          "state": "owned",
+          "card_name": "Казандиби",
+          "card_id": "card_91",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 143.264,
+            "luminance_median": 135.0,
+            "luminance_stddev": 35.762,
+            "saturation_mean": 13.794,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0648,
+            "frame_luminance_mean": 142.638,
+            "frame_saturation_mean": 1.694,
+            "center_luminance_mean": 151.194,
+            "center_luminance_median": 151.0,
+            "center_luminance_stddev": 37.317,
+            "center_saturation_mean": 28.009,
+            "title_luminance_mean": 121.088,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 27.161,
+            "title_saturation_mean": 0.302,
+            "bottom_luminance_mean": 135.74,
+            "bottom_luminance_median": 127.0,
+            "bottom_luminance_stddev": 33.288,
+            "bottom_saturation_mean": 1.723
+          }
+        },
+        {
+          "box": [
+            743,
+            264,
+            240,
+            352
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "Чечевичный суп",
+          "card_id": "card_92",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 153.09,
+            "luminance_median": 142.0,
+            "luminance_stddev": 41.902,
+            "saturation_mean": 14.405,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0679,
+            "frame_luminance_mean": 143.159,
+            "frame_saturation_mean": 3.851,
+            "center_luminance_mean": 171.15,
+            "center_luminance_median": 167.0,
+            "center_luminance_stddev": 43.058,
+            "center_saturation_mean": 28.01,
+            "title_luminance_mean": 121.475,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 27.848,
+            "title_saturation_mean": 0.561,
+            "bottom_luminance_mean": 136.74,
+            "bottom_luminance_median": 127.0,
+            "bottom_luminance_stddev": 33.781,
+            "bottom_saturation_mean": 3.393
+          }
+        }
+      ],
+      "image_sha256": "43174d50218d67f730422a1d7d009e935d07d574f79813569cec30f212eef9a8"
     }
   ]
 }
