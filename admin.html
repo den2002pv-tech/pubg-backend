@@ -169,6 +169,26 @@ hr{border:0;border-top:1px solid #444;margin:16px 0}
         <button id="downloadScanLogsBtn" type="button" class="btn-secondary">⬇️ Скачать логи сканирования</button>
       </div>
       <div id="logsStatus" class="muted"></div>
+      <div class="box" style="margin-top:12px">
+        <h3>Диагностика границ карт</h3>
+        <p class="muted">Проверяет тот же скриншот отдельно от обычного сканирования. Зелёные рамки — принятые контуры, красные — отклонённые, оранжевые — итоговые границы, голубые — достроенные позиции. Диагностика не меняет инвентарь и не сохраняет изображения.</p>
+        <button id="diagnoseBoundariesBtn" type="button" class="btn-secondary">🔬 Проверить границы выбранного скриншота</button>
+        <div id="boundaryDiagnosticStatus" class="muted" role="status" aria-live="polite"></div>
+        <div id="boundaryDiagnosticResults" hidden>
+          <div id="boundaryDiagnosticSummary" class="row"></div>
+          <div style="overflow:auto;background:#111;border-radius:8px;margin-top:10px">
+            <canvas id="boundaryDiagnosticCanvas" aria-label="Скриншот с наложенными найденными и отклонёнными границами"></canvas>
+          </div>
+          <p class="muted">Зелёный — контур прошёл фильтры; красный — контур отклонён; оранжевый — итоговая рамка; голубой — рамка достроена по ряду.</p>
+          <div class="row">
+            <button id="downloadBoundaryDiagnosticBtn" type="button" class="btn-green">⬇️ Скачать диагностический JSON</button>
+          </div>
+          <h4>Причины отклонения</h4><pre id="boundaryDiagnosticRejected" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+          <h4>Кандидаты и оценки сторон</h4><pre id="boundaryDiagnosticCandidates" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto"></pre>
+          <h4>Группировка рядов</h4><pre id="boundaryDiagnosticRows" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto"></pre>
+          <h4>Итоговые рамки</h4><pre id="boundaryDiagnosticFinal" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+        </div>
+      </div>
       <div id="status"></div>
     </div>
     <div id="resultsBox" class="box" style="display:none">
@@ -956,6 +976,114 @@ document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
 document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCounterCasesToQueue()}catch(e){const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message}};
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
 renderCounterQueueStatus();
+
+let lastBoundaryDiagnostic = null;
+let boundaryDiagnosticImageUrl = null;
+
+function renderBoundaryDiagnostic(report, file){
+  lastBoundaryDiagnostic = report;
+  const root = document.getElementById('boundaryDiagnosticResults');
+  root.hidden = false;
+  const stages = report.stages || {};
+  const stats = [
+    ['Контуры', stages.contours_found ?? 0],
+    ['Принятые кандидаты', stages.candidates_after_geometry_and_side_filters ?? 0],
+    ['Ряды', stages.rows_after_grouping ?? 0],
+    ['После достройки', stages.cards_after_row_completion ?? 0],
+    ['Итоговые рамки', stages.final_cards ?? 0]
+  ];
+  const summary = document.getElementById('boundaryDiagnosticSummary');
+  summary.replaceChildren();
+  stats.forEach(([label, value])=>{
+    const item=document.createElement('div');
+    item.className='stat';
+    const number=document.createElement('span');number.textContent=String(value);
+    const caption=document.createElement('small');caption.textContent=label;
+    item.append(number,caption);summary.appendChild(item);
+  });
+
+  document.getElementById('boundaryDiagnosticRejected').textContent =
+    JSON.stringify(stages.rejected_by_reason || {}, null, 2);
+  document.getElementById('boundaryDiagnosticCandidates').textContent =
+    JSON.stringify((report.contours || []).map(c=>({
+      contour_index:c.contour_index, box:c.box, aspect_ratio:c.aspect_ratio,
+      area:c.area, side_scores:c.side_scores, passed:c.passed,
+      rejection_reason:c.rejection_reason
+    })), null, 2) + (report.contours_truncated ? '\\n…список ограничен первыми 250 контурами.' : '');
+  document.getElementById('boundaryDiagnosticRows').textContent = JSON.stringify({
+    grouped_rows: report.grouped_rows || [],
+    completed_rows: report.completed_rows || []
+  }, null, 2);
+  document.getElementById('boundaryDiagnosticFinal').textContent =
+    JSON.stringify(report.final_boxes || [], null, 2);
+
+  const canvas=document.getElementById('boundaryDiagnosticCanvas');
+  const ctx=canvas.getContext('2d');
+  const image=new Image();
+  image.onload=()=>{
+    canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+    ctx.drawImage(image,0,0);
+    (report.contours || []).forEach(c=>{
+      if(!Array.isArray(c.box)||c.box.length!==4)return;
+      const [x,y,w,h]=c.box;
+      ctx.strokeStyle=c.passed?'#35e06f':'#ff4d5a';
+      ctx.lineWidth=Math.max(2,Math.min(canvas.width,canvas.height)*0.0018);
+      ctx.strokeRect(x,y,w,h);
+    });
+    (report.final_boxes || []).forEach(item=>{
+      if(!Array.isArray(item.box)||item.box.length!==4)return;
+      const [x,y,w,h]=item.box;
+      ctx.strokeStyle=item.origin==='row_completion'?'#32d7ff':'#ffad32';
+      ctx.lineWidth=Math.max(3,Math.min(canvas.width,canvas.height)*0.0035);
+      ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle=ctx.strokeStyle;
+      ctx.font='bold '+Math.max(14,Math.round(canvas.width*0.014))+'px sans-serif';
+      ctx.fillText(String(item.row+1)+'.'+String(item.col+1),x+3,y+Math.max(16,Math.round(canvas.width*0.016)));
+    });
+  };
+  image.onerror=()=>setBoundaryDiagnosticStatus('Не удалось отобразить исходное изображение. JSON диагностики доступен для скачивания.','err');
+  if(boundaryDiagnosticImageUrl)URL.revokeObjectURL(boundaryDiagnosticImageUrl);
+  boundaryDiagnosticImageUrl=URL.createObjectURL(file);
+  image.src=boundaryDiagnosticImageUrl;
+}
+
+function setBoundaryDiagnosticStatus(message, className='muted'){
+  const el=document.getElementById('boundaryDiagnosticStatus');
+  el.className=className;el.textContent=message;
+}
+
+document.getElementById('diagnoseBoundariesBtn').addEventListener('click',async()=>{
+  const file=document.getElementById('screenshotInput').files[0];
+  if(!file){setBoundaryDiagnosticStatus('Сначала выберите исходный скриншот выше.','err');return}
+  const button=document.getElementById('diagnoseBoundariesBtn');
+  button.disabled=true;button.textContent='Анализируем границы…';
+  setBoundaryDiagnosticStatus('Отправка изображения на диагностический анализ…');
+  try{
+    const fd=new FormData();fd.append('file',file);
+    const response=await api('/admin/scan-diagnostics',{method:'POST',body:fd});
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.detail||('Ошибка HTTP '+response.status));
+    renderBoundaryDiagnostic(data,file);
+    const stages=data.stages||{};
+    setBoundaryDiagnosticStatus(
+      'Диагностика завершена: '+(stages.final_cards??0)+' итоговых рамок; '+(stages.contours_found??0)+' контуров. Отчёт можно скачать в JSON.','ok'
+    );
+  }catch(error){
+    setBoundaryDiagnosticStatus('Ошибка диагностики: '+(error.message||'не удалось обработать изображение'),'err');
+  }finally{
+    button.disabled=false;button.textContent='🔬 Проверить границы выбранного скриншота';
+  }
+});
+
+document.getElementById('downloadBoundaryDiagnosticBtn').addEventListener('click',()=>{
+  if(!lastBoundaryDiagnostic)return;
+  const blob=new Blob([JSON.stringify(lastBoundaryDiagnostic,null,2)],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=url;link.download='pubg-card-boundary-diagnostics-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
 
 async function scan(){
   const f=document.getElementById('screenshotInput').files[0];
