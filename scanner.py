@@ -304,6 +304,97 @@ def _detect_rows(img: np.ndarray) -> list[list[tuple[int, int, int, int]]]:
     return []
 
 
+def diagnose_inventory_cards(image: Image.Image) -> dict[str, Any]:
+    """Return bounded, JSON-safe diagnostics for card-boundary detection."""
+    pil = _image_from_any(image)
+    rgb = np.asarray(pil)
+    img = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    height, width = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges = cv2.Canny(blurred, 45, 140)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    candidates: list[dict[str, Any]] = []
+    rejected: dict[str, int] = {}
+    def reject(reason: str) -> None:
+        rejected[reason] = rejected.get(reason, 0) + 1
+
+    for index, contour in enumerate(contours):
+        x, y, cw, ch = cv2.boundingRect(contour)
+        ratio = cw / float(ch or 1)
+        area = cw * ch
+        bw, bh = max(2, int(cw * 0.035)), max(2, int(ch * 0.035))
+        strips = (
+            edges[y:y + ch, x:x + bw],
+            edges[y:y + ch, max(x, x + cw - bw):x + cw],
+            edges[y:y + bh, x:x + cw],
+            edges[max(y, y + ch - bh):y + ch, x:x + cw],
+        )
+        side_scores = [round(float(s.mean()) / 255.0, 4) if s.size else 0.0 for s in strips]
+        reason = None
+        if cw < width * 0.055 or cw > width * 0.62:
+            reason = "width_out_of_range"
+        elif ch < height * 0.18 or ch > height * 0.95:
+            reason = "height_out_of_range"
+        elif not 0.45 <= ratio <= 0.90:
+            reason = "aspect_ratio_out_of_range"
+        elif area < width * height * 0.012:
+            reason = "area_too_small"
+        elif sum(value >= 0.035 for value in side_scores) < 3:
+            reason = "fewer_than_three_strong_sides"
+        if reason:
+            reject(reason)
+        candidates.append({
+            "contour_index": index,
+            "box": [int(x), int(y), int(cw), int(ch)],
+            "aspect_ratio": round(ratio, 4),
+            "area": int(area),
+            "side_scores": side_scores,
+            "side_threshold": 0.035,
+            "passed": reason is None,
+            "rejection_reason": reason,
+        })
+
+    raw_boxes = _candidate_rectangles(img)
+    clustered = _cluster_rows(raw_boxes, height)
+    completed = [_complete_row(row, img) for row in clustered]
+    final_rows = completed if completed else ([[single] if (single := _single_card_candidate(img)) is not None] if not raw_boxes else [])
+    final_boxes = [
+        {"row": row_index, "col": col_index, "box": [int(v) for v in box],
+         "origin": "detected" if any(tuple(box) == tuple(found) for found in raw_boxes) else "row_completion"}
+        for row_index, row in enumerate(final_rows)
+        for col_index, box in enumerate(row)
+    ]
+    return {
+        "image_size": [int(width), int(height)],
+        "parameters": {
+            "canny_low": 45, "canny_high": 140, "gaussian_blur": [3, 3],
+            "morphology_kernel": [5, 5], "morphology_iterations": 2,
+            "candidate_width_fraction": [0.055, 0.62],
+            "candidate_height_fraction": [0.18, 0.95],
+            "candidate_aspect_ratio": [0.45, 0.90],
+            "candidate_area_fraction_min": 0.012,
+            "side_score_min": 0.035, "required_sides": 3,
+        },
+        "stages": {
+            "contours_found": len(contours),
+            "candidates_after_geometry_and_side_filters": len(raw_boxes),
+            "rows_after_grouping": len(clustered),
+            "cards_after_row_completion": sum(len(row) for row in completed),
+            "final_cards": len(final_boxes),
+            "rejected_by_reason": rejected,
+        },
+        "contours": candidates[:250],
+        "contours_truncated": len(candidates) > 250,
+        "grouped_rows": [[list(map(int, box)) for box in row] for row in clustered],
+        "completed_rows": [[list(map(int, box)) for box in row] for row in completed],
+        "final_boxes": final_boxes,
+    }
+
+
 def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
     pil = _image_from_any(image)
     img = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
