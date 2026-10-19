@@ -361,7 +361,11 @@ def diagnose_inventory_cards(image: Image.Image) -> dict[str, Any]:
     raw_boxes = _candidate_rectangles(img)
     clustered = _cluster_rows(raw_boxes, height)
     completed = [_complete_row(row, img) for row in clustered]
-    final_rows = completed if completed else ([[single] if (single := _single_card_candidate(img)) is not None] if not raw_boxes else [])
+    if completed:
+        final_rows = completed
+    else:
+        single = _single_card_candidate(img)
+        final_rows = [[single]] if single is not None else []
     final_boxes = [
         {"row": row_index, "col": col_index, "box": [int(v) for v in box],
          "origin": "detected" if any(tuple(box) == tuple(found) for found in raw_boxes) else "row_completion"}
