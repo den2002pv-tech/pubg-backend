@@ -6,6 +6,7 @@ from scanner import (
     _counter_digit_aligned,
     _refine_digit_prediction,
     _single_digit_alternative,
+    _has_counter_evidence,
     is_card_darkened,
 )
 
@@ -17,6 +18,39 @@ def test_counter_digit_rejects_noise_far_below_multiply_sign():
 
     assert not _counter_digit_aligned(multiply, noise_digit)
     assert _counter_digit_aligned(multiply, real_digit)
+
+
+def test_refine_digit_prediction_resolves_nine_when_zero_score_is_only_slightly_higher():
+    glyph = np.zeros((24, 12), dtype=np.uint8)
+    cv2 = __import__("cv2")
+    # A 9 has a closed upper loop and a right stem, but no lower-left wall.
+    cv2.ellipse(glyph, (6, 7), (4, 5), 0, 0, 360, 255, 2)
+    cv2.line(glyph, (9, 8), (8, 21), 255, 2)
+    scores = {digit: 0.2 for digit in range(10)}
+    scores[0] = 0.83
+    scores[9] = 0.82
+
+    digit, confidence = _refine_digit_prediction(glyph, 0, scores)
+    assert digit == 9
+    assert confidence == scores[9]
+
+
+def test_counter_evidence_keeps_card_when_strong_multiply_sign_has_ambiguous_digit():
+    debug = {
+        "reason": "no_valid_badge",
+        "candidates": 0,
+        "x_candidates": [{"score": 0.92}],
+    }
+    assert _has_counter_evidence(0.0, debug)
+
+
+def test_counter_evidence_does_not_accept_weak_multiply_like_noise():
+    debug = {
+        "reason": "no_valid_badge",
+        "candidates": 0,
+        "x_candidates": [{"score": 0.45}],
+    }
+    assert not _has_counter_evidence(0.0, debug)
 
 
 def test_refine_digit_prediction_distinguishes_open_six_from_zero():
