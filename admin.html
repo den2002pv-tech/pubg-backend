@@ -1009,7 +1009,7 @@ function renderBoundaryDiagnostic(report, file){
       contour_index:c.contour_index, box:c.box, aspect_ratio:c.aspect_ratio,
       area:c.area, side_scores:c.side_scores, passed:c.passed,
       rejection_reason:c.rejection_reason
-    })), null, 2) + (report.contours_truncated ? '\\n…список ограничен первыми 250 контурами.' : '');
+    })), null, 2) + (report.contours_truncated ? '\n…список ограничен первыми 250 контурами.' : '');
   document.getElementById('boundaryDiagnosticRows').textContent = JSON.stringify({
     grouped_rows: report.grouped_rows || [],
     completed_rows: report.completed_rows || []
