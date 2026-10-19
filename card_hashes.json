@@ -987,32 +987,6 @@
     "rarity": 2,
     "icon": "/static/cards/card_78.webp"
   },
-  "card_79": {
-    "name": "Хамст тава",
-    "hashes": {
-      "full_phash": "9d395322e2e586d5",
-      "full_dhash": "3c3070be78fe2ae8",
-      "visual_phash": "9d1d3b722785551c",
-      "visual_dhash": "7c3870fa3efafdfe",
-      "frame_colorhash": "07206000000"
-    },
-    "hash": "3c3070be78fe2ae8",
-    "rarity": 1,
-    "icon": "/static/cards/card_79.webp"
-  },
-  "card_80": {
-    "name": "Хамст тава",
-    "hashes": {
-      "full_phash": "9d395322e2e586d5",
-      "full_dhash": "3c3070be78fe2ae8",
-      "visual_phash": "9d1d3b722785551c",
-      "visual_dhash": "7c3870fa3efafdfe",
-      "frame_colorhash": "07206000000"
-    },
-    "hash": "3c3070be78fe2ae8",
-    "rarity": 2,
-    "icon": "/static/cards/card_80.webp"
-  },
   "card_81": {
     "name": "Тулумба",
     "hashes": {
@@ -1103,19 +1077,6 @@
     "hash": "3d40d29783fc3ae8",
     "rarity": 2,
     "icon": "/static/cards/card_87.webp"
-  },
-  "card_88": {
-    "name": "Пиздец с мясом",
-    "hashes": {
-      "full_phash": "8d6d523292e0cafd",
-      "full_dhash": "3476f2a27ef0aae8",
-      "visual_phash": "8d6d16b6f2c03d0b",
-      "visual_dhash": "7613f3e3adbef0a6",
-      "frame_colorhash": "07606000000"
-    },
-    "hash": "3476f2a27ef0aae8",
-    "rarity": 2,
-    "icon": "/static/cards/card_88.webp"
   },
   "card_89": {
     "name": "Долма",
@@ -1298,5 +1259,31 @@
     "hash": "3c7c130f1ffecee8",
     "rarity": 2,
     "icon": "/static/cards/card_102.webp"
+  },
+  "card_103": {
+    "name": "Пиде с мясом",
+    "hashes": {
+      "full_phash": "8d6d523292e0cafd",
+      "full_dhash": "3476f2a27ef0aae8",
+      "visual_phash": "8d6d16b6f2c03d0b",
+      "visual_dhash": "7613f3e3adbef0a6",
+      "frame_colorhash": "07606000000"
+    },
+    "hash": "3476f2a27ef0aae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_103.webp"
+  },
+  "card_104": {
+    "name": "Хамси тава",
+    "hashes": {
+      "full_phash": "9d395322e2e586d5",
+      "full_dhash": "3c3070be78fe2ae8",
+      "visual_phash": "9d1d3b722785551c",
+      "visual_dhash": "7c3870fa3efafdfe",
+      "frame_colorhash": "07206000000"
+    },
+    "hash": "3c3070be78fe2ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_104.webp"
   }
 }
