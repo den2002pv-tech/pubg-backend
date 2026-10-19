@@ -1897,9 +1897,9 @@ document.getElementById('clearScanMetricsBtn').addEventListener('click', async (
     const response = await api('/admin/analytics/scan-performance', { method: 'DELETE' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Не удалось очистить метрики');
+    await loadAnalytics();
     status.className = 'ok';
     status.textContent = 'Очищены метрики скорости в ' + Number(data.cleared_events || 0) + ' событиях. Остальные данные сохранены.';
-    await loadAnalytics();
   } catch (error) {
     status.className = 'err';
     status.textContent = 'Ошибка очистки: ' + (error.message || 'не удалось очистить метрики');
