@@ -242,7 +242,7 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
   <section id="analytics" class="panel"><div class="box">
     <h2>Пользовательские метрики</h2>
     <p class="muted">События Mini App за выбранный период. Не сохраняются поисковые запросы, изображения, названия карт или текст переписки.</p>
-    <div class="row"><select id="analyticsDays" aria-label="Период метрик"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select><button id="refreshAnalyticsBtn" class="btn-secondary" type="button">Обновить метрики</button></div>
+    <div class="row"><select id="analyticsDays" aria-label="Период метрик"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select><button id="refreshAnalyticsBtn" class="btn-secondary" type="button">Обновить метрики</button><button id="exportAnalyticsBtn" class="btn-green" type="button">Скачать метрики (JSON)</button><button id="clearScanMetricsBtn" class="btn-danger" type="button">Очистить скорость сканирования</button></div><p class="muted">Очистка удаляет только duration_ms и profile из событий сканирования. Сами события, счётчики, отзывы и остальные данные сохраняются.</p>
     <div class="row"><div class="stat"><span id="analyticsActiveUsers">—</span><small>Активные пользователи</small></div><div class="stat"><span id="analyticsScans">—</span><small>Успешные сканирования</small></div><div class="stat"><span id="analyticsFailedScans">—</span><small>Ошибки сканирования</small></div><div class="stat"><span id="analyticsAvgScan">—</span><small>Среднее время сканирования</small></div><div class="stat"><span id="analyticsFeedbackAvg">—</span><small>Средняя оценка удобства</small></div></div>
     <h3>Популярные разделы</h3><div id="analyticsTabs" class="muted">Загрузка…</div>
     <h3>События</h3><div id="analyticsEvents" class="muted">Загрузка…</div>
@@ -1858,6 +1858,55 @@ async function loadAnalytics() {
 }
 document.getElementById('refreshAnalyticsBtn').addEventListener('click', loadAnalytics);
 document.getElementById('analyticsDays').addEventListener('change', loadAnalytics);
+
+document.getElementById('exportAnalyticsBtn').addEventListener('click', async () => {
+  const button = document.getElementById('exportAnalyticsBtn');
+  const status = document.getElementById('analyticsStatus');
+  button.disabled = true;
+  try {
+    const days = Number(document.getElementById('analyticsDays').value || 30);
+    const response = await api('/admin/analytics/export?days=' + encodeURIComponent(days));
+    if (!response.ok) throw new Error(await readError(response));
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'pubg-analytics-' + days + 'd.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    status.className = 'ok';
+    status.textContent = 'Экспорт метрик за ' + days + ' дней скачан.';
+  } catch (error) {
+    status.className = 'err';
+    status.textContent = 'Не удалось скачать метрики: ' + (error.message || 'ошибка');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById('clearScanMetricsBtn').addEventListener('click', async () => {
+  const button = document.getElementById('clearScanMetricsBtn');
+  const status = document.getElementById('analyticsStatus');
+  if (!confirm('Удалить только время обработки (duration_ms и profile) из всех сохранённых событий сканирования? Сами события и остальные метрики останутся.')) return;
+  button.disabled = true;
+  status.className = 'muted';
+  status.textContent = 'Очищаем метрики скорости…';
+  try {
+    const response = await api('/admin/analytics/scan-performance', { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Не удалось очистить метрики');
+    status.className = 'ok';
+    status.textContent = 'Очищены метрики скорости в ' + Number(data.cleared_events || 0) + ' событиях. Остальные данные сохранены.';
+    await loadAnalytics();
+  } catch (error) {
+    status.className = 'err';
+    status.textContent = 'Ошибка очистки: ' + (error.message || 'не удалось очистить метрики');
+  } finally {
+    button.disabled = false;
+  }
+});
 
 document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
