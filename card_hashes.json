@@ -1194,5 +1194,109 @@
     "hash": "3b6f67664ed6d061",
     "rarity": 1,
     "icon": "/static/cards/card_94.webp"
+  },
+  "card_95": {
+    "name": "Гильдия охотников",
+    "hashes": {
+      "full_phash": "9e38d1b51ee8c0e6",
+      "full_dhash": "3c7c35332dfe6ae8",
+      "visual_phash": "9e79b19f48e86780",
+      "visual_dhash": "7c5ca533616d6fde",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7c35332dfe6ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_95.webp"
+  },
+  "card_96": {
+    "name": "бинт охотника",
+    "hashes": {
+      "full_phash": "bf3dd2906948867a",
+      "full_dhash": "1f5f333333fe6861",
+      "visual_phash": "ab3e947949847e92",
+      "visual_dhash": "3f7f37332b33ba9e",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f5f333333fe6861",
+    "rarity": 1,
+    "icon": "/static/cards/card_96.webp"
+  },
+  "card_97": {
+    "name": "Багряная крепость",
+    "hashes": {
+      "full_phash": "bf3d43803e71816e",
+      "full_dhash": "1f7f4f2f37de6861",
+      "visual_phash": "af2bc03e33e10e9c",
+      "visual_dhash": "3f7f4f0f2b27b6de",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f7f4f2f37de6861",
+    "rarity": 1,
+    "icon": "/static/cards/card_97.webp"
+  },
+  "card_98": {
+    "name": "Запечатывания лидера",
+    "hashes": {
+      "full_phash": "b73a90bd6ec08275",
+      "full_dhash": "3c7c094717fecee8",
+      "visual_phash": "bf12903dcf9079c2",
+      "visual_dhash": "7c7c8907471f2ffe",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7c094717fecee8",
+    "rarity": 2,
+    "icon": "/static/cards/card_98.webp"
+  },
+  "card_99": {
+    "name": "Сумрачные крылья",
+    "hashes": {
+      "full_phash": "9f3a94b43a494ae6",
+      "full_dhash": "3c7c19132ffe6ae8",
+      "visual_phash": "bb5b95b559826681",
+      "visual_dhash": "7c7c0939132feffe",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7c19132ffe6ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_99.webp"
+  },
+  "card_100": {
+    "name": "Серебролуная цепь",
+    "hashes": {
+      "full_phash": "b73ad19d2e6082f1",
+      "full_dhash": "3c3c0d073ffe6ae8",
+      "visual_phash": "bf53959d4da26380",
+      "visual_dhash": "7c3c9d0d173fbffe",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c3c0d073ffe6ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_100.webp"
+  },
+  "card_101": {
+    "name": "Большой колокол",
+    "hashes": {
+      "full_phash": "bd3a939c8ce162e4",
+      "full_dhash": "3c3c0b1327376ae8",
+      "visual_phash": "aa93978cd16b4378",
+      "visual_dhash": "7c7c9b1333273773",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c3c0b1327376ae8",
+    "rarity": 2,
+    "icon": "/static/cards/card_101.webp"
+  },
+  "card_102": {
+    "name": "Золотая летучая мышь",
+    "hashes": {
+      "full_phash": "bb3bd494326148f5",
+      "full_dhash": "3c7c130f1ffecee8",
+      "visual_phash": "bb5b949773684883",
+      "visual_dhash": "7c7c931b1d1ffffe",
+      "frame_colorhash": "07007000000"
+    },
+    "hash": "3c7c130f1ffecee8",
+    "rarity": 2,
+    "icon": "/static/cards/card_102.webp"
   }
 }
