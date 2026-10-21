@@ -1108,9 +1108,9 @@ def is_card_darkened(card: Image.Image) -> bool:
     frame_mask[-frame_y:, :] = True
     frame_mask[:, :frame_x] = True
     frame_mask[:, -frame_x:] = True
-    frame_luminance_mean = float(
-        cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)[frame_mask].mean()
-    )
+    gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+    frame_luminance_mean = float(gray[frame_mask].mean())
+    card_luminance_mean = float(gray.mean())
 
     # The centered bottom emblem is a separate signal from the artwork.
     badge = hsv[int(h * 0.88):max(int(h * 0.88) + 1, int(h * 0.98)),
@@ -1126,6 +1126,7 @@ def is_card_darkened(card: Image.Image) -> bool:
         and frame_luminance_mean < 130
         and badge_bright_ratio < 0.18
         and bright_frame_ratio < 0.18
+        and card_luminance_mean < 120
     )
 
 
