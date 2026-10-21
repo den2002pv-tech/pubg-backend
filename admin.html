@@ -120,17 +120,13 @@ button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
 .item img{width:100%;height:240px;object-fit:contain;background:#0b1220;border-radius:10px;border:1px solid rgba(148,163,184,.12)}
 .icon{width:180px!important;height:270px!important;display:block;margin:auto;object-fit:contain;cursor:zoom-in;border-radius:12px;transition:transform .15s ease,width .15s,height .15s}
 .icon:hover{transform:scale(1.02)}
-body.icon-size-large .icon{width:260px!important;height:390px!important}
 .icon-zoomable{display:block;max-width:100%;max-height:420px;object-fit:contain;cursor:zoom-in;border-radius:10px}
-.icon-size-control{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:rgba(19,29,45,.9);border:1px solid var(--border);border-radius:12px}
-.icon-size-control label{flex:0 0 auto;color:var(--muted);font-size:14px}
-.icon-size-control select{max-width:220px;margin:0}
 #iconZoomModal{position:fixed;inset:0;z-index:11000;background:rgba(2,6,23,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
 #iconZoomModal[hidden]{display:none}
 #iconZoomModal img{display:block;max-width:96vw;max-height:82vh;width:auto;height:auto;object-fit:contain;background:#0b1220;border-radius:12px;border:1px solid rgba(148,163,184,.15);box-shadow:var(--shadow)}
 #iconZoomModal .icon-zoom-title{max-width:92vw;margin:0 48px 14px;text-align:center;font-size:18px;font-weight:700;overflow-wrap:anywhere}
 #iconZoomModal .icon-zoom-close{position:absolute;top:12px;right:12px;width:44px;height:44px;padding:0;margin:0;border-radius:50%;font-size:28px;line-height:1;background:rgba(15,23,42,.9);color:#fff;border:1px solid rgba(148,163,184,.2)}
-@media(max-width:520px){.icon-size-control{align-items:stretch;flex-direction:column}.icon-size-control select{max-width:none}.icon{width:180px!important;height:270px!important}body.icon-size-large .icon{width:230px!important;height:345px!important}}
+@media(max-width:520px){.icon{width:180px!important;height:270px!important}}
 .badge{display:inline-block;padding:5px 10px;border-radius:999px;background:rgba(148,163,184,.14);font-size:12px;margin-top:5px;color:var(--text)}
 .has{background:rgba(56,211,159,.18);color:#9ef0d2}.missing{background:rgba(255,180,84,.15);color:#ffc877}
 textarea{height:260px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
@@ -218,15 +214,6 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
     </div>
   </div>
 
-  <div class="icon-size-control">
-    <label for="iconSizeSelect">Размер иконок</label>
-    <select id="iconSizeSelect" aria-label="Размер иконок">
-      <option value="normal" selected>Увеличенный</option>
-      <option value="large">Крупный</option>
-    </select>
-    <span class="muted">Нажми на иконку, чтобы открыть её крупно.</span>
-  </div>
-
   <div class="tabs">
     <button class="tab active" data-tab="scan">🧪 Хеши</button>
     <button class="tab" data-tab="icons">🖼️ Иконки</button>
@@ -234,7 +221,6 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
     <button class="tab" data-tab="temp">🗑️ Временные</button>
     <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
     <button class="tab" data-tab="screenshotTests">🖼️ Качество скриншотов</button>
-    <button class="tab" data-tab="clubPosts">🌐 PUBG Club</button>
     <button class="tab" data-tab="users">👥 Пользователи</button>
     <button class="tab" data-tab="analytics">📊 Метрики</button>
   </div>
@@ -362,20 +348,6 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
 <section id="screenshotTests" class="panel"><div class="box"><h2>Тесты качества распознавания</h2><p class="shot-muted">Загрузи оригинальный PNG. Система предложит рамки, а ты проверишь координаты, количество и состояние карт. Оригинал и эталон сохраняются в GitHub.</p><div class="row"><div class="stat"><span id="shotCount">—</span><small>Эталонов</small></div><div><label>Рабочая ветка</label><div id="shotBranch" class="badge">feature/card-counter</div></div><button id="shotRefresh" class="btn-secondary" type="button">Обновить</button></div><div id="shotStatus" class="muted" role="status" aria-live="polite"></div></div>
 <div class="box"><h3>1. Добавить скриншот</h3><div class="row"><input id="shotFile" type="file" accept="image/png,.png" aria-label="PNG скриншот"><button id="shotUpload" type="button">Загрузить и найти карты</button></div><div id="shotEditor" hidden><div class="row"><div><label for="shotId">ID теста</label><input id="shotId" maxlength="80" placeholder="inventory-gray-cards-01"></div><div><label for="shotTitle">Описание</label><input id="shotTitle" maxlength="120" placeholder="Серые карты"></div><div><label>Размер оригинала</label><div id="shotSize" class="badge"></div></div></div><div class="shot-layout"><div><div class="shot-canvas-wrap"><canvas id="shotCanvas"></canvas><div id="shotCanvasEmpty" class="muted">Здесь появится скриншот</div></div><div class="row"><button id="shotDraw" class="btn-secondary" type="button">＋ Нарисовать рамку</button><button id="shotReset" class="btn-secondary" type="button">Восстановить найденные</button></div><p class="shot-muted">Чтобы добавить карту вручную, нажми «Нарисовать рамку» и протяни прямоугольник по изображению.</p></div><div><div id="shotCards"></div><button id="shotSave" type="button">Сохранить эталон в GitHub</button></div></div></div></div>
 <div class="box"><div class="row"><h3 style="flex:2">2. Сохранённые эталоны</h3><button id="shotAnalyze" class="btn-secondary" type="button">🔬 Анализ отличий</button><button id="shotRun" type="button">▶ Проверить все</button></div><p class="shot-muted">Для каждой вручную размеченной карты автоматически собираются яркость, насыщенность, контраст и признаки отдельных областей. Анализ сравнивает состояния «Есть в инвентаре» и «Нет в инвентаре / затемнена».</p><div id="shotAnalysis" class="shot-result" role="status" aria-live="polite">Нажми «Анализ отличий», чтобы сравнить собранные эталоны.</div><div id="shotRunSummary" class="muted" role="status">Проверка ещё не запускалась.</div><div id="shotSaved"></div></div></section>
-  <section id="clubPosts" class="panel">
-    <div class="box">
-      <h2>Публикации PUBG MOBILE Club — #cardexchange</h2>
-      <p class="muted">Показывает последние публикации, доступные на публичной странице темы. Это просмотр: публикации не изменяют инвентарь и не запускают распознавание автоматически.</p>
-      <div class="row">
-        <div class="stat"><span id="clubPostsCount">—</span><small>Публикаций загружено</small></div>
-        <button id="refreshClubPostsBtn" type="button" class="btn-secondary">Обновить публикации</button>
-        <a id="clubTopicLink" class="btn-secondary" href="https://share.club.gpubgm.com/2vRUE5jmLe0" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;padding:10px;margin-top:6px;border-radius:7px">Открыть тему в PUBG Club ↗</a>
-      </div>
-      <div id="clubPostsStatus" class="muted" role="status" aria-live="polite">Нажми «Обновить публикации», чтобы загрузить тему.</div>
-      <div id="clubPostsList" class="card-grid"></div>
-    </div>
-  </section>
-
   <section id="icons" class="panel">
     <div class="box">
       <h2>Иконки карт</h2>
@@ -480,9 +452,6 @@ function openIconZoom(src,title){
   modal.hidden=false;modal.querySelector('.icon-zoom-close').focus();
 }
 
-document.getElementById('iconSizeSelect').addEventListener('change',event=>{
-  document.body.classList.toggle('icon-size-large',event.target.value==='large');
-});
 document.addEventListener('click',event=>{
   const image=event.target.closest('img.icon, img.icon-zoomable');
   if(!image)return;
@@ -1781,49 +1750,6 @@ document.getElementById('commitBtn').onclick=async()=>{
   finally{b.disabled=false;b.textContent='💾 Отправить все изменения одним commit'}
 };
 
-function safeClubMediaUrl(value){
-  try{
-    const url=new URL(String(value||''));
-    return url.protocol==='https:' ? url.href : '';
-  }catch{return ''}
-}
-async function loadClubPosts(){
-  const status=document.getElementById('clubPostsStatus');
-  const root=document.getElementById('clubPostsList');
-  const button=document.getElementById('refreshClubPostsBtn');
-  status.className='muted';status.textContent='Загружаем публичную тему PUBG MOBILE Club…';
-  button.disabled=true;root.innerHTML='';
-  try{
-    const response=await api('/admin/pubg-club/posts');
-    const data=await response.json();
-    if(!response.ok)throw new Error(data.detail||'Не удалось загрузить публикации');
-    document.getElementById('clubPostsCount').textContent=Number(data.count||0);
-    document.getElementById('clubTopicLink').href=safeClubMediaUrl(data.topic_url)||'https://share.club.gpubgm.com/2vRUE5jmLe0';
-    const posts=Array.isArray(data.posts)?data.posts:[];
-    if(!posts.length){
-      root.innerHTML='<p class="muted">Публичная страница не вернула публикаций. Попробуй обновить позже.</p>';
-    }
-    posts.forEach(post=>{
-      const el=document.createElement('article');el.className='item';
-      const images=(Array.isArray(post.image_urls)?post.image_urls:[]).map(safeClubMediaUrl).filter(Boolean);
-      const videoPreview=safeClubMediaUrl(post.video_preview);
-      const media=images.length?images:videoPreview?[videoPreview]:[];
-      const mediaHtml=media.map(url=>'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="'+esc(url)+'" alt="Медиа публикации PUBG Club" style="height:220px;object-fit:contain" referrerpolicy="no-referrer"></a>').join('');
-      const text=String(post.content||'').trim();
-      el.innerHTML='<h3>Публикация</h3>'+
-        '<div class="muted">ID: <code>'+esc(post.iid||'—')+'</code></div>'+
-        (post.published_at?'<div class="muted">Дата: '+esc(post.published_at)+'</div>':'')+
-        '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(text||'Без текста')+'</p>'+
-        (mediaHtml?'<div class="card-grid">'+mediaHtml+'</div>':'<p class="muted">Нет доступного изображения или превью.</p>');
-      root.appendChild(el);
-    });
-    status.className='ok';status.textContent='Загружено '+posts.length+' публикаций из темы '+String(data.topic||'cardexchange')+'. Источник: публичная страница PUBG MOBILE Club.';
-  }catch(error){
-    status.className='err';status.textContent='Не удалось загрузить публикации: '+error.message;
-  }finally{button.disabled=false}
-}
-document.getElementById('refreshClubPostsBtn').addEventListener('click',loadClubPosts);
-
 async function loadAnalytics() {
   const status = document.getElementById('analyticsStatus');
   status.textContent = 'Загружаем метрики…';
@@ -1912,7 +1838,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='screenshotTests')loadShotFixtures();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();if(btn.dataset.tab==='clubPosts')loadClubPosts();
+  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='screenshotTests')loadShotFixtures();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();
 });
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 
