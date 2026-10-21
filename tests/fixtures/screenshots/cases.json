@@ -689,6 +689,55 @@
         }
       ],
       "image_sha256": "b3aad80471bb04577e8a83088fde62a294a70b04790eadede22a4693b997aa99"
+    },
+    {
+      "id": "inventory-20261021101255",
+      "title": "Одна карта по центру",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261021101255.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            578,
+            33,
+            444,
+            654
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Алый тоник",
+          "card_id": "",
+          "visual_features": {
+            "version": 1,
+            "width": 444,
+            "height": 654,
+            "luminance_mean": 126.873,
+            "luminance_median": 129.0,
+            "luminance_stddev": 37.613,
+            "saturation_mean": 12.013,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0604,
+            "frame_luminance_mean": 117.05,
+            "frame_saturation_mean": 3.271,
+            "center_luminance_mean": 133.255,
+            "center_luminance_median": 140.0,
+            "center_luminance_stddev": 40.679,
+            "center_saturation_mean": 23.362,
+            "title_luminance_mean": 117.729,
+            "title_luminance_median": 114.0,
+            "title_luminance_stddev": 23.126,
+            "title_saturation_mean": 0.189,
+            "bottom_luminance_mean": 118.56,
+            "bottom_luminance_median": 123.0,
+            "bottom_luminance_stddev": 29.234,
+            "bottom_saturation_mean": 3.001
+          }
+        }
+      ],
+      "image_sha256": "b30b99e6f06ed16dd6ecd5b447f52fca3db6786ccbbf59754e099eea266a596b"
     }
   ]
 }
