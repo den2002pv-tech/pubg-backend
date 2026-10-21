@@ -718,7 +718,10 @@ const analyticsQueue = [];
 let analyticsFlushTimer = null;
 function trackAnalytics(name, properties = {}) {
   if (!telegramInitData) return;
-  analyticsQueue.push({ name, properties });
+  analyticsQueue.push({
+    name,
+    properties: { ...properties, occurred_at: new Date().toISOString() }
+  });
   if (analyticsQueue.length >= 10) flushAnalytics();
   else if (!analyticsFlushTimer) analyticsFlushTimer = setTimeout(flushAnalytics, 12000);
 }
@@ -775,6 +778,7 @@ let pendingCards = [];
 let retryScanFile = null;
 let scanInProgress = false;
 let collectionSaveInProgress = false;
+let currentScanId = null;
 let inventoryCards = [];
 let desiredIds = new Set();
 let savedDesiredIds = new Set();
@@ -1040,14 +1044,17 @@ async function uploadImage(file) {
   fd.append('file', file);
 
   const scanStartedAt = performance.now();
-  trackAnalytics('scan_started');
+  currentScanId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : 'scan-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  trackAnalytics('scan_started', { scan_id: currentScanId });
   try {
     statusText.textContent = '⏳ Подключаемся к серверу…';
     statusEl.textContent = 'Проверяем доступность. После простоя сервер может запускаться дольше обычного.';
     await wakeBackend();
     setScannerStatus('⏳ Отправляем изображение на сервер…', 'Подготовка завершена.', true);
     const d = await postScanImage(fd);
-    trackAnalytics('scan_completed', { cards_detected: Number(d.count || 0), matched_count: (d.cards || []).filter(card => !!card.id).length, duration_ms: performance.now() - scanStartedAt, profile: d.profile || {} });
+    trackAnalytics('scan_completed', { scan_id: currentScanId, cards_detected: Number(d.count || 0), matched_count: (d.cards || []).filter(card => !!card.id).length, duration_ms: performance.now() - scanStartedAt, profile: d.profile || {} });
     pendingCards = (d.cards || []).filter(c => c.id).map(c => ({
       ...c,
       selected: true,
@@ -1062,7 +1069,7 @@ async function uploadImage(file) {
       statusEl.textContent = 'Распознавание завершено. Найдено областей: ' + d.cards.length + '; совпадений с каталогом: ' + pendingCards.length + '. Проверьте результат перед сохранением.';
     }
   } catch (e) {
-    trackAnalytics('scan_failed', { reason: e?.name === 'AbortError' ? 'timeout' : (e instanceof TypeError ? 'network' : 'server') });
+    trackAnalytics('scan_failed', { scan_id: currentScanId, duration_ms: performance.now() - scanStartedAt, reason: e?.name === 'AbortError' ? 'timeout' : (e instanceof TypeError ? 'network' : 'server') });
     retryScanFile = file;
     statusText.textContent = '📷 Сканирование не завершено';
     statusEl.textContent = '❌ ' + scannerErrorMessage(e);
@@ -1291,7 +1298,7 @@ async function confirmCollection() {
       error.uncertain = true;
       throw error;
     }
-    trackAnalytics('collection_saved', { card_count: savedCount });
+    trackAnalytics('collection_saved', { scan_id: currentScanId, card_count: savedCount });
     if (correctedCount > 0) trackAnalytics('counter_corrected', { corrected_count: correctedCount, card_count: selected.length });
     let desiredRemovedForMetrics = 0;
     expectedQuantities.forEach((quantity, id) => { if (quantity > 0 && desiredIds.has(id)) desiredRemovedForMetrics++; });

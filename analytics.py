@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from database import get_connection
@@ -69,6 +70,27 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
         val = raw.get(key)
         if isinstance(val, (int, float)) and not isinstance(val, bool):
             props[key] = max(0, min(int(val), 10000))
+
+    scan_id = raw.get("scan_id")
+    if (
+        isinstance(scan_id, str)
+        and 1 <= len(scan_id) <= 64
+        and all(char.isalnum() or char in "-_" for char in scan_id)
+    ):
+        props["scan_id"] = scan_id
+
+    occurred_at = raw.get("occurred_at")
+    if isinstance(occurred_at, str) and len(occurred_at) <= 64:
+        try:
+            parsed_at = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+            if parsed_at.tzinfo is not None:
+                props["occurred_at"] = (
+                    parsed_at.astimezone(timezone.utc)
+                    .isoformat(timespec="milliseconds")
+                    .replace("+00:00", "Z")
+                )
+        except ValueError:
+            pass
 
     duration = raw.get("duration_ms")
     if isinstance(duration, (int, float)) and not isinstance(duration, bool):
