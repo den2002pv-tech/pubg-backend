@@ -1272,5 +1272,57 @@
     "hash": "397c4c6977ab6ae8",
     "rarity": 2,
     "icon": "/static/cards/card_105.webp"
+  },
+  "card_106": {
+    "name": "Алый тоник",
+    "hashes": {
+      "full_phash": "a5331acc7793994c",
+      "full_dhash": "3fd7da4e66f2e807",
+      "visual_phash": "a71b986433996cce",
+      "visual_dhash": "3f8fd34b4fa6b3b9",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "3fd7da4e66f2e807",
+    "rarity": 1,
+    "icon": "/static/cards/card_106.webp"
+  },
+  "card_107": {
+    "name": "Алый тоник",
+    "hashes": {
+      "full_phash": "a5331acc7793994c",
+      "full_dhash": "3fd7da4e66f2e807",
+      "visual_phash": "a71b986433996cce",
+      "visual_dhash": "3f8fd34b4fa6b3b9",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "3fd7da4e66f2e807",
+    "rarity": 1,
+    "icon": "/static/cards/card_107.webp"
+  },
+  "card_108": {
+    "name": "Статуя Золотая летучая мышь",
+    "hashes": {
+      "full_phash": "a52e0ab179db25c6",
+      "full_dhash": "3767e6161696d407",
+      "visual_phash": "ac0e9b3919a55ab3",
+      "visual_dhash": "3767672797969696",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "3767e6161696d407",
+    "rarity": 1,
+    "icon": "/static/cards/card_108.webp"
+  },
+  "card_109": {
+    "name": "Обычный ночной нетопырь",
+    "hashes": {
+      "full_phash": "b52b2a967f6b2980",
+      "full_dhash": "1f7f924b5cfed407",
+      "visual_phash": "bb2b84976aa81997",
+      "visual_dhash": "3f7f931b499eae9e",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f7f924b5cfed407",
+    "rarity": 1,
+    "icon": "/static/cards/card_109.webp"
   }
 }
