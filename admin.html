@@ -284,6 +284,7 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
       <div class="row">
         <button id="queueCounterTestsBtn" type="button" class="btn-secondary">➕ Добавить отмеченные в очередь</button>
         <button id="saveCounterTestsBtn" type="button" class="btn-green">💾 Отправить всю очередь одним commit</button>
+        <button id="clearCounterQueueBtn" type="button" class="btn-danger">Очистить очередь</button>
       </div>
       <div id="saveCounterTestsStatus" class="muted"></div>
       <div id="counterQueueStatus" class="muted"></div>
@@ -693,9 +694,19 @@ function setCounterTestQueue(queue){
 function renderCounterQueueStatus(){
   const queue=getCounterTestQueue();
   const el=document.getElementById("counterQueueStatus");
-  if(el)el.textContent="В очереди: "+queue.length+" тест(ов). "+(queue.length?"Можно продолжать сканирование; commit пока не создаётся.":"Добавь отмеченные примеры после сканирования.");
+  if(el)el.textContent="В очереди: "+queue.length+" тест(ов). "+(queue.length?"Очередь ссылается на временные кропы: не удаляй временные файлы, пока не сохранишь тесты.":"Добавь отмеченные примеры после сканирования.");
   const button=document.getElementById("saveCounterTestsBtn");
   if(button)button.textContent=queue.length?"💾 Отправить "+queue.length+" тест(ов) одним commit":"💾 Отправить всю очередь одним commit";
+  const clearButton=document.getElementById("clearCounterQueueBtn");
+  if(clearButton)clearButton.disabled=queue.length===0;
+}
+function clearCounterTestQueue(){
+  const queue=getCounterTestQueue();
+  if(!queue.length)return;
+  if(!confirm("Удалить из очереди все "+queue.length+" тест(ов)? Эталоны в GitHub не изменятся."))return;
+  setCounterTestQueue([]);
+  const status=document.getElementById("saveCounterTestsStatus");
+  if(status){status.className="muted";status.textContent="Очередь очищена. Сохранённые эталоны в GitHub не затронуты.";}
 }
 function collectCurrentCounterCases(){
   const cards=window.lastScan||[];
@@ -1045,6 +1056,7 @@ document.querySelectorAll('[data-counter-view]').forEach(button=>button.addEvent
 document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
 document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCounterCasesToQueue()}catch(e){const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message}};
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
+document.getElementById("clearCounterQueueBtn").onclick=clearCounterTestQueue;
 renderCounterQueueStatus();
 
 let lastBoundaryDiagnostic = null;
@@ -1656,8 +1668,20 @@ async function loadTemp(){
   })
 }
 document.getElementById('deleteTempBtn').onclick=async()=>{
-  if(!confirm('Удалить все временные изображения?'))return;
-  const r=await api('/admin/temp-files',{method:'DELETE'});const d=await r.json();if(!r.ok){alert(d.detail||'Ошибка');return}await loadAll()
+  const queue=getCounterTestQueue();
+  const prompt=queue.length
+    ? 'Удалить все временные изображения И очистить очередь из '+queue.length+' тест(ов)? Эти тесты ещё не сохранены в GitHub. Сохранённые эталоны не затрагиваются.'
+    : 'Удалить все временные изображения? Постоянные иконки и эталоны в GitHub не затрагиваются.';
+  if(!confirm(prompt))return;
+  const r=await api('/admin/temp-files',{method:'DELETE'});
+  let d={};try{d=await r.json()}catch(e){}
+  if(!r.ok){alert(d.detail||'Не удалось удалить временные файлы');return}
+  if(queue.length){
+    setCounterTestQueue([]);
+    const status=document.getElementById('saveCounterTestsStatus');
+    if(status){status.className='muted';status.textContent='Временные файлы удалены, очередь из '+queue.length+' несохранённых тест(ов) очищена. Сохранённые эталоны в GitHub не затронуты.';}
+  }
+  await loadAll()
 };
 document.getElementById('refreshBtn').onclick=loadAll;
 document.getElementById('copyBtn').onclick=()=>navigator.clipboard.writeText(document.getElementById('jsonOutput').value);
