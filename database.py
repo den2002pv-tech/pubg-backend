@@ -193,6 +193,48 @@ def set_user_card_quantity(telegram_id: int, card_id: str, quantity: int) -> Non
         conn.commit()
 
 
+def set_user_card_quantities(telegram_id: int, updates: list[tuple[str, int]]) -> None:
+    """Atomically persist absolute card quantities and remove newly owned cards from the wishlist."""
+    quantities: dict[str, int] = {}
+    for card_id, quantity in updates:
+        normalized_id = str(card_id).strip()
+        if normalized_id:
+            quantities[normalized_id] = max(quantities.get(normalized_id, 0), max(0, int(quantity)))
+    if not quantities:
+        return
+
+    card_ids = list(quantities)
+    card_quantities = [quantities[card_id] for card_id in card_ids]
+    owned_card_ids = [
+        card_id for card_id, quantity in quantities.items()
+        if quantity > 0
+    ]
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_cards (user_id, card_id, quantity)
+                SELECT u.id, batch.card_id, batch.quantity
+                FROM users u
+                CROSS JOIN unnest(%s::text[], %s::integer[]) AS batch(card_id, quantity)
+                WHERE u.telegram_id = %s
+                ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
+                """,
+                (card_ids, card_quantities, telegram_id),
+            )
+            if owned_card_ids:
+                cur.execute(
+                    """
+                    DELETE FROM desired_cards
+                    WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
+                      AND card_id = ANY(%s)
+                    """,
+                    (telegram_id, owned_card_ids),
+                )
+        conn.commit()
+
+
 def clear_user_cards(telegram_id: int) -> int:
     """Set all inventory quantities to zero without deleting known cards."""
     with get_connection() as conn:

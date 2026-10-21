@@ -206,6 +206,42 @@ def test_normalize_collection_updates_clamps_quantity_and_rejects_invalid_values
     assert exc.value.status_code == 400
 
 
+def test_confirm_collection_returns_saved_state_only_after_bulk_persistence(monkeypatch):
+    calls = []
+    saved_cards = [{"id": "card_1", "quantity": 4}, {"id": "card_2", "quantity": 0}]
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(main, "set_user_card_quantities", lambda telegram_id, updates: calls.append((telegram_id, updates)))
+    monkeypatch.setattr(main, "get_user_cards", lambda _telegram_id: saved_cards)
+
+    result = asyncio.run(main.confirm_my_collection({
+        "cards": [
+            {"id": "card_1", "quantity": 2},
+            {"id": "card_2", "quantity": 0},
+            {"id": "card_1", "quantity": 4},
+        ]
+    }, init_data="valid-test-init-data"))
+
+    assert calls == [(12345, [("card_1", 4), ("card_2", 0)])]
+    assert result == {"status": "ok", "saved": 2, "cards": saved_cards}
+
+
+def test_confirm_collection_does_not_return_success_when_persistence_fails(monkeypatch):
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(
+        main,
+        "set_user_card_quantities",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("database write failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="database write failed"):
+        asyncio.run(main.confirm_my_collection(
+            {"cards": [{"id": "card_1", "quantity": 1}]},
+            init_data="valid-test-init-data",
+        ))
+
+
 
 def test_save_card_reuses_scanned_preview_as_permanent_icon(monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")

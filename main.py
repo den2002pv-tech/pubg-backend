@@ -32,7 +32,7 @@ from pydantic import BaseModel
 
 from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inventory_cards, scan_screenshot
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
-from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantity, sync_cards
+from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
@@ -2065,8 +2065,7 @@ async def confirm_my_collection(
         raise HTTPException(status_code=400, detail="cards должен быть массивом")
     get_or_create_user(auth["id"])
     updates = _normalize_collection_updates(cards)
-    for card_id, quantity in updates:
-        set_user_card_quantity(auth["id"], card_id, quantity)
+    set_user_card_quantities(auth["id"], updates)
     saved = len(updates)
     return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"])}
 
