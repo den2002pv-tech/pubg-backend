@@ -403,6 +403,62 @@ def test_confirm_collection_does_not_return_success_when_persistence_fails(monke
 
 
 
+
+def test_save_duplicate_guard_blocks_confident_existing_card_match():
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    db = {"card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)}}
+
+    duplicate = main._find_duplicate_card_for_save("Сумрачные крылья", hashes, db)
+
+    assert duplicate is not None
+    assert duplicate["id"] == "card_99"
+    assert duplicate["reason"] == "confident_hash_match"
+
+
+def test_save_duplicate_guard_catches_ambiguous_same_name_card():
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    db = {
+        "card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+        "card_116": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+    }
+
+    # Matching is intentionally ambiguous, but saving must not create card_117.
+    assert main._match_card(hashes, db)[0] is None
+    duplicate = main._find_duplicate_card_for_save("  Сумрачные   крылья ", hashes, db)
+
+    assert duplicate is not None
+    assert duplicate["id"] in {"card_99", "card_116"}
+    assert duplicate["reason"] == "ambiguous_same_name_hash_match"
+
+
+def test_save_duplicate_guard_allows_ambiguous_different_name_card():
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    db = {
+        "card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+        "card_116": {"name": "Другая карта", "hashes": dict(hashes)},
+    }
+
+    assert main._find_duplicate_card_for_save("Новая карта", hashes, db) is None
+
+
 def test_save_card_reuses_scanned_preview_as_permanent_icon(monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
     monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
