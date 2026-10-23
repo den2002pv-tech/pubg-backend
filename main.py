@@ -1723,7 +1723,7 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
                 source.load()
                 result = scan_screenshot(source.convert("RGB"), save_previews=False)
         except Exception as exc:
-            results.append({"id": case.get("id", "?"), "passed": False, "errors": [f"Ошибка сканирования: {type(exc).__name__}"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0})
+            results.append({"id": case.get("id", "?"), "passed": False, "errors": [f"Ошибка сканирования: {type(exc).__name__}"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0, "identity_matches": 0, "identity_checked": sum(1 for card in case.get("cards", []) if card.get("state", "owned") == "owned" and card.get("identity_verified") is True)})
             continue
         owned = [c for c in case.get("cards", []) if c.get("state", "owned") == "owned"]
         detected = list(result.get("cards", []))
@@ -1732,7 +1732,8 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
             errors.append(f"Количество карт: ожидалось {len(owned)}, найдено {len(detected)}")
         unmatched = list(detected)
         matched = checked = 0
-        identity_matches = identity_checked = 0
+        identity_matches = 0
+        identity_checked = sum(1 for card in owned if card.get("identity_verified") is True)
         for expected in owned:
             box = expected.get("box", [])
             if not isinstance(box, list) or len(box) != 4:
@@ -1766,7 +1767,6 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
             if int(best.get("quantity", 1)) == int(expected.get("expected_quantity", 1)): matched += 1
             else: errors.append(f"{label}: ожидалось {expected.get('expected_quantity', 1)}, найдено {best.get('quantity', 1)}")
             if expected.get("identity_verified") is True:
-                identity_checked += 1
                 expected_id = str(expected.get("card_id") or "").strip()
                 actual_identity = catalog_matches[actual_index] if actual_index is not None and actual_index < len(catalog_matches) else {}
                 actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""

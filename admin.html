@@ -980,7 +980,7 @@ function shotRenderCards(){
     inp('Состояние',b.state,v=>{b.state=v;shotRenderCards();shotDraw()},true,'select');
     const idLabel=document.createElement('label');idLabel.className='wide';idLabel.textContent='Эталонная карта из каталога';
     const idSelect=document.createElement('select');shotFillCatalogSelect(idSelect,b.card_id||'');
-    idSelect.onchange=()=>{b.card_id=idSelect.value;b.card_name=idSelect.value?(db[idSelect.value]?.name||idSelect.value):'';b.icon=idSelect.value?(db[idSelect.value]?.icon||''):'';b.matched=!!idSelect.value;shotRenderCards()};
+    idSelect.onchange=()=>{b.card_id=idSelect.value;b.card_name=idSelect.value?(db[idSelect.value]?.name||idSelect.value):'';b.icon=idSelect.value?(db[idSelect.value]?.icon||''):'';b.matched=!!idSelect.value;b.identity_verified=false;shotRenderCards()};
     idLabel.append(idSelect);grid.append(idLabel);
     const verifyLabel=document.createElement('label');verifyLabel.className='wide';
     const verify=document.createElement('input');verify.type='checkbox';verify.checked=b.identity_verified===true;verify.disabled=(b.state||'owned')!=='owned';verify.style.width='auto';verify.style.marginRight='8px';
@@ -1014,7 +1014,7 @@ async function loadShotFixtures(){
         verifiedLabel.append(check,document.createTextNode('ID проверен вручную'));
         idLabel.append(select);fields.append(idLabel,verifiedLabel);row.append(heading,fields);el.append(row);
         const label={card_id:card.card_id||'',identity_verified:card.identity_verified===true};
-        select.onchange=()=>{label.card_id=select.value};
+        select.onchange=()=>{label.card_id=select.value;label.identity_verified=false;check.checked=false};
         check.onchange=()=>{label.identity_verified=check.checked};
         labels.push(label);
       });
