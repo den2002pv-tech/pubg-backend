@@ -756,6 +756,56 @@
         }
       ],
       "image_sha256": "196204ec57bda585dd170abbc0810624f9c15cbf1a4f1e4458cd6a1f7f75c304"
+    },
+    {
+      "id": "inventory-20261023153727",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261023153727.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            577,
+            33,
+            445,
+            654
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Запечатывания лидера",
+          "card_id": "card_98",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 445,
+            "height": 654,
+            "luminance_mean": 137.923,
+            "luminance_median": 138.0,
+            "luminance_stddev": 41.403,
+            "saturation_mean": 60.537,
+            "saturation_median": 57.0,
+            "saturated_pixel_ratio": 0.3784,
+            "frame_luminance_mean": 132.169,
+            "frame_saturation_mean": 48.099,
+            "center_luminance_mean": 128.597,
+            "center_luminance_median": 128.0,
+            "center_luminance_stddev": 35.226,
+            "center_saturation_mean": 73.426,
+            "title_luminance_mean": 147.433,
+            "title_luminance_median": 152.0,
+            "title_luminance_stddev": 25.431,
+            "title_saturation_mean": 49.471,
+            "bottom_luminance_mean": 155.736,
+            "bottom_luminance_median": 164.0,
+            "bottom_luminance_stddev": 51.231,
+            "bottom_saturation_mean": 40.594
+          }
+        }
+      ],
+      "image_sha256": "dd66c4a79e64c12fcabf4196d33046f081fad0febd52ea053b474a705f38834d"
     }
   ]
 }
