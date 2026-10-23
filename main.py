@@ -708,9 +708,9 @@ def _find_duplicate_card_for_save(
             continue
         if score is None or score > threshold:
             continue
-        if color_ratio is not None and color_ratio > 0.55:
-            continue
 
+        # Same-name candidates with close grayscale hashes can be the same
+        # card even when the frame-color hash changes with crop/scale/counter.
         return {
             "id": candidate["id"],
             "name": candidate.get("name", candidate["id"]),
