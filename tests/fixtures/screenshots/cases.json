@@ -297,7 +297,8 @@
             "bottom_luminance_median": 127.0,
             "bottom_luminance_stddev": 28.616,
             "bottom_saturation_mean": 3.125
-          }
+          },
+          "identity_verified": true
         },
         {
           "box": [
@@ -334,7 +335,8 @@
             "bottom_luminance_median": 127.0,
             "bottom_luminance_stddev": 33.288,
             "bottom_saturation_mean": 1.723
-          }
+          },
+          "identity_verified": true
         },
         {
           "box": [
@@ -371,7 +373,8 @@
             "bottom_luminance_median": 127.0,
             "bottom_luminance_stddev": 33.781,
             "bottom_saturation_mean": 3.393
-          }
+          },
+          "identity_verified": true
         }
       ],
       "image_sha256": "43174d50218d67f730422a1d7d009e935d07d574f79813569cec30f212eef9a8"
