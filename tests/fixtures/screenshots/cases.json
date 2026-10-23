@@ -209,7 +209,8 @@
             "bottom_luminance_median": 128.0,
             "bottom_luminance_stddev": 32.406,
             "bottom_saturation_mean": 3.119
-          }
+          },
+          "identity_verified": true
         },
         {
           "box": [
@@ -246,7 +247,8 @@
             "bottom_luminance_median": 124.0,
             "bottom_luminance_stddev": 39.101,
             "bottom_saturation_mean": 6.19
-          }
+          },
+          "identity_verified": true
         }
       ],
       "image_sha256": "a866c43ce04e35e0adcbb1a21c4076bb3996e878ecacfd0eef16f77fe7321105"
