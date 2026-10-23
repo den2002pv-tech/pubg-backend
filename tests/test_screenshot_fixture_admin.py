@@ -66,7 +66,7 @@ def test_save_screenshot_fixture_commits_image_and_verified_manifest(tmp_path, m
         upload_id=upload_id,
         id="inventory-test-01",
         title="Checked screenshot",
-        cards=[{"box": [10, 12, 40, 60], "expected_quantity": 2, "state": "owned"}],
+        cards=[{"box": [10, 12, 40, 60], "expected_quantity": 2, "state": "owned", "card_id": "card_7", "identity_verified": True}],
     )
 
     result = main.save_screenshot_test(data, authorization=None)
@@ -76,6 +76,8 @@ def test_save_screenshot_fixture_commits_image_and_verified_manifest(tmp_path, m
     assert f"tests/fixtures/screenshots/images/{data.id}.png" in captured["files"]
     manifest = json.loads(captured["files"]["tests/fixtures/screenshots/cases.json"])
     assert manifest["cases"][0]["cards"][0]["expected_quantity"] == 2
+    assert manifest["cases"][0]["cards"][0]["card_id"] == "card_7"
+    assert manifest["cases"][0]["cards"][0]["identity_verified"] is True
     assert manifest["cases"][0]["source_screenshot_size"] == [100, 120]
     assert not (tmp_path / f"screenshot-fixture-{upload_id}.png").exists()
 
@@ -111,6 +113,89 @@ def test_run_screenshot_fixtures_checks_card_count_boxes_and_quantity(monkeypatc
     assert result["passed"] == 1
     assert result["failed"] == 0
     assert result["results"][0]["passed"] is True
+
+
+def test_update_screenshot_fixture_identity_commits_manual_labels(monkeypatch):
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+    monkeypatch.setattr(main, "_screenshot_test_branch", lambda: "feature/card-counter")
+    monkeypatch.setattr(
+        main,
+        "_screenshot_test_manifest",
+        lambda branch: {
+            "version": 1,
+            "cases": [{
+                "id": "inventory-test-01",
+                "image_path": "tests/fixtures/screenshots/images/inventory-test-01.png",
+                "cards": [
+                    {"box": [10, 12, 40, 60], "state": "owned", "card_id": "card_7"},
+                    {"box": [50, 12, 40, 60], "state": "owned", "card_id": ""},
+                ],
+            }],
+        },
+    )
+    monkeypatch.setattr(main, "load_db", lambda: {"card_7": {"name": "Проверенная карта"}})
+    captured = {}
+    monkeypatch.setattr(
+        main,
+        "_github_commit_files",
+        lambda files, message, branch: captured.update(files=files, message=message, branch=branch) or {"sha": "abc123"},
+    )
+    result = main.update_screenshot_test_identity(
+        "inventory-test-01",
+        main.ScreenshotFixtureIdentityUpdateSchema(cards=[
+            {"card_id": "card_7", "identity_verified": True},
+            {"card_id": "", "identity_verified": True},
+        ]),
+        authorization=None,
+    )
+    manifest = json.loads(captured["files"]["tests/fixtures/screenshots/cases.json"])
+    cards = manifest["cases"][0]["cards"]
+    assert result["verified_cards"] == 2
+    assert result["git_commit"] == "abc123"
+    assert cards[0]["card_id"] == "card_7"
+    assert cards[0]["card_name"] == "Проверенная карта"
+    assert cards[0]["identity_verified"] is True
+    assert cards[1]["card_id"] == ""
+    assert cards[1]["identity_verified"] is True
+
+
+def test_run_screenshot_fixtures_reports_wrong_catalog_identity(monkeypatch):
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+    monkeypatch.setattr(main, "_screenshot_test_branch", lambda: "feature/card-counter")
+    monkeypatch.setattr(
+        main,
+        "_screenshot_test_manifest",
+        lambda branch: {
+            "version": 1,
+            "cases": [{
+                "id": "identity-test-01",
+                "image_path": "tests/fixtures/screenshots/images/identity-test-01.png",
+                "cards": [{
+                    "box": [10, 12, 40, 60], "expected_quantity": 2,
+                    "state": "owned", "card_id": "card_7", "identity_verified": True,
+                }],
+            }],
+        },
+    )
+    monkeypatch.setattr(main, "_github_read_bytes", lambda path, branch: _png_bytes())
+    monkeypatch.setattr(
+        main,
+        "scan_screenshot",
+        lambda image, save_previews=False: {
+            "count": 1, "cards": [{"box": [10, 12, 40, 60], "quantity": 2, "hashes": {}}],
+        },
+    )
+    monkeypatch.setattr(main, "load_db", lambda: {"card_7": {"name": "Ожидаемая"}, "card_9": {"name": "Ошибочная"}})
+    monkeypatch.setattr(
+        main,
+        "_enrich_admin_scan",
+        lambda cards, db: [{**cards[0], "matched": True, "id": "card_9"}],
+    )
+    result = main.run_screenshot_tests(authorization=None)
+    assert result["failed"] == 1
+    assert result["results"][0]["identity_checked"] == 1
+    assert result["results"][0]["identity_matches"] == 0
+    assert any("ID карты" in error and "card_7" in error and "card_9" in error for error in result["results"][0]["errors"])
 
 
 def test_github_commit_files_includes_required_tree_fields_for_deletions(monkeypatch):

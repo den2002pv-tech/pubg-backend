@@ -15,7 +15,9 @@ These fixtures test the full pipeline from an original inventory screenshot to d
 3. Record the actual visible quantity. Use `1` when no duplicate counter is visible.
 4. Use `state: "owned"` for cards that belong in inventory. Use `state: "unowned"` for darkened/locked cards that are visible but must not be counted in inventory.
 5. Add the screenshot path, original dimensions, stable case ID, card IDs/names, rectangles, and verified quantities to `cases.json`.
-6. Run `python -m pytest -q tests/test_screenshot_fixtures.py`. Fix the scanner if it fails; do not change manually verified boxes or quantities just to make the test pass.
+6. In the admin editor, select the expected catalogue card for each owned crop. Tick **ID проверен вручную** only after visually confirming it. Leave the ID empty and tick the box only when the image is confirmed not to belong to any catalogue card.
+7. For existing fixtures, use **Сохранить проверенные ID** to store manual confirmations. The action commits only the manifest and preserves the original screenshot, boxes, and quantity labels.
+8. Run `python -m pytest -q tests/test_screenshot_fixtures.py`. Fix the scanner if it fails; do not change manually verified boxes, IDs, or quantities just to make the test pass.
 
 Example:
 
@@ -57,12 +59,13 @@ For each original screenshot, the tests verify:
 - At least 90% of the labelled card area is retained and at least 75% of the crop belongs to the labelled card.
 - The crop stays within the screenshot, has plausible portrait-card proportions, and does not clip the top or right edge where the quantity badge is located.
 - The current scanner reads the manually verified quantity from each crop.
+- For cards marked `identity_verified: true`, the catalogue matcher must return exactly the manually confirmed `card_id`. An empty `card_id` means a manually confirmed unknown/non-catalogue card and must remain unmatched.
 - Labelled `unowned`/dimmed cards are not returned as inventory crops.
 - Fixture IDs, image paths, dimensions, rectangles, states, and quantities are valid.
 - Each saved card label includes versioned visual features (luminance, saturation, contrast, and separate center/title/bottom/frame measurements) extracted from the original-resolution crop.
 - The admin **Анализ отличий** report compares the manually labelled `owned` and `unowned` groups and ranks exploratory single-feature thresholds. These are fitted to the collected samples and are not independent validation or an automatic ownership decision.
 
-The manifest contains a small number of manually labelled screenshot cases. This is useful regression coverage, but it is not comprehensive: add more independently checked examples across resolutions/layouts, multiple rows, different card artwork, dimmed cards, and cards with and without quantity badges before relying on generalization.
+The manifest contains a small number of manually labelled screenshot cases. Catalogue identity checks run only for labels explicitly marked `identity_verified: true`; an automatically suggested ID is never treated as a verified answer. This is useful regression coverage, but it is not comprehensive: add more independently checked examples across resolutions/layouts, multiple rows, different card artwork, dimmed cards, and cards with and without quantity badges before relying on generalization.
 
 
 ## Admin workflow

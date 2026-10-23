@@ -298,6 +298,7 @@ class ScreenshotFixtureCardSchema(BaseModel):
     state: str = "owned"
     card_name: str = ""
     card_id: str = ""
+    identity_verified: bool = False
 
 
 class ScreenshotFixtureSaveSchema(BaseModel):
@@ -305,6 +306,15 @@ class ScreenshotFixtureSaveSchema(BaseModel):
     id: str
     title: str = ""
     cards: list[ScreenshotFixtureCardSchema]
+
+
+class ScreenshotFixtureIdentityCardSchema(BaseModel):
+    card_id: str = ""
+    identity_verified: bool = False
+
+
+class ScreenshotFixtureIdentityUpdateSchema(BaseModel):
+    cards: list[ScreenshotFixtureIdentityCardSchema]
 
 
 class CardSaveSchema(BaseModel):
@@ -1602,6 +1612,8 @@ def save_screenshot_test(data: ScreenshotFixtureSaveSchema, authorization: str |
             raise HTTPException(status_code=400, detail=f"Карта {i}: количество должно быть 1–999")
         if card.state not in {"owned", "unowned"}:
             raise HTTPException(status_code=400, detail=f"Карта {i}: неизвестное состояние")
+        if card.identity_verified and card.state != "owned":
+            raise HTTPException(status_code=400, detail=f"Карта {i}: нельзя подтверждать ID карты вне инвентаря")
     branch = _screenshot_test_branch()
     payload = _screenshot_test_manifest(branch)
     if any(str(c.get("id")) == case_id for c in payload["cases"]):
@@ -1623,6 +1635,54 @@ def save_screenshot_test(data: ScreenshotFixtureSaveSchema, authorization: str |
     commit = _github_commit_files(files, f"Add screenshot quality fixture {case_id}", branch)
     upload_path.unlink(missing_ok=True)
     return {"ok": True, "id": case_id, "branch": branch, "git_commit": commit["sha"]}
+
+
+
+@app.post("/admin/screenshot-tests/{case_id}/identity")
+def update_screenshot_test_identity(
+    case_id: str,
+    data: ScreenshotFixtureIdentityUpdateSchema,
+    authorization: str | None = Header(default=None),
+):
+    """Save manually verified catalogue IDs without rewriting the source screenshot or labels."""
+    require_admin(authorization)
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{2,79}", case_id):
+        raise HTTPException(status_code=400, detail="Некорректный ID эталона")
+    branch = _screenshot_test_branch()
+    payload = _screenshot_test_manifest(branch)
+    case = next((item for item in payload["cases"] if str(item.get("id")) == case_id), None)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Эталон не найден")
+    cards = case.get("cards")
+    if not isinstance(cards, list) or len(cards) != len(data.cards):
+        raise HTTPException(status_code=400, detail="Количество меток не совпадает с эталоном")
+    catalog = load_db()
+    for index, (existing, update) in enumerate(zip(cards, data.cards), 1):
+        if not isinstance(existing, dict):
+            raise HTTPException(status_code=400, detail=f"Некорректная метка карты {index}")
+        verified = bool(update.identity_verified)
+        card_id = update.card_id.strip()
+        if verified and existing.get("state", "owned") != "owned":
+            raise HTTPException(status_code=400, detail=f"Карта {index}: нельзя подтверждать идентичность карты вне инвентаря")
+        if verified and card_id and card_id not in catalog:
+            raise HTTPException(status_code=400, detail=f"Карта {index}: ID {card_id} отсутствует в каталоге")
+        existing["card_id"] = card_id
+        existing["identity_verified"] = verified
+        if card_id:
+            existing["card_name"] = str(catalog.get(card_id, {}).get("name") or existing.get("card_name") or card_id)
+    manifest_bytes = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    commit = _github_commit_files(
+        {SCREENSHOT_TEST_CASES_PATH: manifest_bytes},
+        f"Verify card identities in screenshot fixture {case_id}",
+        branch,
+    )
+    return {
+        "ok": True,
+        "id": case_id,
+        "branch": branch,
+        "verified_cards": sum(1 for card in cards if card.get("identity_verified") is True),
+        "git_commit": commit["sha"],
+    }
 
 
 @app.delete("/admin/screenshot-tests/{case_id}")
@@ -1647,6 +1707,7 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     branch = _screenshot_test_branch()
     results = []
+    catalog = load_db()
     for case in _screenshot_test_manifest(branch)["cases"]:
         errors = []
         path = case.get("image_path", "")
@@ -1655,7 +1716,7 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
         else:
             data = _github_read_bytes(path, branch)
         if data is None:
-            results.append({"id": case.get("id", "?"), "passed": False, "errors": ["Файл скриншота отсутствует"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0})
+            results.append({"id": case.get("id", "?"), "passed": False, "errors": ["Файл скриншота отсутствует"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0, "identity_matches": 0, "identity_checked": 0})
             continue
         try:
             with Image.open(BytesIO(data)) as source:
@@ -1666,10 +1727,12 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
             continue
         owned = [c for c in case.get("cards", []) if c.get("state", "owned") == "owned"]
         detected = list(result.get("cards", []))
+        catalog_matches = _enrich_admin_scan(detected, catalog)
         if len(owned) != len(detected):
             errors.append(f"Количество карт: ожидалось {len(owned)}, найдено {len(detected)}")
         unmatched = list(detected)
         matched = checked = 0
+        identity_matches = identity_checked = 0
         for expected in owned:
             box = expected.get("box", [])
             if not isinstance(box, list) or len(box) != 4:
@@ -1690,6 +1753,7 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
             if best is None or best_iou < 0.70:
                 errors.append(f"{label}: IoU {best_iou:.2f}, требуется не менее 0.70")
                 continue
+            actual_index = next((index for index, candidate in enumerate(detected) if candidate is best), None)
             unmatched.remove(best)
             ax, ay, aw, ah = best["box"]
             ix, iy = max(ex, ax), max(ey, ay)
@@ -1701,7 +1765,18 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
             checked += 1
             if int(best.get("quantity", 1)) == int(expected.get("expected_quantity", 1)): matched += 1
             else: errors.append(f"{label}: ожидалось {expected.get('expected_quantity', 1)}, найдено {best.get('quantity', 1)}")
-        results.append({"id": case.get("id", "?"), "passed": not errors, "errors": errors, "expected_cards": len(owned), "detected_cards": len(detected), "quantity_matches": matched, "quantity_checked": checked})
+            if expected.get("identity_verified") is True:
+                identity_checked += 1
+                expected_id = str(expected.get("card_id") or "").strip()
+                actual_identity = catalog_matches[actual_index] if actual_index is not None and actual_index < len(catalog_matches) else {}
+                actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""
+                if expected_id == actual_id:
+                    identity_matches += 1
+                else:
+                    expected_label = expected_id or "неизвестная карта"
+                    actual_label = actual_id or "совпадение не найдено"
+                    errors.append(f"{label}: ID карты — ожидалось {expected_label}, распознано {actual_label}")
+        results.append({"id": case.get("id", "?"), "passed": not errors, "errors": errors, "expected_cards": len(owned), "detected_cards": len(detected), "quantity_matches": matched, "quantity_checked": checked, "identity_matches": identity_matches, "identity_checked": identity_checked})
     passed = sum(x["passed"] for x in results)
     return {"count": len(results), "passed": passed, "failed": len(results) - passed, "results": results}
 
