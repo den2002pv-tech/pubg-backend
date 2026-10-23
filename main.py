@@ -698,13 +698,14 @@ def _find_duplicate_card_for_save(
         )
         distances = candidate.get("sorted_distances") or []
         score = candidate.get("score")
-        color_ratio = candidate.get("color_ratio")
-
         if candidate_name != normalized_name:
             continue
         if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
             continue
-        if sum(distance <= CARD_MATCH_ACCEPTABLE_DISTANCE for distance in distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+        acceptable_count = sum(
+            distance <= CARD_MATCH_ACCEPTABLE_DISTANCE for distance in distances
+        )
+        if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
             continue
         if score is None or score > threshold:
             continue
