@@ -7,6 +7,19 @@ import pytest
 import main
 
 
+def test_lifespan_runs_startup_database(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main, "startup_database", lambda: calls.append("startup"))
+
+    async def exercise_lifespan():
+        assert calls == []
+        async with main.lifespan(main.app):
+            assert calls == ["startup"]
+        assert calls == ["startup"]
+
+    asyncio.run(exercise_lifespan())
+
+
 def test_clean_hashes_keeps_valid_values_and_normalizes_strings():
     assert main.clean_hashes({
         "full_dhash": " ab12 ",
