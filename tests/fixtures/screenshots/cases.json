@@ -423,7 +423,8 @@
             "bottom_luminance_median": 100.0,
             "bottom_luminance_stddev": 41.091,
             "bottom_saturation_mean": 40.926
-          }
+          },
+          "identity_verified": false
         },
         {
           "box": [
@@ -460,7 +461,8 @@
             "bottom_luminance_median": 100.0,
             "bottom_luminance_stddev": 41.938,
             "bottom_saturation_mean": 49.112
-          }
+          },
+          "identity_verified": false
         },
         {
           "box": [
@@ -497,7 +499,8 @@
             "bottom_luminance_median": 191.0,
             "bottom_luminance_stddev": 38.861,
             "bottom_saturation_mean": 35.609
-          }
+          },
+          "identity_verified": true
         },
         {
           "box": [
@@ -534,7 +537,8 @@
             "bottom_luminance_median": 89.0,
             "bottom_luminance_stddev": 46.034,
             "bottom_saturation_mean": 28.242
-          }
+          },
+          "identity_verified": false
         }
       ],
       "image_sha256": "b3aad80471bb04577e8a83088fde62a294a70b04790eadede22a4693b997aa99"
