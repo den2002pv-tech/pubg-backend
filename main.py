@@ -662,6 +662,64 @@ def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], lim
     return rows[:max(1, limit)]
 
 
+
+def _find_duplicate_card_for_save(
+    name: str,
+    hashes: dict[str, str],
+    db: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Prevent creating a second catalogue ID for an existing card.
+
+    A confident hash match is always treated as an existing identity. If the
+    matcher deliberately rejects an ambiguous result, only block creation when
+    a visually close candidate also has the same normalized name. This keeps
+    the matcher conservative without allowing its ambiguity fallback to create
+    duplicate records for the same card.
+    """
+    normalized_name = " ".join(str(name or "").casefold().split())
+    if not normalized_name:
+        return None
+
+    matched_id, score = _match_card(hashes, db)
+    if matched_id is not None:
+        info = db.get(matched_id, {})
+        return {
+            "id": matched_id,
+            "name": info.get("name", matched_id),
+            "score": round(score, 2),
+            "reason": "confident_hash_match",
+        }
+
+    threshold = float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
+    for candidate in _match_card_diagnostics(hashes, db, limit=max(8, len(db))):
+        candidate_name = " ".join(
+            str(candidate.get("name") or "").casefold().split()
+        )
+        distances = candidate.get("sorted_distances") or []
+        score = candidate.get("score")
+        color_ratio = candidate.get("color_ratio")
+
+        if candidate_name != normalized_name:
+            continue
+        if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            continue
+        if sum(distance <= CARD_MATCH_ACCEPTABLE_DISTANCE for distance in distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            continue
+        if score is None or score > threshold:
+            continue
+        if color_ratio is not None and color_ratio > 0.55:
+            continue
+
+        return {
+            "id": candidate["id"],
+            "name": candidate.get("name", candidate["id"]),
+            "score": score,
+            "reason": "ambiguous_same_name_hash_match",
+        }
+
+    return None
+
+
 def _next_card_id(db: dict[str, Any]) -> str:
     numbers = []
 
@@ -2461,7 +2519,19 @@ async def save_card(
     card_image = _load_admin_preview(data.preview)
 
     db = load_db()
-    card_id = data.id.strip() if data.id else _next_card_id(db)
+    requested_id = data.id.strip() if data.id else ""
+    if not requested_id:
+        duplicate = _find_duplicate_card_for_save(data.name, hashes, db)
+        if duplicate is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Похоже, эта карта уже есть в каталоге. Откройте существующую карту вместо создания новой.",
+                    "duplicate": duplicate,
+                },
+            )
+
+    card_id = requested_id or _next_card_id(db)
     old = db.get(card_id, {})
     record = {
         "name": data.name,
