@@ -1324,5 +1324,18 @@
     "hash": "3cbc8c063efe688e",
     "rarity": 2,
     "icon": "/static/cards/card_114.webp"
+  },
+  "card_115": {
+    "name": "мутировавший вампир",
+    "hashes": {
+      "full_phash": "b53a8a9d7fcb20c0",
+      "full_dhash": "3c8c8e0e1696ee8e",
+      "visual_phash": "b3139d9c7f884989",
+      "visual_dhash": "7c4c9d0f0f1796b6",
+      "frame_colorhash": "06007000000"
+    },
+    "hash": "3c8c8e0e1696ee8e",
+    "rarity": 2,
+    "icon": "/static/cards/card_115.webp"
   }
 }
