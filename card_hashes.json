@@ -1143,19 +1143,6 @@
     "rarity": 2,
     "icon": "/static/cards/card_95.webp"
   },
-  "card_96": {
-    "name": "бинт охотника",
-    "hashes": {
-      "full_phash": "bf3d92802968877e",
-      "full_dhash": "1f5f333333fe6861",
-      "visual_phash": "ab3f94694b846e92",
-      "visual_dhash": "3f7f37332b33bafe",
-      "frame_colorhash": "07000000000"
-    },
-    "hash": "1f5f333333fe6861",
-    "rarity": 1,
-    "icon": "/static/cards/card_96.webp"
-  },
   "card_97": {
     "name": "Багряная крепость",
     "hashes": {
@@ -1194,19 +1181,6 @@
     "hash": "3d7c19132ffe6ae8",
     "rarity": 2,
     "icon": "/static/cards/card_99.webp"
-  },
-  "card_100": {
-    "name": "Серебролуная цепь",
-    "hashes": {
-      "full_phash": "bf3a919d2ae042f1",
-      "full_dhash": "3d3c0d073ffe6ae8",
-      "visual_phash": "bf1391bd4fa26380",
-      "visual_dhash": "7c7c9d0d173fbffe",
-      "frame_colorhash": "07007000000"
-    },
-    "hash": "3d3c0d073ffe6ae8",
-    "rarity": 2,
-    "icon": "/static/cards/card_100.webp"
   },
   "card_101": {
     "name": "Большой колокол",
@@ -1312,19 +1286,6 @@
     "rarity": 1,
     "icon": "/static/cards/card_110.webp"
   },
-  "card_111": {
-    "name": "бинт охотника",
-    "hashes": {
-      "full_phash": "bd2882977ddf8442",
-      "full_dhash": "1f3fb23232fe6807",
-      "visual_phash": "ab3f946949847e92",
-      "visual_dhash": "3f7f37332b33bbde",
-      "frame_colorhash": "07000000000"
-    },
-    "hash": "1f3fb23232fe6807",
-    "rarity": 1,
-    "icon": "/static/cards/card_111.webp"
-  },
   "card_112": {
     "name": "Гильдия охотников",
     "hashes": {
@@ -1337,18 +1298,5 @@
     "hash": "3cbcb2322efe688e",
     "rarity": 1,
     "icon": "/static/cards/card_112.webp"
-  },
-  "card_113": {
-    "name": "Серебролуная цепь",
-    "hashes": {
-      "full_phash": "953a829f7fcf20c0",
-      "full_dhash": "3cbc8c063efe688e",
-      "visual_phash": "bf1391bd4da26388",
-      "visual_dhash": "7c3c9d0d173fbffe",
-      "frame_colorhash": "06007000000"
-    },
-    "hash": "3cbc8c063efe688e",
-    "rarity": 2,
-    "icon": "/static/cards/card_113.webp"
   }
 }
