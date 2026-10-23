@@ -6893,6 +6893,1503 @@
           ]
         }
       }
+    },
+    {
+      "id": "20261023T084145555606-9a0e5c49a0",
+      "timestamp": "2026-10-23T08:41:45.555606+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145555606-9a0e5c49a0.png",
+      "image_sha256": "9a0e5c49a0a7be5b8b6271dff062877a5168de77baecf1340831c421f172370c",
+      "expected_quantity": 1,
+      "detected_quantity": 1,
+      "correct": true,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 5404.0,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0349,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 1
+            },
+            {
+              "threshold": 160,
+              "contours": 1,
+              "bright_pixel_ratio": 0.1465,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 140,
+              "contours": 3,
+              "bright_pixel_ratio": 0.3662,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 120,
+              "contours": 1,
+              "bright_pixel_ratio": 0.8018,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 0,
+          "digit_candidates_found": 1,
+          "x_candidates": [],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 23,
+              "w": 6,
+              "h": 47,
+              "digit": 1,
+              "score": 0.694,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145556024-d1d752fec5",
+      "timestamp": "2026-10-23T08:41:45.556024+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145556024-d1d752fec5.png",
+      "image_sha256": "d1d752fec527a8187fa380c7f995f5f5327fd96a2b9199110f2afd0e31157fde",
+      "expected_quantity": 2,
+      "detected_quantity": 2,
+      "correct": true,
+      "quantity_confidence": 0.817,
+      "scan_duration_ms": 1236.3,
+      "counter_debug": {
+        "quantity": 2,
+        "confidence": 0.817,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 2,
+            "digit": 2,
+            "digits": [
+              2
+            ],
+            "digit_score": 0.817,
+            "digit_scores": [
+              0.817
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0599,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145556274-969f74c134",
+      "timestamp": "2026-10-23T08:41:45.556274+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145556274-969f74c134.png",
+      "image_sha256": "969f74c134166a55836fa279b09af7e1b8a96cd0124b363516e879897c7999f3",
+      "expected_quantity": 3,
+      "detected_quantity": 3,
+      "correct": true,
+      "quantity_confidence": 0.828,
+      "scan_duration_ms": 1292.2,
+      "counter_debug": {
+        "quantity": 3,
+        "confidence": 0.828,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 3,
+            "digit": 3,
+            "digits": [
+              3
+            ],
+            "digit_score": 0.828,
+            "digit_scores": [
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0634,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145556487-a9bbd25062",
+      "timestamp": "2026-10-23T08:41:45.556487+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145556487-a9bbd25062.png",
+      "image_sha256": "a9bbd2506233f35a79050393032b2259a87a305c04330b230fc7bbf547c8ab9e",
+      "expected_quantity": 4,
+      "detected_quantity": 4,
+      "correct": true,
+      "quantity_confidence": 0.724,
+      "scan_duration_ms": 1181.2,
+      "counter_debug": {
+        "quantity": 4,
+        "confidence": 0.724,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 4,
+            "digit": 4,
+            "digits": [
+              4
+            ],
+            "digit_score": 0.724,
+            "digit_scores": [
+              0.724
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 113,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0594,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 221,
+              "y": 7,
+              "w": 14,
+              "h": 24,
+              "digit": 4,
+              "score": 0.724,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145556685-b26f6fd828",
+      "timestamp": "2026-10-23T08:41:45.556685+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145556685-b26f6fd828.png",
+      "image_sha256": "b26f6fd828493f0b9daaf4f02b1f28a51f1cac252feaa1f303ad8b8374b2bf0a",
+      "expected_quantity": 5,
+      "detected_quantity": 5,
+      "correct": true,
+      "quantity_confidence": 0.881,
+      "scan_duration_ms": 1375.9,
+      "counter_debug": {
+        "quantity": 5,
+        "confidence": 0.881,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 5,
+            "digit": 5,
+            "digits": [
+              5
+            ],
+            "digit_score": 0.881,
+            "digit_scores": [
+              0.881
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0638,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 5,
+              "score": 0.881,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145556875-116feeb41a",
+      "timestamp": "2026-10-23T08:41:45.556875+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_75",
+      "card_name": "Менемен",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        205,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145556875-116feeb41a.png",
+      "image_sha256": "116feeb41a3c93ac1212864c2e90e68133d957dcb3410d8cf80a0404931faef9",
+      "expected_quantity": 6,
+      "detected_quantity": 6,
+      "correct": true,
+      "quantity_confidence": 0.793,
+      "scan_duration_ms": 1369.7,
+      "counter_debug": {
+        "quantity": 6,
+        "confidence": 0.793,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 6,
+            "digit": 6,
+            "digits": [
+              6
+            ],
+            "digit_score": 0.793,
+            "digit_scores": [
+              0.793
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0709,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.815,
+              "alt_digit": 6,
+              "alt_score": 0.793
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145557125-9d17a3f770",
+      "timestamp": "2026-10-23T08:41:45.557125+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145557125-9d17a3f770.png",
+      "image_sha256": "9d17a3f7706e562cd6dcc3b757e53397d13beae4fbc8f033b81c54bb903a94c1",
+      "expected_quantity": 6,
+      "detected_quantity": 6,
+      "correct": true,
+      "quantity_confidence": 0.793,
+      "scan_duration_ms": 1369.7,
+      "counter_debug": {
+        "quantity": 6,
+        "confidence": 0.793,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 6,
+            "digit": 6,
+            "digits": [
+              6
+            ],
+            "digit_score": 0.793,
+            "digit_scores": [
+              0.793
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0685,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.815,
+              "alt_digit": 6,
+              "alt_score": 0.793
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145557324-6c6e33104d",
+      "timestamp": "2026-10-23T08:41:45.557324+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145557324-6c6e33104d.png",
+      "image_sha256": "6c6e33104de8fe66c08909b8a27129877baa91397c9245ff3f8248ba1e770ec4",
+      "expected_quantity": 7,
+      "detected_quantity": 7,
+      "correct": true,
+      "quantity_confidence": 0.753,
+      "scan_duration_ms": 1404.5,
+      "counter_debug": {
+        "quantity": 7,
+        "confidence": 0.753,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 7,
+            "digit": 7,
+            "digits": [
+              7
+            ],
+            "digit_score": 0.753,
+            "digit_scores": [
+              0.753
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              201,
+              3,
+              39,
+              32
+            ],
+            "contrast": 109,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.055,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 207,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 7,
+              "score": 0.753,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145557512-6f0d0456dc",
+      "timestamp": "2026-10-23T08:41:45.557512+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145557512-6f0d0456dc.png",
+      "image_sha256": "6f0d0456dc6b4f808f5d46058e07fe05fb9e368269e16ae9ea6bdf755867b7ef",
+      "expected_quantity": 8,
+      "detected_quantity": 8,
+      "correct": true,
+      "quantity_confidence": 0.919,
+      "scan_duration_ms": 1378.4,
+      "counter_debug": {
+        "quantity": 8,
+        "confidence": 0.919,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 8,
+            "digit": 8,
+            "digits": [
+              8
+            ],
+            "digit_score": 0.932,
+            "digit_scores": [
+              0.932
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              199,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0688,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 205,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 221,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 8,
+              "score": 0.932,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145557697-3bf1201125",
+      "timestamp": "2026-10-23T08:41:45.557697+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145557697-3bf1201125.png",
+      "image_sha256": "3bf12011253f7321b3f97baccca011ed44aa19a59fe8208015ce817ef104f4a3",
+      "expected_quantity": 9,
+      "detected_quantity": 9,
+      "correct": true,
+      "quantity_confidence": 0.823,
+      "scan_duration_ms": 1194.8,
+      "counter_debug": {
+        "quantity": 9,
+        "confidence": 0.823,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 9,
+            "digit": 9,
+            "digits": [
+              9
+            ],
+            "digit_score": 0.823,
+            "digit_scores": [
+              0.823
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0677,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 9,
+              "score": 0.823,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145557876-2687e27647",
+      "timestamp": "2026-10-23T08:41:45.557876+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_92",
+      "card_name": "Чечевичный суп",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        743,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145557876-2687e27647.png",
+      "image_sha256": "2687e276476de4676c09b64c6a03d22dc98305ebd93366d1e7d1bd5ca1585b23",
+      "expected_quantity": 9,
+      "detected_quantity": 9,
+      "correct": true,
+      "quantity_confidence": 0.823,
+      "scan_duration_ms": 1194.8,
+      "counter_debug": {
+        "quantity": 9,
+        "confidence": 0.823,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 9,
+            "digit": 9,
+            "digits": [
+              9
+            ],
+            "digit_score": 0.823,
+            "digit_scores": [
+              0.823
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 4,
+              "bright_pixel_ratio": 0.0677,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 9,
+              "score": 0.823,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145558109-482412dad7",
+      "timestamp": "2026-10-23T08:41:45.558109+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145558109-482412dad7.png",
+      "image_sha256": "482412dad72a334a47eb8505b41f4a2d8d8f594142473e6be1349cda345fbc02",
+      "expected_quantity": 10,
+      "detected_quantity": 10,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 1390.3,
+      "counter_debug": {
+        "quantity": 10,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 10,
+            "digit": null,
+            "digits": [
+              1,
+              0
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.94
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              193,
+              3,
+              47,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0827,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 199,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 0,
+              "score": 0.94,
+              "alt_digit": null,
+              "alt_score": null
+            },
+            {
+              "x": 215,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145558314-e0804bac54",
+      "timestamp": "2026-10-23T08:41:45.558314+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145558314-e0804bac54.png",
+      "image_sha256": "e0804bac54d91f2238f511da8338eba6c231a25172366c06b5ad28873f85ff60",
+      "expected_quantity": 11,
+      "detected_quantity": 11,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 1315.8,
+      "counter_debug": {
+        "quantity": 11,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 1,
+          "selected": {
+            "quantity": 11,
+            "digit": null,
+            "digits": [
+              1,
+              1
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.811
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              200,
+              3,
+              40,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0655,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 206,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 229,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811,
+              "alt_digit": null,
+              "alt_score": null
+            },
+            {
+              "x": 222,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145558502-c21fbc68ed",
+      "timestamp": "2026-10-23T08:41:45.558502+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145558502-c21fbc68ed.png",
+      "image_sha256": "c21fbc68edbe864f191e8ab696fed2d642d487b72452b5208e9792fee8cdeadc",
+      "expected_quantity": 12,
+      "detected_quantity": 12,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 1289.2,
+      "counter_debug": {
+        "quantity": 12,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 2,
+          "selected": {
+            "quantity": 12,
+            "digit": null,
+            "digits": [
+              1,
+              2
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.817
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              194,
+              3,
+              46,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0748,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 200,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 223,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 2,
+              "score": 0.817,
+              "alt_digit": null,
+              "alt_score": null
+            },
+            {
+              "x": 216,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20261023T084145558690-1946bf7c3a",
+      "timestamp": "2026-10-23T08:41:45.558690+00:00",
+      "app_commit": "d4ca0a8a9464f163b641967290976086021ad309",
+      "card_id": "card_91",
+      "card_name": "Казандиби",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        474,
+        264,
+        240,
+        352
+      ],
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "detector_input_size": [
+        240,
+        352
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T084145558690-1946bf7c3a.png",
+      "image_sha256": "1946bf7c3a9ac6c36db97a6ea2dc45e03b1623d23713a0bf8c84a15a4bd2144c",
+      "expected_quantity": 13,
+      "detected_quantity": 13,
+      "correct": true,
+      "quantity_confidence": 0.811,
+      "scan_duration_ms": 1265.2,
+      "counter_debug": {
+        "quantity": 13,
+        "confidence": 0.811,
+        "details": {
+          "roi": [
+            144,
+            3,
+            236,
+            70
+          ],
+          "candidates": 2,
+          "selected": {
+            "quantity": 13,
+            "digit": null,
+            "digits": [
+              1,
+              3
+            ],
+            "digit_score": 0.811,
+            "digit_scores": [
+              0.811,
+              0.828
+            ],
+            "multiply_score": 0.919,
+            "box": [
+              193,
+              3,
+              47,
+              32
+            ],
+            "contrast": 114,
+            "bg_median": 141
+          },
+          "reason": "ok",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 5,
+              "bright_pixel_ratio": 0.0784,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 2
+            }
+          ],
+          "x_candidates_found": 1,
+          "digit_candidates_found": 2,
+          "x_candidates": [
+            {
+              "x": 199,
+              "y": 14,
+              "w": 13,
+              "h": 12,
+              "score": 0.919
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 222,
+              "y": 7,
+              "w": 12,
+              "h": 24,
+              "digit": 3,
+              "score": 0.828,
+              "alt_digit": null,
+              "alt_score": null
+            },
+            {
+              "x": 215,
+              "y": 7,
+              "w": 5,
+              "h": 24,
+              "digit": 1,
+              "score": 0.811,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ]
+        }
+      }
     }
   ]
 }
