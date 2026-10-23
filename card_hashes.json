@@ -1273,32 +1273,6 @@
     "rarity": 2,
     "icon": "/static/cards/card_105.webp"
   },
-  "card_106": {
-    "name": "Алый тоник",
-    "hashes": {
-      "full_phash": "a5331acc7793994c",
-      "full_dhash": "3fd7da4e66f2e807",
-      "visual_phash": "a71b986433996cce",
-      "visual_dhash": "3f8fd34b4fa6b3b9",
-      "frame_colorhash": "07000000000"
-    },
-    "hash": "3fd7da4e66f2e807",
-    "rarity": 1,
-    "icon": "/static/cards/card_106.webp"
-  },
-  "card_107": {
-    "name": "Алый тоник",
-    "hashes": {
-      "full_phash": "a5331acc7793994c",
-      "full_dhash": "3fd7da4e66f2e807",
-      "visual_phash": "a71b986433996cce",
-      "visual_dhash": "3f8fd34b4fa6b3b9",
-      "frame_colorhash": "07000000000"
-    },
-    "hash": "3fd7da4e66f2e807",
-    "rarity": 1,
-    "icon": "/static/cards/card_107.webp"
-  },
   "card_108": {
     "name": "Статуя Золотая летучая мышь",
     "hashes": {
@@ -1324,5 +1298,57 @@
     "hash": "1f7f924b5cfed407",
     "rarity": 1,
     "icon": "/static/cards/card_109.webp"
+  },
+  "card_110": {
+    "name": "Алый тоник",
+    "hashes": {
+      "full_phash": "a5331acc7793994c",
+      "full_dhash": "3fd7da4e66f2e807",
+      "visual_phash": "a71b986433996cce",
+      "visual_dhash": "3f8fd34b4fa6b3b9",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "3fd7da4e66f2e807",
+    "rarity": 1,
+    "icon": "/static/cards/card_110.webp"
+  },
+  "card_111": {
+    "name": "бинт охотника",
+    "hashes": {
+      "full_phash": "bd2882977ddf8442",
+      "full_dhash": "1f3fb23232fe6807",
+      "visual_phash": "ab3f946949847e92",
+      "visual_dhash": "3f7f37332b33bbde",
+      "frame_colorhash": "07000000000"
+    },
+    "hash": "1f3fb23232fe6807",
+    "rarity": 1,
+    "icon": "/static/cards/card_111.webp"
+  },
+  "card_112": {
+    "name": "Гильдия охотников",
+    "hashes": {
+      "full_phash": "951aa09f7fcd60c2",
+      "full_dhash": "3cbcb2322efe688e",
+      "visual_phash": "9e79b19f48e86780",
+      "visual_dhash": "7c5ca531616d6fde",
+      "frame_colorhash": "06007000000"
+    },
+    "hash": "3cbcb2322efe688e",
+    "rarity": 1,
+    "icon": "/static/cards/card_112.webp"
+  },
+  "card_113": {
+    "name": "Серебролуная цепь",
+    "hashes": {
+      "full_phash": "953a829f7fcf20c0",
+      "full_dhash": "3cbc8c063efe688e",
+      "visual_phash": "bf1391bd4da26388",
+      "visual_dhash": "7c3c9d0d173fbffe",
+      "frame_colorhash": "06007000000"
+    },
+    "hash": "3cbc8c063efe688e",
+    "rarity": 2,
+    "icon": "/static/cards/card_113.webp"
   }
 }
