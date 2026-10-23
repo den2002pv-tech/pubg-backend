@@ -1588,6 +1588,170 @@
         }
       ],
       "image_sha256": "2124a02482d1d457117a9fb55a1328be6168e75ddbb70faa751c47d5441179b4"
+    },
+    {
+      "id": "inventory-20261023155252",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261023155252.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            204,
+            244,
+            239,
+            352
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "FMVP — ULF-KECTH",
+          "card_id": "card_49",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 125.841,
+            "luminance_median": 131.0,
+            "luminance_stddev": 67.857,
+            "saturation_mean": 83.002,
+            "saturation_median": 78.0,
+            "saturated_pixel_ratio": 0.5223,
+            "frame_luminance_mean": 151.114,
+            "frame_saturation_mean": 72.444,
+            "center_luminance_mean": 112.914,
+            "center_luminance_median": 104.0,
+            "center_luminance_stddev": 67.269,
+            "center_saturation_mean": 92.085,
+            "title_luminance_mean": 108.175,
+            "title_luminance_median": 105.0,
+            "title_luminance_stddev": 62.983,
+            "title_saturation_mean": 96.808,
+            "bottom_luminance_mean": 164.377,
+            "bottom_luminance_median": 186.0,
+            "bottom_luminance_stddev": 62.31,
+            "bottom_saturation_mean": 52.032
+          }
+        },
+        {
+          "box": [
+            471,
+            246,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Памятная карточка автора",
+          "card_id": "card_48",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 138.5,
+            "luminance_median": 145.0,
+            "luminance_stddev": 64.798,
+            "saturation_mean": 45.905,
+            "saturation_median": 27.0,
+            "saturated_pixel_ratio": 0.2527,
+            "frame_luminance_mean": 161.719,
+            "frame_saturation_mean": 65.511,
+            "center_luminance_mean": 122.109,
+            "center_luminance_median": 116.0,
+            "center_luminance_stddev": 69.067,
+            "center_saturation_mean": 37.448,
+            "title_luminance_mean": 143.044,
+            "title_luminance_median": 145.0,
+            "title_luminance_stddev": 50.083,
+            "title_saturation_mean": 59.182,
+            "bottom_luminance_mean": 165.527,
+            "bottom_luminance_median": 182.0,
+            "bottom_luminance_stddev": 65.539,
+            "bottom_saturation_mean": 43.324
+          }
+        },
+        {
+          "box": [
+            739,
+            244,
+            239,
+            352
+          ],
+          "expected_quantity": 2,
+          "state": "owned",
+          "card_name": "",
+          "card_id": "",
+          "identity_verified": false,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 151.632,
+            "luminance_median": 152.0,
+            "luminance_stddev": 50.146,
+            "saturation_mean": 48.265,
+            "saturation_median": 48.0,
+            "saturated_pixel_ratio": 0.2222,
+            "frame_luminance_mean": 158.492,
+            "frame_saturation_mean": 41.504,
+            "center_luminance_mean": 149.067,
+            "center_luminance_median": 149.0,
+            "center_luminance_stddev": 56.775,
+            "center_saturation_mean": 50.144,
+            "title_luminance_mean": 150.331,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 31.399,
+            "title_saturation_mean": 42.507,
+            "bottom_luminance_mean": 154.75,
+            "bottom_luminance_median": 165.0,
+            "bottom_luminance_stddev": 56.756,
+            "bottom_saturation_mean": 42.405
+          }
+        },
+        {
+          "box": [
+            1006,
+            244,
+            239,
+            352
+          ],
+          "expected_quantity": 2,
+          "state": "owned",
+          "card_name": "",
+          "card_id": "",
+          "identity_verified": false,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 352,
+            "luminance_mean": 113.424,
+            "luminance_median": 124.0,
+            "luminance_stddev": 65.712,
+            "saturation_mean": 66.18,
+            "saturation_median": 61.0,
+            "saturated_pixel_ratio": 0.4073,
+            "frame_luminance_mean": 158.496,
+            "frame_saturation_mean": 40.986,
+            "center_luminance_mean": 73.397,
+            "center_luminance_median": 45.0,
+            "center_luminance_stddev": 57.217,
+            "center_saturation_mean": 86.165,
+            "title_luminance_mean": 145.382,
+            "title_luminance_median": 150.0,
+            "title_luminance_stddev": 37.783,
+            "title_saturation_mean": 42.306,
+            "bottom_luminance_mean": 150.246,
+            "bottom_luminance_median": 163.0,
+            "bottom_luminance_stddev": 63.312,
+            "bottom_saturation_mean": 46.185
+          }
+        }
+      ],
+      "image_sha256": "dbe094d897da6742affd83b728473a9a19fe0a1dac697fcdfe32dd632cf26018"
     }
   ]
 }
