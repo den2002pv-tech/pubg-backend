@@ -1536,7 +1536,7 @@ async function saveCard(i, forceNew=false){
         : (detail?.message||'Ошибка сохранения');
       const duplicate=detail&&typeof detail==='object' ? detail.duplicate : null;
       const existing=duplicate
-        ? `\\nСуществующая карта: ${duplicate.id} · ${duplicate.name||''}`
+        ? `\nСуществующая карта: ${duplicate.id} · ${duplicate.name||''}`
         : '';
       throw new Error(message+existing);
     }
