@@ -1752,6 +1752,170 @@
         }
       ],
       "image_sha256": "dbe094d897da6742affd83b728473a9a19fe0a1dac697fcdfe32dd632cf26018"
+    },
+    {
+      "id": "inventory-20261023155731",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261023155731.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            203,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Наруто Ураганные хроники",
+          "card_id": "card_47",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 143.561,
+            "luminance_median": 143.0,
+            "luminance_stddev": 56.109,
+            "saturation_mean": 50.235,
+            "saturation_median": 36.0,
+            "saturated_pixel_ratio": 0.2862,
+            "frame_luminance_mean": 164.271,
+            "frame_saturation_mean": 57.821,
+            "center_luminance_mean": 118.642,
+            "center_luminance_median": 111.0,
+            "center_luminance_stddev": 53.196,
+            "center_saturation_mean": 51.817,
+            "title_luminance_mean": 162.213,
+            "title_luminance_median": 161.0,
+            "title_luminance_stddev": 59.328,
+            "title_saturation_mean": 43.187,
+            "bottom_luminance_mean": 178.21,
+            "bottom_luminance_median": 181.0,
+            "bottom_luminance_stddev": 44.204,
+            "bottom_saturation_mean": 43.786
+          }
+        },
+        {
+          "box": [
+            471,
+            87,
+            239,
+            351
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Наруто Режим Шести Путей",
+          "card_id": "card_46",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 351,
+            "luminance_mean": 129.333,
+            "luminance_median": 129.0,
+            "luminance_stddev": 59.738,
+            "saturation_mean": 82.876,
+            "saturation_median": 89.0,
+            "saturated_pixel_ratio": 0.5826,
+            "frame_luminance_mean": 157.695,
+            "frame_saturation_mean": 65.991,
+            "center_luminance_mean": 104.095,
+            "center_luminance_median": 95.0,
+            "center_luminance_stddev": 57.321,
+            "center_saturation_mean": 98.801,
+            "title_luminance_mean": 136.82,
+            "title_luminance_median": 131.0,
+            "title_luminance_stddev": 46.383,
+            "title_saturation_mean": 93.044,
+            "bottom_luminance_mean": 166.843,
+            "bottom_luminance_median": 183.0,
+            "bottom_luminance_stddev": 57.88,
+            "bottom_saturation_mean": 48.531
+          }
+        },
+        {
+          "box": [
+            739,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Наруто Режим отшельника",
+          "card_id": "card_45",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 112.033,
+            "luminance_median": 103.0,
+            "luminance_stddev": 62.518,
+            "saturation_mean": 102.328,
+            "saturation_median": 102.0,
+            "saturated_pixel_ratio": 0.6488,
+            "frame_luminance_mean": 152.796,
+            "frame_saturation_mean": 73.009,
+            "center_luminance_mean": 70.595,
+            "center_luminance_median": 63.0,
+            "center_luminance_stddev": 40.823,
+            "center_saturation_mean": 129.064,
+            "title_luminance_mean": 126.22,
+            "title_luminance_median": 117.0,
+            "title_luminance_stddev": 46.541,
+            "title_saturation_mean": 108.615,
+            "bottom_luminance_mean": 168.892,
+            "bottom_luminance_median": 189.0,
+            "bottom_luminance_stddev": 57.117,
+            "bottom_saturation_mean": 61.052
+          }
+        },
+        {
+          "box": [
+            1006,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Наруто Узумаки",
+          "card_id": "card_44",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 121.648,
+            "luminance_median": 117.0,
+            "luminance_stddev": 56.813,
+            "saturation_mean": 89.206,
+            "saturation_median": 93.0,
+            "saturated_pixel_ratio": 0.6074,
+            "frame_luminance_mean": 154.41,
+            "frame_saturation_mean": 72.217,
+            "center_luminance_mean": 89.859,
+            "center_luminance_median": 85.0,
+            "center_luminance_stddev": 42.759,
+            "center_saturation_mean": 103.38,
+            "title_luminance_mean": 122.915,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 42.833,
+            "title_saturation_mean": 102.023,
+            "bottom_luminance_mean": 170.789,
+            "bottom_luminance_median": 187.0,
+            "bottom_luminance_stddev": 54.838,
+            "bottom_saturation_mean": 60.937
+          }
+        }
+      ],
+      "image_sha256": "3fa540d6dc334edadb78c0cf62a093699c6c93edba7baea435fbbcc3833f97ad"
     }
   ]
 }
