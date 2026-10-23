@@ -1462,6 +1462,132 @@
         }
       ],
       "image_sha256": "e208a27e43bd27c2daf01b240d4706524fc20c9710fb44171524d5941fc6250d"
+    },
+    {
+      "id": "inventory-20261023155211",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261023155211.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            471,
+            87,
+            239,
+            351
+          ],
+          "expected_quantity": 2,
+          "state": "owned",
+          "card_name": "Париж, Франция",
+          "card_id": "card_52",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 351,
+            "luminance_mean": 155.899,
+            "luminance_median": 158.0,
+            "luminance_stddev": 50.243,
+            "saturation_mean": 70.193,
+            "saturation_median": 61.0,
+            "saturated_pixel_ratio": 0.4584,
+            "frame_luminance_mean": 157.224,
+            "frame_saturation_mean": 73.531,
+            "center_luminance_mean": 157.868,
+            "center_luminance_median": 166.0,
+            "center_luminance_stddev": 51.395,
+            "center_saturation_mean": 64.97,
+            "title_luminance_mean": 142.402,
+            "title_luminance_median": 140.0,
+            "title_luminance_stddev": 33.862,
+            "title_saturation_mean": 110.099,
+            "bottom_luminance_mean": 164.045,
+            "bottom_luminance_median": 182.0,
+            "bottom_luminance_stddev": 61.054,
+            "bottom_saturation_mean": 51.392
+          }
+        },
+        {
+          "box": [
+            739,
+            87,
+            239,
+            351
+          ],
+          "expected_quantity": 2,
+          "state": "owned",
+          "card_name": "Чемпион YG",
+          "card_id": "card_51",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 351,
+            "luminance_mean": 115.128,
+            "luminance_median": 110.0,
+            "luminance_stddev": 62.049,
+            "saturation_mean": 96.04,
+            "saturation_median": 82.0,
+            "saturated_pixel_ratio": 0.5654,
+            "frame_luminance_mean": 153.405,
+            "frame_saturation_mean": 71.76,
+            "center_luminance_mean": 82.886,
+            "center_luminance_median": 61.0,
+            "center_luminance_stddev": 48.122,
+            "center_saturation_mean": 112.284,
+            "title_luminance_mean": 127.864,
+            "title_luminance_median": 132.0,
+            "title_luminance_stddev": 48.532,
+            "title_saturation_mean": 81.193,
+            "bottom_luminance_mean": 161.464,
+            "bottom_luminance_median": 180.0,
+            "bottom_luminance_stddev": 62.665,
+            "bottom_saturation_mean": 82.11
+          }
+        },
+        {
+          "box": [
+            1006,
+            87,
+            239,
+            351
+          ],
+          "expected_quantity": 5,
+          "state": "owned",
+          "card_name": "Чемпион 4T",
+          "card_id": "card_50",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 351,
+            "luminance_mean": 116.14,
+            "luminance_median": 105.0,
+            "luminance_stddev": 64.051,
+            "saturation_mean": 82.146,
+            "saturation_median": 89.0,
+            "saturated_pixel_ratio": 0.5878,
+            "frame_luminance_mean": 153.113,
+            "frame_saturation_mean": 72.823,
+            "center_luminance_mean": 91.167,
+            "center_luminance_median": 83.0,
+            "center_luminance_stddev": 50.179,
+            "center_saturation_mean": 89.466,
+            "title_luminance_mean": 116.606,
+            "title_luminance_median": 118.0,
+            "title_luminance_stddev": 57.622,
+            "title_saturation_mean": 92.07,
+            "bottom_luminance_mean": 156.101,
+            "bottom_luminance_median": 178.0,
+            "bottom_luminance_stddev": 73.187,
+            "bottom_saturation_mean": 60.956
+          }
+        }
+      ],
+      "image_sha256": "2124a02482d1d457117a9fb55a1328be6168e75ddbb70faa751c47d5441179b4"
     }
   ]
 }
