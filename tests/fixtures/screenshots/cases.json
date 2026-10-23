@@ -738,6 +738,166 @@
         }
       ],
       "image_sha256": "b30b99e6f06ed16dd6ecd5b447f52fca3db6786ccbbf59754e099eea266a596b"
+    },
+    {
+      "id": "inventory-20261023124352",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261023124352.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            164,
+            240,
+            353
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Каштан",
+          "card_id": "card_78",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 150.37,
+            "luminance_median": 146.0,
+            "luminance_stddev": 45.187,
+            "saturation_mean": 59.528,
+            "saturation_median": 51.0,
+            "saturated_pixel_ratio": 0.2938,
+            "frame_luminance_mean": 160.616,
+            "frame_saturation_mean": 35.731,
+            "center_luminance_mean": 141.374,
+            "center_luminance_median": 134.0,
+            "center_luminance_stddev": 50.608,
+            "center_saturation_mean": 75.889,
+            "title_luminance_mean": 163.717,
+            "title_luminance_median": 163.0,
+            "title_luminance_stddev": 34.825,
+            "title_saturation_mean": 37.12,
+            "bottom_luminance_mean": 158.946,
+            "bottom_luminance_median": 164.0,
+            "bottom_luminance_stddev": 44.793,
+            "bottom_saturation_mean": 45.746
+          }
+        },
+        {
+          "box": [
+            474,
+            164,
+            240,
+            353
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Хамси тава",
+          "card_id": "card_104",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 164.9,
+            "luminance_median": 162.0,
+            "luminance_stddev": 35.878,
+            "saturation_mean": 64.797,
+            "saturation_median": 63.0,
+            "saturated_pixel_ratio": 0.4484,
+            "frame_luminance_mean": 156.533,
+            "frame_saturation_mean": 39.405,
+            "center_luminance_mean": 170.314,
+            "center_luminance_median": 168.0,
+            "center_luminance_stddev": 38.52,
+            "center_saturation_mean": 87.368,
+            "title_luminance_mean": 150.788,
+            "title_luminance_median": 152.0,
+            "title_luminance_stddev": 26.823,
+            "title_saturation_mean": 42.704,
+            "bottom_luminance_mean": 168.169,
+            "bottom_luminance_median": 178.0,
+            "bottom_luminance_stddev": 37.773,
+            "bottom_saturation_mean": 37.997
+          }
+        },
+        {
+          "box": [
+            743,
+            164,
+            240,
+            353
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "Тулумба",
+          "card_id": "card_81",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 155.462,
+            "luminance_median": 151.0,
+            "luminance_stddev": 40.013,
+            "saturation_mean": 73.637,
+            "saturation_median": 65.0,
+            "saturated_pixel_ratio": 0.4762,
+            "frame_luminance_mean": 156.689,
+            "frame_saturation_mean": 40.556,
+            "center_luminance_mean": 151.859,
+            "center_luminance_median": 146.0,
+            "center_luminance_stddev": 44.718,
+            "center_saturation_mean": 104.344,
+            "title_luminance_mean": 151.859,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 28.202,
+            "title_saturation_mean": 42.443,
+            "bottom_luminance_mean": 166.28,
+            "bottom_luminance_median": 177.0,
+            "bottom_luminance_stddev": 39.544,
+            "bottom_saturation_mean": 39.549
+          }
+        },
+        {
+          "box": [
+            1012,
+            164,
+            240,
+            353
+          ],
+          "expected_quantity": 11,
+          "state": "owned",
+          "card_name": "Бурек",
+          "card_id": "card_86",
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 149.094,
+            "luminance_median": 139.0,
+            "luminance_stddev": 38.355,
+            "saturation_mean": 17.81,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.1233,
+            "frame_luminance_mean": 144.512,
+            "frame_saturation_mean": 2.465,
+            "center_luminance_mean": 163.058,
+            "center_luminance_median": 161.0,
+            "center_luminance_stddev": 38.854,
+            "center_saturation_mean": 36.171,
+            "title_luminance_mean": 123.035,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 29.664,
+            "title_saturation_mean": 0.683,
+            "bottom_luminance_mean": 134.031,
+            "bottom_luminance_median": 126.0,
+            "bottom_luminance_stddev": 31.33,
+            "bottom_saturation_mean": 1.566
+          }
+        }
+      ],
+      "image_sha256": "196204ec57bda585dd170abbc0810624f9c15cbf1a4f1e4458cd6a1f7f75c304"
     }
   ]
 }
