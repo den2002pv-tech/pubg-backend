@@ -8390,6 +8390,359 @@
           ]
         }
       }
+    },
+    {
+      "id": "20261023T085126042092-7be93f1c38",
+      "timestamp": "2026-10-23T08:51:26.042092+00:00",
+      "app_commit": "073cc22cba21591bb0f28be04d274665ef465218",
+      "card_id": "card_45",
+      "card_name": "Наруто Режим отшельника",
+      "row": 0,
+      "col": 2,
+      "card_box_in_screenshot": [
+        1190,
+        141,
+        381,
+        563
+      ],
+      "source_screenshot_size": [
+        2560,
+        1152
+      ],
+      "detector_input_size": [
+        381,
+        563
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T085126042092-7be93f1c38.png",
+      "image_sha256": "7be93f1c385f82aa1b4579929d95ac14f408b86d598344c561c6fc293a0ad397",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 9377.5,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            228,
+            5,
+            375,
+            112
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_valid_badge",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 11,
+              "bright_pixel_ratio": 0.0797,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 18,
+              "bright_pixel_ratio": 0.1215,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 140,
+              "contours": 10,
+              "bright_pixel_ratio": 0.2493,
+              "x_candidates_added": 2,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 120,
+              "contours": 45,
+              "bright_pixel_ratio": 0.3857,
+              "x_candidates_added": 3,
+              "digit_candidates_added": 1
+            }
+          ],
+          "x_candidates_found": 7,
+          "digit_candidates_found": 1,
+          "x_candidates": [
+            {
+              "x": 233,
+              "y": 80,
+              "w": 13,
+              "h": 14,
+              "score": 0.491
+            },
+            {
+              "x": 363,
+              "y": 62,
+              "w": 11,
+              "h": 13,
+              "score": 0.479
+            },
+            {
+              "x": 301,
+              "y": 78,
+              "w": 10,
+              "h": 16,
+              "score": 0.459
+            },
+            {
+              "x": 290,
+              "y": 90,
+              "w": 9,
+              "h": 16,
+              "score": 0.397
+            },
+            {
+              "x": 253,
+              "y": 79,
+              "w": 13,
+              "h": 14,
+              "score": 0.388
+            }
+          ],
+          "digit_candidates": [
+            {
+              "x": 273,
+              "y": 78,
+              "w": 14,
+              "h": 34,
+              "digit": 8,
+              "score": 0.629,
+              "alt_digit": null,
+              "alt_score": null
+            }
+          ],
+          "rejection_stage": "badge_geometry_or_contrast"
+        }
+      }
+    },
+    {
+      "id": "20261023T085126042502-50e88b65a6",
+      "timestamp": "2026-10-23T08:51:26.042502+00:00",
+      "app_commit": "073cc22cba21591bb0f28be04d274665ef465218",
+      "card_id": "card_6",
+      "card_name": "Магическая битва",
+      "row": 0,
+      "col": 0,
+      "card_box_in_screenshot": [
+        162,
+        70,
+        191,
+        281
+      ],
+      "source_screenshot_size": [
+        1280,
+        576
+      ],
+      "detector_input_size": [
+        191,
+        281
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T085126042502-50e88b65a6.png",
+      "image_sha256": "50e88b65a659e42b96747728b3abe901dfaa41a62ceef6665fb7a03c562edf79",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1680.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            114,
+            2,
+            188,
+            56
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 3,
+              "bright_pixel_ratio": 0.0648,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 18,
+              "bright_pixel_ratio": 0.0886,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 140,
+              "contours": 32,
+              "bright_pixel_ratio": 0.2037,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 120,
+              "contours": 21,
+              "bright_pixel_ratio": 0.274,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": "local_contrast_otsu",
+              "contours": 21,
+              "bright_pixel_ratio": 0.1659,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 3,
+          "digit_candidates_found": 0,
+          "x_candidates": [
+            {
+              "x": 169,
+              "y": 5,
+              "w": 19,
+              "h": 20,
+              "score": 0.505
+            },
+            {
+              "x": 125,
+              "y": 33,
+              "w": 28,
+              "h": 23,
+              "score": 0.405
+            },
+            {
+              "x": 169,
+              "y": 5,
+              "w": 19,
+              "h": 20,
+              "score": 0.311
+            }
+          ],
+          "digit_candidates": []
+        }
+      }
+    },
+    {
+      "id": "20261023T085126042788-83dfdb834f",
+      "timestamp": "2026-10-23T08:51:26.042788+00:00",
+      "app_commit": "073cc22cba21591bb0f28be04d274665ef465218",
+      "card_id": "card_5",
+      "card_name": "Рёмэн Сукуна",
+      "row": 0,
+      "col": 1,
+      "card_box_in_screenshot": [
+        376,
+        70,
+        192,
+        281
+      ],
+      "source_screenshot_size": [
+        1280,
+        576
+      ],
+      "detector_input_size": [
+        192,
+        281
+      ],
+      "detector_input_format": "PNG",
+      "image_path": "tests/fixtures/counter/images/20261023T085126042788-83dfdb834f.png",
+      "image_sha256": "83dfdb834f3bd3d78dcedb28a63dfe664422e8f1d0b9ab8370893f042da05d99",
+      "expected_quantity": 2,
+      "detected_quantity": 1,
+      "correct": false,
+      "quantity_confidence": 0.0,
+      "scan_duration_ms": 1680.1,
+      "counter_debug": {
+        "quantity": 1,
+        "confidence": 0,
+        "details": {
+          "roi": [
+            115,
+            2,
+            189,
+            56
+          ],
+          "candidates": 0,
+          "selected": null,
+          "reason": "no_glyph_candidates",
+          "threshold_runs": [
+            {
+              "threshold": 180,
+              "contours": 6,
+              "bright_pixel_ratio": 0.0678,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 160,
+              "contours": 11,
+              "bright_pixel_ratio": 0.0938,
+              "x_candidates_added": 1,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 140,
+              "contours": 9,
+              "bright_pixel_ratio": 0.208,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": 120,
+              "contours": 12,
+              "bright_pixel_ratio": 0.3594,
+              "x_candidates_added": 2,
+              "digit_candidates_added": 0
+            },
+            {
+              "threshold": "local_contrast_otsu",
+              "contours": 38,
+              "bright_pixel_ratio": 0.1291,
+              "x_candidates_added": 0,
+              "digit_candidates_added": 0
+            }
+          ],
+          "x_candidates_found": 4,
+          "digit_candidates_found": 0,
+          "x_candidates": [
+            {
+              "x": 169,
+              "y": 5,
+              "w": 19,
+              "h": 20,
+              "score": 0.374
+            },
+            {
+              "x": 115,
+              "y": 37,
+              "w": 7,
+              "h": 8,
+              "score": 0.359
+            },
+            {
+              "x": 141,
+              "y": 24,
+              "w": 18,
+              "h": 20,
+              "score": 0.347
+            },
+            {
+              "x": 169,
+              "y": 5,
+              "w": 19,
+              "h": 20,
+              "score": 0.331
+            }
+          ],
+          "digit_candidates": []
+        }
+      }
     }
   ]
 }
