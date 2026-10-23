@@ -806,6 +806,170 @@
         }
       ],
       "image_sha256": "dd66c4a79e64c12fcabf4196d33046f081fad0febd52ea053b474a705f38834d"
+    },
+    {
+      "id": "inventory-20261023154140",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261023154140.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            178,
+            240,
+            353
+          ],
+          "expected_quantity": 5,
+          "state": "owned",
+          "card_name": "Сумрачные крылья",
+          "card_id": "card_116",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 147.893,
+            "luminance_median": 144.0,
+            "luminance_stddev": 33.622,
+            "saturation_mean": 67.378,
+            "saturation_median": 67.0,
+            "saturated_pixel_ratio": 0.4799,
+            "frame_luminance_mean": 155.213,
+            "frame_saturation_mean": 39.969,
+            "center_luminance_mean": 134.887,
+            "center_luminance_median": 133.0,
+            "center_luminance_stddev": 30.057,
+            "center_saturation_mean": 93.329,
+            "title_luminance_mean": 150.109,
+            "title_luminance_median": 152.0,
+            "title_luminance_stddev": 26.121,
+            "title_saturation_mean": 42.811,
+            "bottom_luminance_mean": 170.544,
+            "bottom_luminance_median": 186.0,
+            "bottom_luminance_stddev": 38.253,
+            "bottom_saturation_mean": 37.145
+          }
+        },
+        {
+          "box": [
+            474,
+            178,
+            240,
+            353
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Серебролунная цепь",
+          "card_id": "card_114",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 148.158,
+            "luminance_median": 142.0,
+            "luminance_stddev": 33.75,
+            "saturation_mean": 60.9,
+            "saturation_median": 62.0,
+            "saturated_pixel_ratio": 0.4159,
+            "frame_luminance_mean": 157.479,
+            "frame_saturation_mean": 39.613,
+            "center_luminance_mean": 133.953,
+            "center_luminance_median": 130.0,
+            "center_luminance_stddev": 27.647,
+            "center_saturation_mean": 79.718,
+            "title_luminance_mean": 150.744,
+            "title_luminance_median": 152.0,
+            "title_luminance_stddev": 26.759,
+            "title_saturation_mean": 42.825,
+            "bottom_luminance_mean": 172.076,
+            "bottom_luminance_median": 187.0,
+            "bottom_luminance_stddev": 39.515,
+            "bottom_saturation_mean": 36.385
+          }
+        },
+        {
+          "box": [
+            743,
+            178,
+            240,
+            353
+          ],
+          "expected_quantity": 4,
+          "state": "owned",
+          "card_name": "Большой колокол",
+          "card_id": "card_101",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 138.998,
+            "luminance_median": 139.0,
+            "luminance_stddev": 44.151,
+            "saturation_mean": 61.691,
+            "saturation_median": 61.0,
+            "saturated_pixel_ratio": 0.398,
+            "frame_luminance_mean": 157.958,
+            "frame_saturation_mean": 40.998,
+            "center_luminance_mean": 114.395,
+            "center_luminance_median": 122.0,
+            "center_luminance_stddev": 41.584,
+            "center_saturation_mean": 80.273,
+            "title_luminance_mean": 151.116,
+            "title_luminance_median": 152.0,
+            "title_luminance_stddev": 27.282,
+            "title_saturation_mean": 43.044,
+            "bottom_luminance_mean": 171.067,
+            "bottom_luminance_median": 184.0,
+            "bottom_luminance_stddev": 38.905,
+            "bottom_saturation_mean": 37.536
+          }
+        },
+        {
+          "box": [
+            1012,
+            178,
+            240,
+            353
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "Золотая летучая мышь",
+          "card_id": "card_117",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 146.459,
+            "luminance_median": 143.0,
+            "luminance_stddev": 39.234,
+            "saturation_mean": 65.808,
+            "saturation_median": 65.0,
+            "saturated_pixel_ratio": 0.4559,
+            "frame_luminance_mean": 159.229,
+            "frame_saturation_mean": 40.123,
+            "center_luminance_mean": 128.842,
+            "center_luminance_median": 130.0,
+            "center_luminance_stddev": 36.672,
+            "center_saturation_mean": 90.124,
+            "title_luminance_mean": 151.616,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 27.895,
+            "title_saturation_mean": 42.725,
+            "bottom_luminance_mean": 172.584,
+            "bottom_luminance_median": 190.0,
+            "bottom_luminance_stddev": 39.071,
+            "bottom_saturation_mean": 36.256
+          }
+        }
+      ],
+      "image_sha256": "6024f59aa7239b447aafd2845f1ea6717ef44efa83e520656fb7da5f8e5e8008"
     }
   ]
 }
