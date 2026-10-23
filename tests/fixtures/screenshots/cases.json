@@ -1298,6 +1298,170 @@
         }
       ],
       "image_sha256": "9ddacd172670f1172f16cbdab54507a4a69d08d6193e99b31786f2629b2b159a"
+    },
+    {
+      "id": "inventory-20261023154352",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261023154352.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            162,
+            240,
+            353
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "Лахмаджун",
+          "card_id": "card_87",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 166.534,
+            "luminance_median": 165.0,
+            "luminance_stddev": 38.734,
+            "saturation_mean": 65.615,
+            "saturation_median": 61.0,
+            "saturated_pixel_ratio": 0.3974,
+            "frame_luminance_mean": 155.877,
+            "frame_saturation_mean": 38.404,
+            "center_luminance_mean": 173.675,
+            "center_luminance_median": 168.0,
+            "center_luminance_stddev": 41.75,
+            "center_saturation_mean": 87.88,
+            "title_luminance_mean": 153.492,
+            "title_luminance_median": 156.0,
+            "title_luminance_stddev": 24.837,
+            "title_saturation_mean": 47.142,
+            "bottom_luminance_mean": 163.76,
+            "bottom_luminance_median": 174.0,
+            "bottom_luminance_stddev": 41.071,
+            "bottom_saturation_mean": 39.321
+          }
+        },
+        {
+          "box": [
+            474,
+            162,
+            240,
+            353
+          ],
+          "expected_quantity": 7,
+          "state": "owned",
+          "card_name": "Пиде с мясом",
+          "card_id": "card_103",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 161.61,
+            "luminance_median": 157.0,
+            "luminance_stddev": 45.083,
+            "saturation_mean": 71.797,
+            "saturation_median": 63.0,
+            "saturated_pixel_ratio": 0.4418,
+            "frame_luminance_mean": 157.675,
+            "frame_saturation_mean": 39.12,
+            "center_luminance_mean": 164.964,
+            "center_luminance_median": 162.0,
+            "center_luminance_stddev": 52.077,
+            "center_saturation_mean": 100.65,
+            "title_luminance_mean": 145.322,
+            "title_luminance_median": 147.0,
+            "title_luminance_stddev": 31.981,
+            "title_saturation_mean": 43.502,
+            "bottom_luminance_mean": 165.928,
+            "bottom_luminance_median": 178.0,
+            "bottom_luminance_stddev": 41.347,
+            "bottom_saturation_mean": 41.275
+          }
+        },
+        {
+          "box": [
+            743,
+            162,
+            240,
+            353
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Долма",
+          "card_id": "card_89",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 153.337,
+            "luminance_median": 146.0,
+            "luminance_stddev": 52.237,
+            "saturation_mean": 47.134,
+            "saturation_median": 46.0,
+            "saturated_pixel_ratio": 0.2148,
+            "frame_luminance_mean": 156.993,
+            "frame_saturation_mean": 38.676,
+            "center_luminance_mean": 153.062,
+            "center_luminance_median": 135.0,
+            "center_luminance_stddev": 61.808,
+            "center_saturation_mean": 53.074,
+            "title_luminance_mean": 151.812,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 27.63,
+            "title_saturation_mean": 42.057,
+            "bottom_luminance_mean": 154.053,
+            "bottom_luminance_median": 156.0,
+            "bottom_luminance_stddev": 52.018,
+            "bottom_saturation_mean": 37.6
+          }
+        },
+        {
+          "box": [
+            1012,
+            162,
+            240,
+            353
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Манты",
+          "card_id": "card_90",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 165.058,
+            "luminance_median": 159.0,
+            "luminance_stddev": 38.906,
+            "saturation_mean": 56.064,
+            "saturation_median": 54.0,
+            "saturated_pixel_ratio": 0.3262,
+            "frame_luminance_mean": 159.193,
+            "frame_saturation_mean": 39.984,
+            "center_luminance_mean": 169.814,
+            "center_luminance_median": 166.0,
+            "center_luminance_stddev": 43.074,
+            "center_saturation_mean": 68.526,
+            "title_luminance_mean": 151.411,
+            "title_luminance_median": 152.0,
+            "title_luminance_stddev": 27.649,
+            "title_saturation_mean": 42.609,
+            "bottom_luminance_mean": 168.841,
+            "bottom_luminance_median": 176.0,
+            "bottom_luminance_stddev": 38.954,
+            "bottom_saturation_mean": 39.558
+          }
+        }
+      ],
+      "image_sha256": "e208a27e43bd27c2daf01b240d4706524fc20c9710fb44171524d5941fc6250d"
     }
   ]
 }
