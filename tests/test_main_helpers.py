@@ -459,6 +459,45 @@ def test_save_duplicate_guard_allows_ambiguous_different_name_card():
     assert main._find_duplicate_card_for_save("Новая карта", hashes, db) is None
 
 
+
+def test_save_card_returns_conflict_instead_of_creating_ambiguous_same_name_duplicate(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
+    monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
+    monkeypatch.setattr(main, "DB_FILE", tmp_path / "card_hashes.json")
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path / "temp_images")
+    monkeypatch.setattr(main, "CARDS_DIR", tmp_path / "static" / "cards")
+    main.TEMP_DIR.mkdir(parents=True)
+    main.Image.new("RGB", (120, 180), (240, 30, 30)).save(
+        main.TEMP_DIR / "scan-card.jpg", "JPEG"
+    )
+
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    main.save_db({
+        "card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+        "card_116": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+    })
+    token = main._make_session()
+
+    with pytest.raises(main.HTTPException) as exc:
+        asyncio.run(main.save_card(
+            main.CardSaveSchema(
+                name="Сумрачные крылья",
+                preview="/temp-images/scan-card.jpg",
+                hashes=hashes,
+            ),
+            authorization=f"Bearer {token}",
+        ))
+
+    assert exc.value.status_code == 409
+    assert set(main.load_db()) == {"card_99", "card_116"}
+
+
 def test_save_card_reuses_scanned_preview_as_permanent_icon(monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
     monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
