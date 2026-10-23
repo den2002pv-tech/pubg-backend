@@ -562,7 +562,7 @@
           "expected_quantity": 1,
           "state": "owned",
           "card_name": "Алый тоник",
-          "card_id": "",
+          "card_id": "card_110",
           "visual_features": {
             "version": 1,
             "width": 444,
@@ -587,7 +587,8 @@
             "bottom_luminance_median": 123.0,
             "bottom_luminance_stddev": 29.234,
             "bottom_saturation_mean": 3.001
-          }
+          },
+          "identity_verified": true
         }
       ],
       "image_sha256": "b30b99e6f06ed16dd6ecd5b447f52fca3db6786ccbbf59754e099eea266a596b"
