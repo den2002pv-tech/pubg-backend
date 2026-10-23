@@ -1522,14 +1522,23 @@ async function saveCard(i, forceNew=false){
         rarity,
         preview:card.preview,
         hash:card.hash,
-        hashes:card.hashes
+        hashes:card.hashes,
+        force_new:!!forceNew
       })
     });
 
     const d=await r.json();
 
     if(!r.ok){
-      throw new Error(d.detail||'Ошибка сохранения');
+      const detail=d.detail;
+      const message=typeof detail==='string'
+        ? detail
+        : (detail?.message||'Ошибка сохранения');
+      const duplicate=detail&&typeof detail==='object' ? detail.duplicate : null;
+      const existing=duplicate
+        ? `\\nСуществующая карта: ${duplicate.id} · ${duplicate.name||''}`
+        : '';
+      throw new Error(message+existing);
     }
 
     card.matched=true;
