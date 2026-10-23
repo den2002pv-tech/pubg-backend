@@ -1130,19 +1130,6 @@
     "rarity": 1,
     "icon": "/static/cards/card_94.webp"
   },
-  "card_95": {
-    "name": "Гильдия охотников",
-    "hashes": {
-      "full_phash": "9e3ad1b51ee840e5",
-      "full_dhash": "3c7c35332dfe6ae8",
-      "visual_phash": "9e79b19f4ce06780",
-      "visual_dhash": "7c7c8531616d2fde",
-      "frame_colorhash": "07007000000"
-    },
-    "hash": "3c7c35332dfe6ae8",
-    "rarity": 2,
-    "icon": "/static/cards/card_95.webp"
-  },
   "card_97": {
     "name": "Багряная крепость",
     "hashes": {
@@ -1169,19 +1156,6 @@
     "rarity": 2,
     "icon": "/static/cards/card_98.webp"
   },
-  "card_99": {
-    "name": "Сумрачные крылья",
-    "hashes": {
-      "full_phash": "9f3a94b43ae84ae4",
-      "full_dhash": "3d7c19132ffe6ae8",
-      "visual_phash": "bb1b95b5598a6681",
-      "visual_dhash": "7c7c0b39132faffe",
-      "frame_colorhash": "07007000000"
-    },
-    "hash": "3d7c19132ffe6ae8",
-    "rarity": 2,
-    "icon": "/static/cards/card_99.webp"
-  },
   "card_101": {
     "name": "Большой колокол",
     "hashes": {
@@ -1194,19 +1168,6 @@
     "hash": "3d3c0b132737eae8",
     "rarity": 2,
     "icon": "/static/cards/card_101.webp"
-  },
-  "card_102": {
-    "name": "Золотая летучая мышь",
-    "hashes": {
-      "full_phash": "bb3a94943a614af5",
-      "full_dhash": "3d7c131f1ffecee8",
-      "visual_phash": "bb5b96976b684882",
-      "visual_dhash": "7c7c931b1f1ffffe",
-      "frame_colorhash": "07007000000"
-    },
-    "hash": "3d7c131f1ffecee8",
-    "rarity": 2,
-    "icon": "/static/cards/card_102.webp"
   },
   "card_103": {
     "name": "Пиде с мясом",
@@ -1286,19 +1247,6 @@
     "rarity": 1,
     "icon": "/static/cards/card_110.webp"
   },
-  "card_112": {
-    "name": "Гильдия охотников",
-    "hashes": {
-      "full_phash": "951aa09f7fcd60c2",
-      "full_dhash": "3cbcb2322efe688e",
-      "visual_phash": "9e79b19f48e86780",
-      "visual_dhash": "7c5ca531616d6fde",
-      "frame_colorhash": "06007000000"
-    },
-    "hash": "3cbcb2322efe688e",
-    "rarity": 1,
-    "icon": "/static/cards/card_112.webp"
-  },
   "card_113": {
     "name": "бинт охотника",
     "hashes": {
@@ -1337,31 +1285,5 @@
     "hash": "3c8c8e0e1696ee8e",
     "rarity": 2,
     "icon": "/static/cards/card_115.webp"
-  },
-  "card_116": {
-    "name": "Сумрачные крылья",
-    "hashes": {
-      "full_phash": "953a82977dd960c6",
-      "full_dhash": "3cbc9b122efee88e",
-      "visual_phash": "bb1b95b5199a6681",
-      "visual_dhash": "7c7c0939132feffe",
-      "frame_colorhash": "06007000000"
-    },
-    "hash": "3cbc9b122efee88e",
-    "rarity": 2,
-    "icon": "/static/cards/card_116.webp"
-  },
-  "card_117": {
-    "name": "Золотая летучая мышь",
-    "hashes": {
-      "full_phash": "b53a829f7fe160c0",
-      "full_dhash": "3cbc920e1efece8e",
-      "visual_phash": "bb5b949763e86881",
-      "visual_dhash": "7c7c931b1f1ffffe",
-      "frame_colorhash": "06007000000"
-    },
-    "hash": "3cbc920e1efece8e",
-    "rarity": 2,
-    "icon": "/static/cards/card_117.webp"
   }
 }
