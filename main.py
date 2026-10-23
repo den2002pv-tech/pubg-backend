@@ -324,6 +324,7 @@ class CardSaveSchema(BaseModel):
     preview: str = ""
     hash: str | None = None
     hashes: dict[str, str] | None = None
+    force_new: bool = False
 
 
 class CardPreviewSchema(BaseModel):
@@ -2520,7 +2521,7 @@ async def save_card(
 
     db = load_db()
     requested_id = data.id.strip() if data.id else ""
-    if not requested_id:
+    if not requested_id and not data.force_new:
         duplicate = _find_duplicate_card_for_save(data.name, hashes, db)
         if duplicate is not None:
             raise HTTPException(
