@@ -399,6 +399,12 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
       <div id="commitStatus" class="muted"></div>
       <textarea id="jsonOutput" readonly></textarea>
       <div id="cardList" class="card-grid" style="margin-top:15px"></div>
+      <hr>
+      <h3>Проверка каталога</h3>
+      <p class="muted">Проверяет записи и файлы иконок, точные дубликаты и возможные значки количества. Проверка счётчика использует эвристику текущего детектора: результаты нужно просмотреть вручную; каталог не изменяется.</p>
+      <button id="auditCatalogBtn" class="btn-secondary" type="button">🔍 Проверить каталог</button>
+      <div id="catalogAuditStatus" class="muted" role="status" aria-live="polite"></div>
+      <div id="catalogAuditResults" class="card-grid" style="margin-top:15px"></div>
     </div>
   </section>
 
@@ -623,6 +629,69 @@ async function loadCards(){
     renderCardList();
   }catch(e){status('Не удалось загрузить базу: '+e.message,'err')}
 }
+document.getElementById('auditCatalogBtn').onclick=async()=>{
+  const button=document.getElementById('auditCatalogBtn');
+  const summary=document.getElementById('catalogAuditStatus');
+  const results=document.getElementById('catalogAuditResults');
+  button.disabled=true;
+  summary.className='muted';
+  summary.textContent='Проверка каталога и изображений…';
+  results.replaceChildren();
+  try{
+    const response=await api('/admin/catalog-audit');
+    if(!response.ok)throw new Error(await readError(response));
+    const report=await response.json();
+    const counts=report.counts||{};
+    summary.className=report.problem_cards?'err':'ok';
+    summary.textContent='Проверено карт: '+report.total+
+      ' · с замечаниями: '+report.problem_cards+
+      ' · возможных счётчиков: '+(counts.possible_counter||0)+
+      ' · отсутствующих иконок: '+(counts.missing_icon||0)+
+      ' · нечитаемых иконок: '+(counts.unreadable_icon||0)+
+      ' · точных дубликатов: '+(counts.duplicate_icon||0);
+    const orphaned=report.unreferenced_icons||[];
+    if(orphaned.length){
+      const note=document.createElement('p');
+      note.className='muted';
+      note.textContent='Файлы иконок без записи в каталоге: '+orphaned.join(', ');
+      results.append(note);
+    }
+    const flagged=(report.cards||[]).filter(card=>card.issues&&card.issues.length);
+    if(!flagged.length&&!orphaned.length){
+      const clean=document.createElement('p');
+      clean.className='muted';
+      clean.textContent='Замечаний не найдено.';
+      results.append(clean);
+      return;
+    }
+    flagged.forEach(card=>{
+      const item=document.createElement('article');
+      item.className='item';
+      if(card.icon){
+        const image=document.createElement('img');
+        image.src=assetUrl(card.icon);
+        image.alt='Иконка '+(card.name||card.card_id);
+        image.loading='lazy';
+        item.append(image);
+      }
+      const title=document.createElement('h4');
+      title.textContent=(card.name||'Название не указано')+' · '+card.card_id;
+      item.append(title);
+      card.issues.forEach(issue=>{
+        const detail=document.createElement('p');
+        detail.className=issue.code==='possible_counter'?'err':'muted';
+        detail.textContent=issue.message;
+        item.append(detail);
+      });
+      results.append(item);
+    });
+  }catch(error){
+    summary.className='err';
+    summary.textContent='Проверка каталога не выполнена: '+error.message;
+  }finally{
+    button.disabled=false;
+  }
+};
 function renderCardList(){
   const q=document.getElementById('search').value.trim().toLowerCase();
   const filter=document.getElementById('filter').value;

@@ -53,6 +53,63 @@ def test_hamming_returns_none_for_invalid_hashes():
     assert main._hamming("not-hex", "01") is None
 
 
+def test_catalog_audit_reports_missing_and_duplicate_icons_and_possible_counter(tmp_path, monkeypatch):
+    cards_dir = tmp_path / "static" / "cards"
+    cards_dir.mkdir(parents=True)
+    icon_path = cards_dir / "card-1.webp"
+    main.Image.new("RGB", (256, 384), "white").save(icon_path, "WEBP")
+    (cards_dir / "unused.webp").write_bytes(icon_path.read_bytes())
+    monkeypatch.setattr(main, "STATIC_DIR", tmp_path / "static")
+    monkeypatch.setattr(main, "CARDS_DIR", cards_dir)
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+    monkeypatch.setattr(main, "load_db", lambda: {
+        "card_1": {
+            "name": "Карта 1", "hashes": {"full_dhash": "abcd"},
+            "icon": "/static/cards/card-1.webp",
+        },
+        "card_2": {
+            "name": "Карта 2", "hashes": {"full_dhash": "abcd"},
+            "icon": "/static/cards/card-1.webp",
+        },
+        "card_3": {"name": "Карта без иконки", "hashes": {"full_dhash": "abcd"}},
+    })
+    monkeypatch.setattr(
+        main,
+        "_detect_counter",
+        lambda image: (image, 3, 0.91, {"reason": "ok"}),
+    )
+
+    report = main.audit_card_catalog(authorization="admin-token")
+
+    assert report["total"] == 3
+    assert report["problem_cards"] == 3
+    assert report["counts"]["possible_counter"] == 2
+    assert report["counts"]["duplicate_icon"] == 2
+    assert report["counts"]["missing_icon"] == 1
+    assert report["unreferenced_icons"] == ["unused.webp"]
+    assert report["cards"][0]["detected_quantity"] == 3
+
+
+def test_catalog_audit_reports_unreadable_icon_without_aborting(tmp_path, monkeypatch):
+    cards_dir = tmp_path / "static" / "cards"
+    cards_dir.mkdir(parents=True)
+    (cards_dir / "bad.webp").write_bytes(b"not an image")
+    monkeypatch.setattr(main, "STATIC_DIR", tmp_path / "static")
+    monkeypatch.setattr(main, "CARDS_DIR", cards_dir)
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+    monkeypatch.setattr(main, "load_db", lambda: {
+        "card_1": {
+            "name": "Карта 1", "hashes": {"full_dhash": "abcd"},
+            "icon": "/static/cards/bad.webp",
+        },
+    })
+
+    report = main.audit_card_catalog(authorization="admin-token")
+
+    assert report["counts"]["unreadable_icon"] == 1
+    assert report["cards"][0]["issues"][0]["code"] == "unreadable_icon"
+
+
 def test_session_token_is_valid_with_configured_password(monkeypatch):
     monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
     monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)

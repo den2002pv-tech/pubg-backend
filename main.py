@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from card_state_features import best_feature_splits, extract_card_visual_features
-from scanner import _detect_counter
+from scanner import _detect_counter, _has_counter_evidence
 
 from pydantic import BaseModel
 
@@ -931,6 +931,136 @@ async def health():
 async def get_cards_endpoint(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     return load_db()
+
+
+@app.get("/admin/catalog-audit")
+def audit_card_catalog(authorization: str | None = Header(default=None)):
+    require_admin(authorization)
+    db = load_db()
+    results: list[dict[str, Any]] = []
+    icon_hashes: dict[str, list[str]] = {}
+    referenced_paths: set[Path] = set()
+    counts = {
+        "invalid_record": 0,
+        "missing_name": 0,
+        "missing_hashes": 0,
+        "missing_icon": 0,
+        "invalid_icon_path": 0,
+        "unreadable_icon": 0,
+        "possible_counter": 0,
+        "counter_check_failed": 0,
+        "duplicate_icon": 0,
+        "low_resolution": 0,
+    }
+
+    for card_id, raw_info in db.items():
+        issues: list[dict[str, str]] = []
+        info = raw_info if isinstance(raw_info, dict) else {}
+        if not isinstance(raw_info, dict):
+            issues.append({"code": "invalid_record", "message": "Некорректная запись карты"})
+        if not str(info.get("name") or "").strip():
+            issues.append({"code": "missing_name", "message": "Не указано название"})
+        if not clean_hashes(info.get("hashes")):
+            issues.append({"code": "missing_hashes", "message": "Нет валидных хешей изображения"})
+
+        icon_url = str(info.get("icon") or "").strip()
+        icon_path: Path | None = None
+        if not icon_url:
+            issues.append({"code": "missing_icon", "message": "Иконка не указана"})
+        elif not icon_url.startswith("/static/cards/"):
+            issues.append({"code": "invalid_icon_path", "message": "Путь иконки вне /static/cards/"})
+        else:
+            relative_path = Path(icon_url.removeprefix("/static/"))
+            candidate = (STATIC_DIR / relative_path).resolve()
+            try:
+                candidate.relative_to(CARDS_DIR.resolve())
+            except ValueError:
+                issues.append({"code": "invalid_icon_path", "message": "Путь иконки выходит за каталог карт"})
+            else:
+                icon_path = candidate
+                referenced_paths.add(candidate)
+                if not candidate.is_file():
+                    issues.append({"code": "missing_icon", "message": "Файл иконки не найден"})
+                    icon_path = None
+
+        if icon_path is not None:
+            try:
+                image_bytes = icon_path.read_bytes()
+                with Image.open(BytesIO(image_bytes)) as opened:
+                    opened.load()
+                    image = opened.convert("RGB")
+                    width, height = image.size
+                icon_hashes.setdefault(hashlib.sha256(image_bytes).hexdigest(), []).append(str(card_id))
+                if width < 128 or height < 192:
+                    issues.append({
+                        "code": "low_resolution",
+                        "message": f"Низкое разрешение иконки: {width}×{height}",
+                    })
+            except (OSError, ValueError, Image.DecompressionBombError) as exc:
+                issues.append({"code": "unreadable_icon", "message": f"Не удалось прочитать изображение: {exc}"})
+                has_counter = False
+                quantity = None
+                confidence = None
+            else:
+                try:
+                    _, quantity, confidence, counter_debug = _detect_counter(image)
+                    has_counter = _has_counter_evidence(confidence, counter_debug)
+                    if has_counter:
+                        issues.append({
+                            "code": "possible_counter",
+                            "message": (
+                                f"Возможный счётчик количества: x{quantity} "
+                                f"(уверенность детектора {confidence:.2f})"
+                            ),
+                        })
+                except Exception as exc:
+                    has_counter = False
+                    quantity = None
+                    confidence = None
+                    issues.append({
+                        "code": "counter_check_failed",
+                        "message": f"Не удалось проверить счётчик: {exc}",
+                    })
+
+        results.append({
+            "card_id": str(card_id),
+            "name": str(info.get("name") or ""),
+            "icon": icon_url,
+            "issues": issues,
+            "counter_detected": bool(icon_path is not None and has_counter),
+            "detected_quantity": quantity if icon_path is not None else None,
+            "counter_confidence": confidence if icon_path is not None else None,
+        })
+
+    duplicate_ids = {
+        card_id
+        for ids in icon_hashes.values() if len(ids) > 1
+        for card_id in ids
+    }
+    for result in results:
+        if result["card_id"] in duplicate_ids:
+            result["issues"].append({
+                "code": "duplicate_icon",
+                "message": "Файл иконки полностью совпадает с иконкой другой карты",
+            })
+
+    for result in results:
+        for issue in result["issues"]:
+            if issue["code"] in counts:
+                counts[issue["code"]] += 1
+
+    unreferenced_icons = sorted(
+        path.name
+        for path in CARDS_DIR.iterdir()
+        if path.is_file() and path.resolve() not in referenced_paths
+    )
+    return {
+        "total": len(results),
+        "problem_cards": sum(bool(result["issues"]) for result in results),
+        "counts": counts,
+        "unreferenced_icons": unreferenced_icons,
+        "cards": results,
+    }
 
 
 @app.get("/admin/status")
