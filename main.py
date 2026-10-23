@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import json
@@ -13,7 +14,7 @@ from collections import deque
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -45,16 +46,22 @@ if SENTRY_DSN:
         send_default_pii=False,
     )
 
-app = FastAPI(title="PUBG Card Scanner")
-
-
-@app.on_event("startup")
 def startup_database() -> None:
     init_db()
     init_analytics_db()
     _migrate_frame_color_hashes()
     sync_cards(load_db())
     init_trade_request_schema()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    startup_database()
+    yield
+
+
+app = FastAPI(title="PUBG Card Scanner", lifespan=lifespan)
+
 
 app.add_middleware(
     CORSMiddleware,

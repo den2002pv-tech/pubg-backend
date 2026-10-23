@@ -751,7 +751,10 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
     digit_candidates: list[dict[str, Any]] = []
     threshold_runs: list[dict[str, Any]] = []
 
-    def _process_contours(contour_list: list[np.ndarray]) -> None:
+    def _process_contours(
+        contour_list: list[np.ndarray],
+        allow_ambiguous_digits: bool = False,
+    ) -> None:
         for contour in contour_list:
             cx, cy, cw, ch = cv2.boundingRect(contour)
             area = cv2.contourArea(contour)
@@ -810,7 +813,9 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 if (
                     best_score >= 0.40
                     and (best_score - runner_up >= 0.015 or best_score >= 0.65 or was_refined)
-                ) or (was_refined and raw_best_score >= 0.40):
+                ) or (was_refined and raw_best_score >= 0.40) or (
+                    allow_ambiguous_digits and best_score >= 0.58
+                ):
                     alternative = _single_digit_alternative(digit_mask, best_digit, scores)
                     digit_candidates.append({
                         "x": x1 + cx, "y": y1 + cy, "w": cw, "h": ch,
@@ -853,6 +858,36 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         })
         if x_candidates and digit_candidates:
             break
+
+    if threshold_runs and threshold_runs[-1]["threshold"] == 120:
+        # The closing pass can merge adjacent × and digit glyphs on small badges.
+        bright = cv2.inRange(gray, 220, 255)
+        glyph_mask = bright
+        contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        x_before, digits_before = len(x_candidates), len(digit_candidates)
+        _process_contours(contours, allow_ambiguous_digits=True)
+        if x_candidates:
+            digit_candidates = [
+                digit for digit in digit_candidates
+                if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
+            ]
+            deduplicated = []
+            for digit in sorted(digit_candidates, key=lambda item: item["score"], reverse=True):
+                duplicate = next((
+                    existing for existing in deduplicated
+                    if abs(existing["x"] - digit["x"]) <= max(2, int(digit["w"] * 0.35))
+                    and abs(existing["y"] - digit["y"]) <= max(3, int(digit["h"] * 0.20))
+                ), None)
+                if duplicate is None:
+                    deduplicated.append(digit)
+            digit_candidates = deduplicated
+        threshold_runs.append({
+            "threshold": "220_unjoined_fallback",
+            "contours": len(contours),
+            "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
+            "x_candidates_added": len(x_candidates) - x_before,
+            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+        })
 
     if x_candidates and not digit_candidates:
         # A pale glyph on a mid-tone gray/gold badge may be below every fixed
@@ -1079,7 +1114,7 @@ def normalize_card(card: Image.Image) -> Image.Image:
 
 
 def is_card_darkened(card: Image.Image) -> bool:
-    """Detect locked/dimmed cards from their frame and bottom badge, not the artwork."""
+    """Require a dark frame and badge plus low overall luminance to detect dimming."""
     arr = np.asarray(card.convert("RGB"))
     if arr.size == 0:
         return False
@@ -1122,11 +1157,11 @@ def is_card_darkened(card: Image.Image) -> bool:
     badge_bright_ratio = float(np.count_nonzero(badge_value > 205)) / float(badge_value.size)
 
     return (
-        badge_median < 150
-        and frame_luminance_mean < 130
+        badge_median < 130
+        and frame_luminance_mean < 120
         and badge_bright_ratio < 0.18
         and bright_frame_ratio < 0.18
-        and card_luminance_mean < 120
+        and card_luminance_mean < 110
     )
 
 

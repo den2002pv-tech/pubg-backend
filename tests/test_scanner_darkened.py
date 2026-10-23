@@ -1,5 +1,7 @@
 """Regression tests for card ownership filtering during screenshot scanning."""
 
+from pathlib import Path
+
 from PIL import Image
 
 import scanner
@@ -67,3 +69,13 @@ def test_darkened_card_without_counter_evidence_remains_excluded(monkeypatch):
     assert result["cards"] == []
     assert result["profile"]["geometric_detected_count"] == 1
     assert result["profile"]["darkened_filtered_count"] == 1
+
+
+def test_gray_card_screenshot_without_counter_is_not_filtered():
+    screenshot_path = Path(__file__).with_name("Screenshot_20261020_015450_PUBGM FLASH.png")
+    with Image.open(screenshot_path) as screenshot:
+        result = scanner.scan_screenshot(screenshot, save_previews=False)
+
+    assert result["count"] == 1
+    assert result["profile"]["geometric_detected_count"] == 1
+    assert result["profile"]["darkened_filtered_count"] == 0
