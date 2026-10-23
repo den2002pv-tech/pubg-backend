@@ -148,6 +148,56 @@ def test_match_card_returns_exact_hash_match():
     }
 
 
+def test_match_card_accepts_clear_majority_with_one_hash_outlier():
+    hashes = {
+        "full_phash": "0000000000000000",
+        "full_dhash": "0000000000000000",
+        "visual_phash": "0000000000000000",
+        "visual_dhash": "0000000000000000",
+        "frame_colorhash": "eeeeeeee",
+    }
+    stored_hashes = {
+        **hashes,
+        "full_dhash": "0000000000000001",
+        "visual_phash": "0000000000000fff",
+        "visual_dhash": "0000000003ffffff",
+    }
+
+    card_id, distance = main._match_card(
+        hashes,
+        {"card_1": {"name": "Карта 1", "hashes": stored_hashes}},
+    )
+
+    assert card_id == "card_1"
+    assert distance == 0.5
+
+
+def test_match_card_rejects_weak_fallback_with_large_hash_outlier():
+    hashes = {
+        "full_phash": "0000000000000000",
+        "full_dhash": "0000000000000000",
+        "visual_phash": "0000000000000000",
+        "visual_dhash": "0000000000000000",
+        "frame_colorhash": "eeeeeeee",
+    }
+    stored_hashes = {
+        **hashes,
+        "full_phash": "00000000000000ff",
+        "full_dhash": "00000000000001ff",
+        "visual_phash": "0000000000000fff",
+        "visual_dhash": "0000000003ffffff",
+    }
+    db = {"card_1": {"name": "Карта 1", "hashes": stored_hashes}}
+
+    card_id, distance = main._match_card(hashes, db)
+    diagnostics = main._match_card_diagnostics(hashes, db)
+
+    assert card_id is None
+    assert distance == float("inf")
+    assert diagnostics[0]["accepted"] is False
+    assert "hash_outlier_too_large" in diagnostics[0]["reasons"]
+
+
 def test_match_card_rejects_ambiguous_near_duplicate_cards():
     hashes = {
         "full_phash": "aaaaaaaa",
@@ -174,6 +224,9 @@ def test_match_card_rejects_ambiguous_near_duplicate_cards():
 
     assert card_id is None
     assert distance == float("inf")
+    diagnostics = main._match_card_diagnostics(hashes, db)
+    assert diagnostics[0]["accepted"] is False
+    assert "ambiguous_runner_up" in diagnostics[0]["reasons"]
 
 
 def test_match_card_does_not_match_when_hashes_are_missing():

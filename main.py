@@ -388,10 +388,12 @@ def _match_card(
     visually similar catalogue entries can otherwise receive the wrong ID.
     Animated cards may pass without two strong hashes only when:
       - they have at least 3 acceptable grayscale hashes;
-      - they pass the existing outlier safety ceiling;
+      - no hash exceeds the existing outlier safety ceiling;
       - their frame color is compatible;
       - they are clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
 
+    With at least two strong hashes, one outlier is tolerated; the vote quorum
+    and confidence margin prevent it from deciding a match.
     Ambiguous scans intentionally remain unmatched rather than being assigned
     to a different card.
     """
@@ -438,7 +440,10 @@ def _match_card(
         if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
             continue
 
-        if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6:
+        if (
+            distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6
+            and strong_count < CARD_MATCH_MIN_STRONG_HASHES
+        ):
             continue
 
         scan_color = card_hashes.get("frame_colorhash")
@@ -574,7 +579,11 @@ def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], lim
             reasons.append("less_than_2_strong")
         if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
             reasons.append("less_than_3_acceptable")
-        if max_distance is not None and max_distance > CARD_MATCH_ACCEPTABLE_DISTANCE + 6:
+        if (
+            max_distance is not None
+            and max_distance > CARD_MATCH_ACCEPTABLE_DISTANCE + 6
+            and strong_count < CARD_MATCH_MIN_STRONG_HASHES
+        ):
             reasons.append("hash_outlier_too_large")
         if scan_color and not stored_color:
             reasons.append("stored_color_hash_missing")
@@ -605,8 +614,8 @@ def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], lim
 
     rows.sort(key=lambda item: item["score"] if item["score"] is not None else float("inf"))
 
-    # Mirror the confidence-margin fallback in _match_card so the admin
-    # diagnostics explain why an animated card was accepted or rejected.
+    # Mirror the confidence margin in _match_card so diagnostics distinguish a
+    # plausible candidate from a match that is safe to accept automatically.
     if rows:
         best = rows[0]
         runner = rows[1] if len(rows) > 1 else None
@@ -619,15 +628,26 @@ def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], lim
         best["runner_up_score"] = runner["score"] if runner else None
         best["score_margin"] = None if not math.isfinite(margin) else round(margin, 2)
 
+        strong_match = (
+            best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES
+            and margin > CARD_MATCH_CONFIDENT_MARGIN
+        )
         fallback_ok = (
             best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
             and (best["color_ratio"] is not None and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO)
             and margin > CARD_MATCH_CONFIDENT_MARGIN
         )
         best["confidence_fallback"] = fallback_ok
-        if fallback_ok and best["strong"] < CARD_MATCH_MIN_STRONG_HASHES:
+        if best["accepted"] and (strong_match or fallback_ok):
             best["accepted"] = True
-            best["reasons"] = ["accepted_by_confident_margin"]
+            if fallback_ok and best["strong"] < CARD_MATCH_MIN_STRONG_HASHES:
+                best["reasons"] = ["accepted_by_confident_margin"]
+        elif best["accepted"]:
+            best["accepted"] = False
+            best["reasons"].append(
+                "ambiguous_runner_up" if runner and margin <= CARD_MATCH_CONFIDENT_MARGIN
+                else "insufficient_match_confidence"
+            )
 
     return rows[:max(1, limit)]
 
