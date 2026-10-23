@@ -54,6 +54,40 @@ def test_scan_metrics_are_bounded_and_profile_is_allowlisted():
     )
 
 
+def test_scan_profile_accepts_bounded_pipeline_details_only():
+    result = sanitize_event({
+        "name": "scan_completed",
+        "properties": {
+            "profile": {
+                "upload_format": "PNG",
+                "upload_size_bytes": 1200000,
+                "input_width": 1600,
+                "raw_hash_calculation_count": 2,
+                "hash_reuse_count": 4,
+                "counter_threshold_ms": 12.34,
+                "catalog_load_ms": 3.44,
+                "hash_input_dimensions": [{"raw": [200, 300]}],
+                "filename": "private.png",
+            },
+        },
+    })
+
+    assert result == (
+        "scan_completed",
+        {
+            "profile": {
+                "upload_format": "PNG",
+                "upload_size_bytes": 1200000,
+                "input_width": 1600,
+                "raw_hash_calculation_count": 2,
+                "hash_reuse_count": 4,
+                "counter_threshold_ms": 12.3,
+                "catalog_load_ms": 3.4,
+            },
+        },
+    )
+
+
 def test_scan_events_keep_correlation_id_and_normalized_occurrence_time():
     result = sanitize_event({
         "name": "scan_completed",

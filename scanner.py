@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import base64
+import time
 from typing import Any
 
 import cv2
@@ -14,7 +15,7 @@ NORMALIZED_SIZE = (224, 320)
 
 def _image_from_any(value: Image.Image | bytes) -> Image.Image:
     if isinstance(value, Image.Image):
-        return value.convert("RGB")
+        return value if value.mode == "RGB" else value.convert("RGB")
     from io import BytesIO
     return Image.open(BytesIO(value)).convert("RGB")
 
@@ -448,7 +449,7 @@ def extract_visual_area(card: Image.Image) -> Image.Image:
 
 
 def extract_frame_area(card: Image.Image) -> Image.Image:
-    card = card.convert("RGB")
+    card = _image_from_any(card)
 
     arr = np.asarray(card)
     luminance = arr.mean(axis=2)
@@ -734,11 +735,47 @@ def _counter_digit_aligned(
 
 
 def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[str, Any]]:
-    card = card.convert("RGB")
+    counter_started = time.perf_counter()
+    prepare_started = counter_started
+    card = _image_from_any(card)
     arr = np.asarray(card)
     h, w = arr.shape[:2]
+    prepare_ms = (time.perf_counter() - prepare_started) * 1000
+
+    def finish(
+        clean_card: Image.Image,
+        quantity: int,
+        confidence: float,
+        debug: dict[str, Any],
+    ) -> tuple[Image.Image, int, float, dict[str, Any]]:
+        threshold_runs = debug.get("threshold_runs", [])
+        threshold_ms = sum(
+            float(run.get("duration_ms", 0.0))
+            for run in threshold_runs
+            if isinstance(run.get("threshold"), int)
+        )
+        fallback_ms = sum(
+            float(run.get("duration_ms", 0.0))
+            for run in threshold_runs
+            if isinstance(run.get("threshold"), str)
+        )
+        total_ms = (time.perf_counter() - counter_started) * 1000
+        debug["timing_ms"] = {
+            "image_prepare_ms": round(prepare_ms, 3),
+            "threshold_passes_ms": round(threshold_ms, 3),
+            "fallback_passes_ms": round(fallback_ms, 3),
+            "candidate_selection_ms": round(
+                max(0.0, total_ms - prepare_ms - threshold_ms - fallback_ms), 3,
+            ),
+            "total_ms": round(total_ms, 3),
+        }
+        return clean_card, quantity, confidence, debug
+
     if h < 20 or w < 20:
-        return card, 1, 0.0, {"roi": None, "candidates": 0, "selected": None, "reason": "card_too_small"}
+        return finish(
+            card, 1, 0.0,
+            {"roi": None, "candidates": 0, "selected": None, "reason": "card_too_small"},
+        )
 
     x1 = int(w * 0.60)
     y1 = max(0, int(h * 0.01))
@@ -746,6 +783,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
     y2 = min(h, int(h * 0.20))
     roi = arr[y1:y2, x1:x2]
     gray = cv2.cvtColor(roi, cv2.COLOR_RGB2GRAY)
+    prepare_ms = (time.perf_counter() - prepare_started) * 1000
     roi_h, roi_w = gray.shape[:2]
     x_candidates: list[dict[str, Any]] = []
     digit_candidates: list[dict[str, Any]] = []
@@ -825,6 +863,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                     })
 
     for thresh in (180, 160, 140, 120):
+        pass_started = time.perf_counter()
         bright = cv2.inRange(gray, thresh, 255)
         join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
@@ -855,11 +894,13 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
             "x_candidates_added": len(x_candidates) - x_before,
             "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+            "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
         })
         if x_candidates and digit_candidates:
             break
 
     if threshold_runs and threshold_runs[-1]["threshold"] == 120:
+        pass_started = time.perf_counter()
         # The closing pass can merge adjacent × and digit glyphs on small badges.
         bright = cv2.inRange(gray, 220, 255)
         glyph_mask = bright
@@ -887,9 +928,11 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
             "x_candidates_added": len(x_candidates) - x_before,
             "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+            "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
         })
 
     if x_candidates and not digit_candidates:
+        pass_started = time.perf_counter()
         # A pale glyph on a mid-tone gray/gold badge may be below every fixed
         # brightness threshold. Remove the local background and threshold the
         # residual as a final, bounded fallback.
@@ -913,6 +956,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
             "bright_pixel_ratio": round(float(np.count_nonzero(local_mask)) / float(local_mask.size or 1), 4),
             "x_candidates_added": 0,
             "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+            "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
         })
 
     candidate_diagnostics = {
@@ -937,10 +981,13 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
     }
 
     if not x_candidates or not digit_candidates:
-        return card, 1, 0.0, {
-            "roi": [x1, y1, x2, y2], "candidates": 0, "selected": None,
-            "reason": "no_glyph_candidates", **candidate_diagnostics,
-        }
+        return finish(
+            card, 1, 0.0,
+            {
+                "roi": [x1, y1, x2, y2], "candidates": 0, "selected": None,
+                "reason": "no_glyph_candidates", **candidate_diagnostics,
+            },
+        )
 
     badge_candidates: list[dict[str, Any]] = []
     # Merge overlapping detections of the multiplication sign across threshold
@@ -1061,11 +1108,14 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
                 })
 
     if not badge_candidates:
-        return card, 1, 0.0, {
-            "roi": [x1, y1, x2, y2], "candidates": 0, "selected": None,
-            "reason": "no_valid_badge", **candidate_diagnostics,
-            "rejection_stage": "badge_geometry_or_contrast",
-        }
+        return finish(
+            card, 1, 0.0,
+            {
+                "roi": [x1, y1, x2, y2], "candidates": 0, "selected": None,
+                "reason": "no_valid_badge", **candidate_diagnostics,
+                "rejection_stage": "badge_geometry_or_contrast",
+            },
+        )
 
     badge_candidates.sort(
         key=lambda b: (
@@ -1093,29 +1143,32 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         clean[fill_top:fill_bottom, fill_left:fill_right] = np.median(border_patch, axis=(0, 1)).astype(np.uint8)
 
     clean_card = Image.fromarray(clean, mode="RGB")
-    return clean_card, int(best["quantity"]), float(min(1.0, best["confidence"])), {
-        "roi": [x1, y1, x2, y2],
-        "candidates": len(badge_candidates),
-        "selected": {
-            "quantity": best["quantity"],
-            "digit": best["digits"][0]["digit"] if len(best["digits"]) == 1 else None,
-            "digits": [d["digit"] for d in best["digits"]],
-            "digit_score": round(float(best["digits"][0]["score"]), 3),
-            "digit_scores": [round(float(s), 3) for s in best["digit_scores"]],
-            "multiply_score": round(float(best["x_score"]), 3),
-            "box": best["box"], "contrast": best["contrast"], "bg_median": best["bg_median"],
+    return finish(
+        clean_card, int(best["quantity"]), float(min(1.0, best["confidence"])),
+        {
+            "roi": [x1, y1, x2, y2],
+            "candidates": len(badge_candidates),
+            "selected": {
+                "quantity": best["quantity"],
+                "digit": best["digits"][0]["digit"] if len(best["digits"]) == 1 else None,
+                "digits": [d["digit"] for d in best["digits"]],
+                "digit_score": round(float(best["digits"][0]["score"]), 3),
+                "digit_scores": [round(float(s), 3) for s in best["digit_scores"]],
+                "multiply_score": round(float(best["x_score"]), 3),
+                "box": best["box"], "contrast": best["contrast"], "bg_median": best["bg_median"],
+            },
+            "reason": "ok",
+            **candidate_diagnostics,
         },
-        "reason": "ok",
-        **candidate_diagnostics,
-    }
+    )
 
 def normalize_card(card: Image.Image) -> Image.Image:
-    return card.convert("RGB").resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
+    return _image_from_any(card).resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
 
 
 def is_card_darkened(card: Image.Image) -> bool:
     """Require a dark frame and badge plus low overall luminance to detect dimming."""
-    arr = np.asarray(card.convert("RGB"))
+    arr = np.asarray(_image_from_any(card))
     if arr.size == 0:
         return False
     h, w = arr.shape[:2]
@@ -1170,17 +1223,32 @@ def is_gray_locked_card(card: Image.Image) -> bool:
     return is_card_darkened(card)
 
 
-def calculate_card_hashes(card: Image.Image) -> dict[str, str]:
+def calculate_card_hashes(
+    card: Image.Image,
+    timings: dict[str, float] | None = None,
+) -> dict[str, str]:
+    stage_started = time.perf_counter()
     full = normalize_card(card)
     visual = normalize_card(extract_visual_area(card))
+    normalize_ms = (time.perf_counter() - stage_started) * 1000
+
+    stage_started = time.perf_counter()
     frame = extract_frame_area(card)
-    return {
+    frame_extract_ms = (time.perf_counter() - stage_started) * 1000
+
+    stage_started = time.perf_counter()
+    hashes = {
         "full_phash": str(imagehash.phash(full)),
         "full_dhash": str(imagehash.dhash(full)),
         "visual_phash": str(imagehash.phash(visual)),
         "visual_dhash": str(imagehash.dhash(visual)),
         "frame_colorhash": str(imagehash.colorhash(frame)),
     }
+    if timings is not None:
+        timings["hash_normalization_ms"] = normalize_ms
+        timings["hash_frame_extract_ms"] = frame_extract_ms
+        timings["hash_compute_ms"] = (time.perf_counter() - stage_started) * 1000
+    return hashes
 
 
 def encode_preview(card: Image.Image) -> str:
@@ -1219,8 +1287,6 @@ def _has_counter_evidence(quantity_confidence: float, counter_debug: dict[str, A
 
 
 def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
-    import time
-
     total_started = time.perf_counter()
     stage_started = time.perf_counter()
     image = _image_from_any(image)
@@ -1231,7 +1297,13 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
     geometric_detected_count = len(detected)
     detection_ms = (time.perf_counter() - stage_started) * 1000
     counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0
+    hash_normalization_ms = hash_frame_extract_ms = hash_compute_ms = 0.0
     darkened_filtered_count = 0
+    counter_threshold_passes = counter_fallback_passes = counter_contours = 0
+    counter_image_prepare_ms = counter_threshold_ms = counter_fallback_ms = 0.0
+    hash_calculation_count = hash_reuse_count = 0
+    raw_hash_calculation_count = clean_hash_calculation_count = 0
+    hash_input_dimensions: list[dict[str, list[int]]] = []
     cards = []
     for item in detected:
         x, y, w, h = item["box"]
@@ -1244,6 +1316,18 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         stage_started = time.perf_counter()
         clean_crop, quantity, quantity_confidence, counter_debug = _detect_counter(crop)
         counter_ms += (time.perf_counter() - stage_started) * 1000
+        timing = counter_debug.get("timing_ms", {})
+        counter_image_prepare_ms += float(timing.get("image_prepare_ms", 0.0))
+        counter_threshold_ms += float(timing.get("threshold_passes_ms", 0.0))
+        counter_fallback_ms += float(timing.get("fallback_passes_ms", 0.0))
+        threshold_runs = counter_debug.get("threshold_runs", [])
+        counter_threshold_passes += sum(
+            isinstance(run.get("threshold"), int) for run in threshold_runs
+        )
+        counter_fallback_passes += sum(
+            isinstance(run.get("threshold"), str) for run in threshold_runs
+        )
+        counter_contours += sum(int(run.get("contours", 0)) for run in threshold_runs)
 
         has_counter_evidence = _has_counter_evidence(quantity_confidence, counter_debug)
         if not has_counter_evidence and is_card_darkened(crop):
@@ -1251,12 +1335,32 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
             continue
 
         stage_started = time.perf_counter()
-        raw_hashes = calculate_card_hashes(crop)
+        raw_hash_timings: dict[str, float] = {}
+        raw_hashes = calculate_card_hashes(crop, raw_hash_timings)
+        hash_calculation_count += 1
+        raw_hash_calculation_count += 1
+        hash_normalization_ms += raw_hash_timings.get("hash_normalization_ms", 0.0)
+        hash_frame_extract_ms += raw_hash_timings.get("hash_frame_extract_ms", 0.0)
+        hash_compute_ms += raw_hash_timings.get("hash_compute_ms", 0.0)
         raw_hash_ms += (time.perf_counter() - stage_started) * 1000
 
-        stage_started = time.perf_counter()
-        hashes = calculate_card_hashes(clean_crop)
-        clean_hash_ms += (time.perf_counter() - stage_started) * 1000
+        if clean_crop is crop:
+            hashes = raw_hashes
+            hash_reuse_count += 1
+        else:
+            stage_started = time.perf_counter()
+            clean_hash_timings: dict[str, float] = {}
+            hashes = calculate_card_hashes(clean_crop, clean_hash_timings)
+            hash_calculation_count += 1
+            clean_hash_calculation_count += 1
+            hash_normalization_ms += clean_hash_timings.get("hash_normalization_ms", 0.0)
+            hash_frame_extract_ms += clean_hash_timings.get("hash_frame_extract_ms", 0.0)
+            hash_compute_ms += clean_hash_timings.get("hash_compute_ms", 0.0)
+            clean_hash_ms += (time.perf_counter() - stage_started) * 1000
+        hash_input_dimensions.append({
+            "raw": [crop.width, crop.height],
+            "clean": [clean_crop.width, clean_crop.height],
+        })
         entry = {
             "row": item["row"],
             "col": item["col"],
@@ -1279,13 +1383,32 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         cards.append(entry)
 
     profile = {
+        "input_width": image.width,
+        "input_height": image.height,
+        "card_crop_count": geometric_detected_count,
         "geometric_detected_count": geometric_detected_count,
         "darkened_filtered_count": darkened_filtered_count,
         "rgb_convert_ms": round(decode_ms, 1),
         "detection_ms": round(detection_ms, 1),
         "counter_ms": round(counter_ms, 1),
+        "counter_attempts": geometric_detected_count,
+        "counter_threshold_passes": counter_threshold_passes,
+        "counter_fallback_passes": counter_fallback_passes,
+        "counter_contours": counter_contours,
+        "counter_image_prepare_ms": round(counter_image_prepare_ms, 1),
+        "counter_threshold_ms": round(counter_threshold_ms, 1),
+        "counter_fallback_ms": round(counter_fallback_ms, 1),
         "raw_hash_ms": round(raw_hash_ms, 1),
         "clean_hash_ms": round(clean_hash_ms, 1),
+        "hash_calculation_count": hash_calculation_count,
+        "hash_operation_count": hash_calculation_count * 5,
+        "raw_hash_calculation_count": raw_hash_calculation_count,
+        "clean_hash_calculation_count": clean_hash_calculation_count,
+        "hash_reuse_count": hash_reuse_count,
+        "hash_normalization_ms": round(hash_normalization_ms, 1),
+        "hash_frame_extract_ms": round(hash_frame_extract_ms, 1),
+        "hash_compute_ms": round(hash_compute_ms, 1),
+        "hash_input_dimensions": hash_input_dimensions,
         "preview_ms": round(preview_ms, 1),
         "total_ms": round((time.perf_counter() - total_started) * 1000, 1),
     }

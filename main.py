@@ -375,7 +375,11 @@ def _migrate_frame_color_hashes() -> None:
         save_db(db)
 
 
-def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | None, float]:
+def _match_card(
+    card_hashes: dict[str, str],
+    db: dict[str, Any],
+    profile: dict[str, int] | None = None,
+) -> tuple[str | None, float]:
     """
     Match by hash voting, with a conservative confidence-margin fallback.
 
@@ -392,6 +396,9 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
     to a different card.
     """
     candidates: list[dict[str, Any]] = []
+    hash_comparisons = 0
+    if profile is not None:
+        profile["matching_calls"] = profile.get("matching_calls", 0) + 1
     standard_keys = (
         "full_phash",
         "full_dhash",
@@ -410,6 +417,7 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
                 continue
             d = _hamming(value, other)
             if d is not None:
+                hash_comparisons += 1
                 distances.append(d)
 
         if not distances:
@@ -417,6 +425,7 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             value = card_hashes.get("full_dhash", "")
             d = _hamming(value, str(legacy)) if legacy else None
             if d is not None:
+                hash_comparisons += 1
                 distances.append(d)
 
         if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
@@ -442,6 +451,7 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             color_distance = _hamming(scan_color, stored_color)
             if color_distance is None:
                 continue
+            hash_comparisons += 1
             color_bits = max(1, len(scan_color) * 4)
             color_ratio = color_distance / color_bits
             if color_ratio > 0.55 and strong_count < 3:
@@ -459,6 +469,17 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any]) -> tuple[str | 
             "acceptable": acceptable_count,
             "color_ratio": color_ratio,
         })
+
+    if profile is not None:
+        profile["catalog_candidates_before_filter"] = (
+            profile.get("catalog_candidates_before_filter", 0) + len(db)
+        )
+        profile["matching_hash_comparisons"] = (
+            profile.get("matching_hash_comparisons", 0) + hash_comparisons
+        )
+        profile["matching_candidates_after_filter"] = (
+            profile.get("matching_candidates_after_filter", 0) + len(candidates)
+        )
 
     if not candidates:
         return None, float("inf")
@@ -664,12 +685,11 @@ def _enrich_admin_scan(
             card.get("hashes", {}),
             db,
         )
-        raw_id, raw_distance = _match_card(
-            card.get("raw_hashes", {}),
-            db,
-        )
-        if raw_id is not None and raw_distance < best_distance:
-            best_id, best_distance = raw_id, raw_distance
+        raw_hashes = card.get("raw_hashes", {})
+        if raw_hashes != card.get("hashes", {}):
+            raw_id, raw_distance = _match_card(raw_hashes, db)
+            if raw_id is not None and raw_distance < best_distance:
+                best_id, best_distance = raw_id, raw_distance
 
         matched = (
             best_id is not None
@@ -729,10 +749,36 @@ def _enrich_admin_scan(
     return result
 
 
-async def _read_image(file: UploadFile) -> Image.Image:
+async def _read_image(
+    file: UploadFile,
+    profile: dict[str, Any] | None = None,
+) -> Image.Image:
     try:
+        read_started = time.perf_counter()
         data = await file.read()
-        return Image.open(BytesIO(data)).convert("RGB")
+        read_ms = (time.perf_counter() - read_started) * 1000
+
+        decode_started = time.perf_counter()
+        source_image = Image.open(BytesIO(data))
+        source_format = source_image.format or "UNKNOWN"
+        source_width, source_height = source_image.size
+        source_image.load()
+        decode_ms = (time.perf_counter() - decode_started) * 1000
+
+        convert_started = time.perf_counter()
+        image = source_image.convert("RGB")
+        convert_ms = (time.perf_counter() - convert_started) * 1000
+        if profile is not None:
+            profile.update({
+                "upload_size_bytes": len(data),
+                "upload_format": source_format,
+                "upload_source_width": source_width,
+                "upload_source_height": source_height,
+                "upload_read_ms": round(read_ms, 1),
+                "upload_image_decode_ms": round(decode_ms, 1),
+                "upload_rgb_convert_ms": round(convert_ms, 1),
+            })
+        return image
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Не удалось прочитать изображение") from exc
 
@@ -2102,18 +2148,25 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
     request_started = time.perf_counter()
     auth = _validate_telegram_init_data(init_data) if init_data else None
     decode_started = time.perf_counter()
-    image = await _read_image(file)
+    upload_profile: dict[str, Any] = {}
+    image = await _read_image(file, upload_profile)
     upload_decode_ms = (time.perf_counter() - decode_started) * 1000
     result = scan_screenshot(image, save_previews=True)
     matching_started = time.perf_counter()
+    catalog_load_started = time.perf_counter()
     db = load_db()
+    catalog_load_ms = (time.perf_counter() - catalog_load_started) * 1000
 
     matches = []
+    matching_profile: dict[str, int] = {}
+    matching_evaluation_started = time.perf_counter()
     for card in result["cards"]:
-        best_id, best_distance = _match_card(card["hashes"], db)
-        raw_id, raw_distance = _match_card(card.get("raw_hashes", {}), db)
-        if raw_id is not None and raw_distance < best_distance:
-            best_id, best_distance = raw_id, raw_distance
+        best_id, best_distance = _match_card(card["hashes"], db, matching_profile)
+        raw_hashes = card.get("raw_hashes", {})
+        if raw_hashes != card["hashes"]:
+            raw_id, raw_distance = _match_card(raw_hashes, db, matching_profile)
+            if raw_id is not None and raw_distance < best_distance:
+                best_id, best_distance = raw_id, raw_distance
         matched = (
             best_id is not None
             and best_distance <= float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
@@ -2145,13 +2198,19 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
                 "row": card["row"],
                 "col": card["col"],
             })
+    matching_evaluation_ms = (time.perf_counter() - matching_evaluation_started) * 1000
     matching_ms = (time.perf_counter() - matching_started) * 1000
     if auth:
         get_or_create_user(auth["id"])
 
     profile = dict(result.get("profile", {}))
+    profile.update(upload_profile)
     profile["upload_decode_ms"] = round(upload_decode_ms, 1)
+    profile["catalog_load_ms"] = round(catalog_load_ms, 1)
     profile["matching_ms"] = round(matching_ms, 1)
+    profile["matching_evaluation_ms"] = round(matching_evaluation_ms, 1)
+    profile.update(matching_profile)
+    profile["matched_count"] = sum(card.get("id") is not None for card in matches)
     profile["server_total_ms"] = round((time.perf_counter() - request_started) * 1000, 1)
     return {"cards": matches, "count": len(matches), "authenticated": bool(auth), "profile": profile}
 

@@ -870,10 +870,17 @@ function scannerErrorMessage(error) {
   return error?.message || 'Не удалось обработать изображение. Попробуйте ещё раз.';
 }
 
-function postScanImage(formData) {
+function postScanImage(formData, clientProfile) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const requestStartedAt = performance.now();
+    let uploadCompletedAt = null;
     let responseTimer = null;
+    const recordResponseWait = () => {
+      if (uploadCompletedAt !== null) {
+        clientProfile.client_response_wait_ms = performance.now() - uploadCompletedAt;
+      }
+    };
     xhr.open('POST', API + '/scan');
     xhr.timeout = SCAN_TIMEOUT_MS;
     Object.entries(telegramHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
@@ -884,6 +891,8 @@ function postScanImage(formData) {
       setScannerStatus('⏳ Отправляем изображение на сервер…', 'Отправлено ' + percent + '%', true);
     });
     xhr.upload.addEventListener('load', () => {
+      uploadCompletedAt = performance.now();
+      clientProfile.client_upload_ms = uploadCompletedAt - requestStartedAt;
       setScannerStatus('⏳ Распознаём карты…', 'Изображение получено сервером. Ожидаем результат распознавания.', true);
       responseTimer = setTimeout(() => {
         if (xhr.readyState !== XMLHttpRequest.DONE) {
@@ -893,9 +902,12 @@ function postScanImage(formData) {
     });
     xhr.onload = () => {
       clearTimeout(responseTimer);
+      recordResponseWait();
       let data;
       try {
+        const parseStartedAt = performance.now();
         data = JSON.parse(xhr.responseText);
+        clientProfile.client_response_parse_ms = performance.now() - parseStartedAt;
       } catch (_error) {
         reject(new Error('Сервер вернул некорректный ответ при распознавании.'));
         return;
@@ -914,16 +926,19 @@ function postScanImage(formData) {
     };
     xhr.onerror = () => {
       clearTimeout(responseTimer);
+      recordResponseWait();
       reject(new TypeError('Network request failed'));
     };
     xhr.ontimeout = () => {
       clearTimeout(responseTimer);
+      recordResponseWait();
       const error = new Error('Scan request timed out');
       error.name = 'AbortError';
       reject(error);
     };
     xhr.onabort = () => {
       clearTimeout(responseTimer);
+      recordResponseWait();
       const error = new Error('Scan request aborted');
       error.name = 'AbortError';
       reject(error);
@@ -1040,8 +1055,13 @@ async function uploadImage(file) {
   pendingCards = [];
   document.getElementById('results').style.display = 'none';
   setScannerStatus('⏳ Подготовка изображения…', 'Готовим выбранный скриншот к отправке.', true);
+  const formStartedAt = performance.now();
   const fd = new FormData();
   fd.append('file', file);
+  const clientProfile = {
+    client_form_data_ms: performance.now() - formStartedAt,
+    client_file_size_bytes: file.size
+  };
 
   const scanStartedAt = performance.now();
   currentScanId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -1051,10 +1071,27 @@ async function uploadImage(file) {
   try {
     statusText.textContent = '⏳ Подключаемся к серверу…';
     statusEl.textContent = 'Проверяем доступность. После простоя сервер может запускаться дольше обычного.';
-    await wakeBackend();
+    const wakeStartedAt = performance.now();
+    try {
+      await wakeBackend();
+    } finally {
+      clientProfile.client_wake_ms = performance.now() - wakeStartedAt;
+    }
     setScannerStatus('⏳ Отправляем изображение на сервер…', 'Подготовка завершена.', true);
-    const d = await postScanImage(fd);
-    trackAnalytics('scan_completed', { scan_id: currentScanId, cards_detected: Number(d.count || 0), matched_count: (d.cards || []).filter(card => !!card.id).length, duration_ms: performance.now() - scanStartedAt, profile: d.profile || {} });
+    const requestStartedAt = performance.now();
+    let d;
+    try {
+      d = await postScanImage(fd, clientProfile);
+    } finally {
+      clientProfile.client_request_ms = performance.now() - requestStartedAt;
+    }
+    trackAnalytics('scan_completed', {
+      scan_id: currentScanId,
+      cards_detected: Number(d.count || 0),
+      matched_count: (d.cards || []).filter(card => !!card.id).length,
+      duration_ms: performance.now() - scanStartedAt,
+      profile: { ...(d.profile || {}), ...clientProfile }
+    });
     pendingCards = (d.cards || []).filter(c => c.id).map(c => ({
       ...c,
       selected: true,
@@ -1069,7 +1106,12 @@ async function uploadImage(file) {
       statusEl.textContent = 'Распознавание завершено. Найдено областей: ' + d.cards.length + '; совпадений с каталогом: ' + pendingCards.length + '. Проверьте результат перед сохранением.';
     }
   } catch (e) {
-    trackAnalytics('scan_failed', { scan_id: currentScanId, duration_ms: performance.now() - scanStartedAt, reason: e?.name === 'AbortError' ? 'timeout' : (e instanceof TypeError ? 'network' : 'server') });
+    trackAnalytics('scan_failed', {
+      scan_id: currentScanId,
+      duration_ms: performance.now() - scanStartedAt,
+      reason: e?.name === 'AbortError' ? 'timeout' : (e instanceof TypeError ? 'network' : 'server'),
+      profile: clientProfile
+    });
     retryScanFile = file;
     statusText.textContent = '📷 Сканирование не завершено';
     statusEl.textContent = '❌ ' + scannerErrorMessage(e);

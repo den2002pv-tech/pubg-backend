@@ -135,10 +135,17 @@ def test_match_card_returns_exact_hash_match():
         }
     }
 
-    card_id, distance = main._match_card(hashes, db)
+    profile = {}
+    card_id, distance = main._match_card(hashes, db, profile)
 
     assert card_id == "card_1"
     assert distance == 0
+    assert profile == {
+        "matching_calls": 1,
+        "catalog_candidates_before_filter": 1,
+        "matching_hash_comparisons": 5,
+        "matching_candidates_after_filter": 1,
+    }
 
 
 def test_match_card_rejects_ambiguous_near_duplicate_cards():
@@ -187,6 +194,36 @@ def test_match_card_does_not_match_when_hashes_are_missing():
     card_id, _distance = main._match_card(hashes, db)
 
     assert card_id is None
+
+
+def test_admin_scan_enrichment_skips_duplicate_matching_pass(monkeypatch):
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    calls = []
+    monkeypatch.setattr(main, "_match_card_diagnostics", lambda _hashes, _db: [])
+    monkeypatch.setattr(
+        main,
+        "_match_card",
+        lambda _hashes, _db: (calls.append(_hashes) or "card_1", 1.0),
+    )
+
+    result = main._enrich_admin_scan(
+        [{
+            "hashes": dict(hashes),
+            "raw_hashes": dict(hashes),
+            "width": 40,
+            "height": 70,
+        }],
+        {"card_1": {"name": "Card"}},
+    )
+
+    assert len(calls) == 1
+    assert result[0]["id"] == "card_1"
 
 
 
@@ -383,7 +420,7 @@ def test_scan_screenshot_keeps_gray_rarity_cards(monkeypatch):
     monkeypatch.setattr(
         scanner,
         "calculate_card_hashes",
-        lambda crop: {
+        lambda crop, _timings=None: {
             "full_dhash": "abcd",
             "full_phash": "abcd",
             "visual_phash": "abcd",
@@ -402,3 +439,82 @@ def test_scan_screenshot_keeps_gray_rarity_cards(monkeypatch):
     assert result["count"] == 1
     assert result["cards"][0]["quantity"] == 5
     assert result["cards"][0]["hashes"]["full_dhash"] == "abcd"
+
+
+def test_scan_upload_profile_separates_read_decode_and_conversion():
+    from io import BytesIO
+
+    from fastapi import UploadFile
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (32, 24), (20, 30, 40)).save(buffer, format="PNG")
+    upload = UploadFile(filename="fixture.png", file=BytesIO(buffer.getvalue()))
+    profile = {}
+
+    image = asyncio.run(main._read_image(upload, profile))
+
+    assert image.mode == "RGB"
+    assert image.size == (32, 24)
+    assert profile["upload_format"] == "PNG"
+    assert profile["upload_source_width"] == 32
+    assert profile["upload_source_height"] == 24
+    assert profile["upload_size_bytes"] == len(buffer.getvalue())
+    assert profile["upload_read_ms"] >= 0
+    assert profile["upload_image_decode_ms"] >= 0
+    assert profile["upload_rgb_convert_ms"] >= 0
+
+
+@pytest.mark.parametrize(("same_hashes", "expected_calls"), [(True, 1), (False, 2)])
+def test_scan_skips_matching_second_pass_only_for_equal_hashes(
+    monkeypatch, same_hashes, expected_calls,
+):
+    from copy import deepcopy
+
+    card_hashes = {
+        "full_phash": "aaaa",
+        "full_dhash": "bbbb",
+        "visual_phash": "cccc",
+        "visual_dhash": "dddd",
+        "frame_colorhash": "eeee",
+    }
+    raw_hashes = deepcopy(card_hashes)
+    if not same_hashes:
+        raw_hashes["full_dhash"] = "ffff"
+    monkeypatch.setattr(
+        main,
+        "_read_image",
+        lambda _file, _profile: asyncio.sleep(0, result=None),
+    )
+    monkeypatch.setattr(main, "load_db", lambda: {"card_1": {}})
+    monkeypatch.setattr(
+        main,
+        "scan_screenshot",
+        lambda _image, save_previews: {
+            "cards": [{
+                "hashes": card_hashes,
+                "raw_hashes": raw_hashes,
+                "preview": "",
+                "quantity": 1,
+                "duplicates": 0,
+                "row": 0,
+                "col": 0,
+            }],
+            "count": 1,
+            "image_size": [100, 100],
+            "profile": {},
+        },
+    )
+    calls = []
+
+    def match(hashes, db, profile):
+        calls.append(hashes)
+        profile["matching_calls"] = profile.get("matching_calls", 0) + 1
+        return "card_1", 1.0
+
+    monkeypatch.setattr(main, "_match_card", match)
+
+    result = asyncio.run(main.scan(file=object(), init_data=""))
+
+    assert len(calls) == expected_calls
+    assert result["profile"]["matched_count"] == 1
