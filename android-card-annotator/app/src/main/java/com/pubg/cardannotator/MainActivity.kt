@@ -125,12 +125,12 @@ class MainActivity : Activity() {
             for (contour in contours) {
                 val r = Imgproc.boundingRect(contour)
                 val w = r.width.toDouble(); val h = r.height.toDouble()
-                if (w < source.width * .045 || w > source.width * .8) continue
-                if (h < source.height * .10 || h > source.height * .98) continue
-                if (w / max(1.0, h) !in .40..1.05 || w * h < totalArea * .004) continue
+                if (w < source.width * 0.045 || w > source.width * 0.8) continue
+                if (h < source.height * 0.10 || h > source.height * 0.98) continue
+                if (w / max(1.0, h) !in 0.40..1.05 || w * h < totalArea * 0.004) continue
                 val curve = MatOfPoint2f(*contour.toArray().map { Point(it.x, it.y) }.toTypedArray())
                 val poly = MatOfPoint2f()
-                Imgproc.approxPolyDP(curve, poly, Imgproc.arcLength(curve, true) * .025, true)
+                Imgproc.approxPolyDP(curve, poly, Imgproc.arcLength(curve, true) * 0.025, true)
                 val valid = poly.total() in 4.0..8.0
                 curve.release(); poly.release()
                 if (valid) candidates.add(RectF(r.x.toFloat(), r.y.toFloat(),
@@ -138,9 +138,9 @@ class MainActivity : Activity() {
             }
             val result = mutableListOf<RectF>()
             candidates.sortedByDescending { it.width() * it.height() }.forEach { candidate ->
-                if (result.none { overlap(it, candidate) > .72f }) result.add(candidate)
+                if (result.none { overlap(it, candidate) > 0.72f }) result.add(candidate)
             }
-            val boxes = result.filter { it.width() < source.width * .75f && it.height() < source.height * .92f }
+            val boxes = result.filter { it.width() < source.width * 0.75f && it.height() < source.height * 0.92f }
                 .sortedWith(compareBy<RectF> { it.top }.thenBy { it.left })
             imageView.setBoxes(boxes)
             status.text = if (boxes.isEmpty()) "Автопоиск ничего не нашёл. Включите ручную рамку."
