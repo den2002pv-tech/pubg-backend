@@ -709,7 +709,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 const tg = window.Telegram?.WebApp;
 tg?.expand();
 
-const API = 'https://pubg-backend-3rtc.onrender.com';
+const API = '';
 const telegramInitData = tg?.initData || '';
 if (telegramInitData) document.getElementById('feedbackPanel')?.style.setProperty('display', 'block');
 const telegramHeaders = () => telegramInitData ? { 'X-Telegram-Init-Data': telegramInitData } : {};
