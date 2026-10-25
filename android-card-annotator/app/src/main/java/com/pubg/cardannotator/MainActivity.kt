@@ -1,6 +1,6 @@
 package com.pubg.cardannotator
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.content.Intent
 import android.graphics.*
 import android.net.Uri
@@ -26,7 +26,7 @@ import org.opencv.imgproc.Imgproc
 import kotlin.math.max
 import kotlin.math.min
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     private lateinit var imageView: BoundaryView
     private lateinit var status: TextView
     private var bitmap: Bitmap? = null
@@ -131,7 +131,7 @@ class MainActivity : Activity() {
                 val curve = MatOfPoint2f(*contour.toArray().map { Point(it.x, it.y) }.toTypedArray())
                 val poly = MatOfPoint2f()
                 Imgproc.approxPolyDP(curve, poly, Imgproc.arcLength(curve, true) * 0.025, true)
-                val valid = poly.total() in 4.0..8.0
+                val valid = poly.total() in 4L..8L
                 curve.release(); poly.release()
                 if (valid) candidates.add(RectF(r.x.toFloat(), r.y.toFloat(),
                     (r.x + r.width).toFloat(), (r.y + r.height).toFloat()))
