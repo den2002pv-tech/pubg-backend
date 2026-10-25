@@ -431,7 +431,7 @@ let iconFilterMode='all';
 function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
 function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
 function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-const API_BASE = 'https://pubg-backend-3rtc.onrender.com';
+const API_BASE = '';
 function assetUrl(url){
   if(!url)return '';
   if(/^https?:\/\//i.test(url) || url.startsWith('data:'))return url;
