@@ -53,6 +53,26 @@ def test_hamming_returns_none_for_invalid_hashes():
     assert main._hamming("not-hex", "01") is None
 
 
+def test_card_icon_public_url_uses_enzonic_default(monkeypatch):
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    assert main._card_icon_public_url("/static/cards/card.webp") == (
+        "https://pubg-card.enzonic.dev/static/cards/card.webp"
+    )
+
+
+def test_card_icon_public_url_uses_public_base_url_override(monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://cards.example/")
+    assert main._card_icon_public_url("/static/cards/card.webp") == (
+        "https://cards.example/static/cards/card.webp"
+    )
+
+
+def test_app_commit_uses_generic_environment_variable(monkeypatch):
+    monkeypatch.setenv("APP_COMMIT", "test-commit")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "stale-render-commit")
+    assert main.get_app_commit() == "test-commit"
+
+
 def test_catalog_audit_reports_missing_and_duplicate_icons_and_possible_counter(tmp_path, monkeypatch):
     cards_dir = tmp_path / "static" / "cards"
     cards_dir.mkdir(parents=True)
@@ -540,7 +560,7 @@ def test_github_commit_always_targets_working_branch(monkeypatch):
     monkeypatch.delenv("GITHUB_BRANCH", raising=False)
     assert main._github_commit_branch() == "feature/card-counter"
 
-    # A stale Render setting must not redirect admin data commits to main.
+    # A stale platform setting must not redirect admin data commits to main.
     monkeypatch.setenv("GITHUB_BRANCH", "main")
     assert main._github_commit_branch() == "feature/card-counter"
 

@@ -80,6 +80,7 @@ def test_request_message_and_icon_media_keep_recipient_direction(monkeypatch):
     ],
 )
 def test_telegram_commands_reply_with_mini_app_button(monkeypatch, text, expected_fragment):
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
     monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
     sent = []
     monkeypatch.setattr(
@@ -108,7 +109,7 @@ def test_telegram_commands_reply_with_mini_app_button(monkeypatch, text, expecte
     assert payload["chat_id"] == 12345
     assert expected_fragment in payload["text"]
     button = payload["reply_markup"]["inline_keyboard"][0][0]
-    assert button["web_app"]["url"] == "https://pubg-app-phi.vercel.app"
+    assert button["web_app"]["url"] == "https://pubg-card.enzonic.dev"
 
 
 def test_telegram_webhook_ignores_unknown_messages(monkeypatch):
@@ -688,4 +689,3 @@ def test_trade_command_resends_completion_keyboard_for_existing_request(monkeypa
         for row in sent[0][1]["reply_markup"]["inline_keyboard"]
         for button in row
     )
-

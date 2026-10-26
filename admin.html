@@ -810,7 +810,7 @@ async function saveCounterTestsBatch(){
   const button=document.getElementById("saveCounterTestsBtn");
   const queue=getCounterTestQueue();
   if(!queue.length){status.className="err";status.textContent="Очередь пуста. Сначала добавь результаты сканирования.";return}
-  if(!confirm("Отправить "+queue.length+" эталонных тест(ов) в GitHub одним commit? После этого Render может перезапуститься."))return;
+  if(!confirm("Отправить "+queue.length+" эталонных тест(ов) в GitHub одним commit? После этого проверьте деплой приложения в Enzonic."))return;
   button.disabled=true;button.textContent="Сохраняем одним commit...";
   status.className="muted";status.textContent="Отправляем "+queue.length+" тест(ов), изображения и диагностику одним commit...";
   try{
@@ -818,7 +818,7 @@ async function saveCounterTestsBatch(){
     const d=await r.json();if(!r.ok)throw new Error(d.detail||"Ошибка сохранения");
     setCounterTestQueue([]);
     status.className="ok";
-    status.textContent="Сохранено "+d.saved_count+" тест(ов); "+d.correct_count+" совпали с алгоритмом. Ветка "+d.branch+", commit "+String(d.git_commit).slice(0,10)+". Render может перезапуститься один раз после этого commit.";
+    status.textContent="Сохранено "+d.saved_count+" тест(ов); "+d.correct_count+" совпали с алгоритмом. Ветка "+d.branch+", commit "+String(d.git_commit).slice(0,10)+". Проверьте деплой приложения в Enzonic.";
     await loadCounterTests();
   }catch(e){
     status.className="err";status.textContent="Не удалось сохранить очередь: "+e.message+". Данные оставлены в очереди — можно повторить отправку.";

@@ -22,10 +22,10 @@ from urllib.request import Request, urlopen
 import sentry_sdk
 
 from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+from app_config import get_app_commit, get_public_base_url
 from card_state_features import best_feature_splits, extract_card_visual_features
 from scanner import _detect_counter, _has_counter_evidence
 
@@ -36,7 +36,7 @@ from analytics import clear_scan_performance_metrics, get_analytics_events, get_
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 
-# Sentry is optional in local/test environments. Configure SENTRY_DSN on Render to enable reporting.
+# Sentry is optional in local/test environments. Configure SENTRY_DSN to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
 if SENTRY_DSN:
     sentry_sdk.init(
@@ -63,29 +63,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="PUBG Card Scanner", lifespan=lifespan)
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://pubg-app-phi.vercel.app",
-    ],
-    # Vercel preview deployments get a different origin. Keep the rule
-    # restricted to this application's Vercel project instead of allowing
-    # every origin, because admin requests use bearer credentials.
-    allow_origin_regex=r"^https://pubg-app-[a-z0-9-]+\.vercel\.app$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 STATIC_DIR = Path("static")
 CARDS_DIR = STATIC_DIR / "cards"
 CARDS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Admin workflow previews are temporary. Render's free filesystem is ephemeral.
+# Admin workflow previews are temporary runtime files.
 TEMP_DIR = Path("temp_images")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-# Small in-memory ring buffer: bounded for Render's 0.1 CPU/free instance.
+# Keep diagnostic storage bounded in memory.
 # Logs contain detector diagnostics only, never credentials or source images.
 SCAN_DIAGNOSTIC_LOGS: deque[dict[str, Any]] = deque(maxlen=100)
 
@@ -162,7 +148,7 @@ def _make_session() -> str:
     Format:
         pubg_admin_v1.<timestamp>.<random_nonce>.<hmac>
 
-    The token is self-contained, so Render does not need a session database.
+    The token is self-contained and does not require a session database.
     """
     ts_s = str(int(time.time()))
     nonce = base64.urlsafe_b64encode(os.urandom(24)).decode("ascii").rstrip("=")
@@ -210,7 +196,7 @@ def _validate_telegram_init_data(init_data: str) -> dict[str, Any]:
     """Validate Telegram Mini App initData and return the Telegram user."""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if not bot_token:
-        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на Render")
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
 
     from urllib.parse import parse_qsl
 
@@ -257,7 +243,7 @@ def require_admin(authorization: str | None) -> None:
     if not os.getenv("ADMIN_PASSWORD"):
         raise HTTPException(
             status_code=503,
-            detail="На Render не задан ADMIN_PASSWORD",
+            detail="На сервере не задан ADMIN_PASSWORD",
         )
 
     token = _authorization_token(authorization)
@@ -910,7 +896,7 @@ def _save_counter_fixture(image: Image.Image, box: Any, index: int) -> str:
         return ""
 
 def _save_admin_preview(data_url: str, index: int) -> str:
-    """Persist one temporary admin card preview on Render."""
+    """Persist one temporary admin card preview for the current runtime."""
     if not data_url.startswith("data:image/") or "," not in data_url:
         return data_url
     try:
@@ -1235,7 +1221,7 @@ async def record_my_activity(init_data: str = Header(default="", alias="X-Telegr
 async def admin_login(data: LoginSchema):
     password = os.getenv("ADMIN_PASSWORD")
     if not password:
-        raise HTTPException(status_code=503, detail="ADMIN_PASSWORD не задан на Render")
+        raise HTTPException(status_code=503, detail="ADMIN_PASSWORD не задан на сервере")
 
     if not hmac.compare_digest(data.password, password):
         raise HTTPException(status_code=401, detail="Неверный пароль")
@@ -1264,7 +1250,7 @@ async def scan_preview(
     log_entry: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event": "scan_preview",
-        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "app_commit": get_app_commit(),
     }
     try:
         image = await _read_image(file)
@@ -1324,7 +1310,7 @@ async def scan_diagnostics(
     log_entry: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "event": "scan_diagnostics",
-        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "app_commit": get_app_commit(),
     }
     try:
         image = await _read_image(file)
@@ -1358,7 +1344,7 @@ async def download_scan_logs(authorization: str | None = Header(default=None)):
     require_admin(authorization)
     payload = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
-        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "app_commit": get_app_commit(),
         "retention": "Most recent 100 scan-preview requests in this running process; cleared on restart/redeploy.",
         "count": len(SCAN_DIAGNOSTIC_LOGS),
         "logs": list(SCAN_DIAGNOSTIC_LOGS),
@@ -1385,7 +1371,7 @@ def _github_read_text(path: str, branch: str) -> str | None:
     token = os.getenv("GITHUB_TOKEN", "")
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
     if not token:
-        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на сервере")
     url = f"https://api.github.com/repos/{repo}/contents/{quote(path, safe='/')}?ref={quote(branch, safe='')}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -1411,7 +1397,7 @@ def _github_commit_files(files: dict[str, bytes], message: str, branch: str) -> 
     token = os.getenv("GITHUB_TOKEN", "")
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
     if not token:
-        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на сервере")
     api = f"https://api.github.com/repos/{repo}"
     ref = _github_request("GET", f"{api}/git/ref/heads/{quote(branch, safe='')}", token)
     parent_sha = ref["object"]["sha"]
@@ -1448,7 +1434,7 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
     token = os.getenv("GITHUB_TOKEN", "")
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
     if not token:
-        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на сервере")
     url = f"https://api.github.com/repos/{repo}/contents/{quote(path, safe='/')}?ref={quote(branch, safe='')}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -1859,7 +1845,7 @@ def run_counter_tests(authorization: str | None = Header(default=None)):
     if not cases:
         return {
             "branch": branch,
-            "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+            "app_commit": get_app_commit(),
             "run_at": datetime.now(timezone.utc).isoformat(),
             "total": 0,
             "passed": 0,
@@ -1894,7 +1880,7 @@ def run_counter_tests(authorization: str | None = Header(default=None)):
             if not isinstance(expected, int) or isinstance(expected, bool) or not 1 <= expected <= 999:
                 raise ValueError("Эталонное количество должно быть целым числом от 1 до 999")
             # Prefer a local fixture only when its SHA matches the manifest; otherwise read
-            # the exact version from GitHub so a stale Render deployment cannot test old data.
+            # the exact version from GitHub so a stale deployment cannot test old data.
             image_bytes = None
             local_image = Path(image_path)
             expected_sha = case.get("image_sha256")
@@ -1927,7 +1913,7 @@ def run_counter_tests(authorization: str | None = Header(default=None)):
     failed = len(results) - passed
     return {
         "branch": branch,
-        "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+        "app_commit": get_app_commit(),
         "run_at": datetime.now(timezone.utc).isoformat(),
         "total": len(results),
         "passed": passed,
@@ -2090,7 +2076,7 @@ async def save_counter_tests_batch(
         case = {
             "id": case_id,
             "timestamp": case_time.isoformat(),
-            "app_commit": os.getenv("RENDER_GIT_COMMIT", "unknown"),
+            "app_commit": get_app_commit(),
             "card_id": item.card_id,
             "card_name": item.card_name,
             "row": item.row,
@@ -2245,8 +2231,7 @@ def _card_icon_public_url(icon: Any) -> str:
     path = str(icon or "").strip()
     if not path.startswith("/static/cards/") or ".." in path.split("/"):
         return ""
-    base_url = os.getenv("PUBLIC_BASE_URL", "https://pubg-backend-3rtc.onrender.com").strip().rstrip("/")
-    return f"{base_url}{path}"
+    return f"{get_public_base_url()}{path}"
 
 
 def _send_telegram_media_group(chat_id: int, media: list[dict[str, str]]) -> None:
@@ -2719,7 +2704,7 @@ def _github_request(method: str, url: str, token: str, payload: dict[str, Any] |
 
 def _github_commit_branch() -> str:
     # Card data must never be pushed to main from the admin UI, even if an old
-    # Render environment variable still points there.
+    # platform-specific environment variable still points there.
     return "feature/card-counter"
 
 
@@ -2729,7 +2714,7 @@ def _github_commit() -> dict[str, Any]:
     branch = _github_commit_branch()
 
     if not token:
-        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на Render")
+        raise HTTPException(status_code=503, detail="GITHUB_TOKEN не задан на сервере")
 
     api = f"https://api.github.com/repos/{repo}"
     ref = _github_request("GET", f"{api}/git/ref/heads/{quote(branch, safe='')}", token)

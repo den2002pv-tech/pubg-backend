@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 from fastapi import APIRouter, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app_config import get_public_base_url
 from database import get_connection
 
 router = APIRouter()
@@ -687,7 +688,7 @@ async def telegram_webhook(
                 app_keyboard = {
                     "inline_keyboard": [[{
                         "text": "🎴 Открыть PUBG Mobile",
-                        "web_app": {"url": "https://pubg-app-phi.vercel.app"},
+                        "web_app": {"url": get_public_base_url()},
                     }]]
                 }
                 if command == "/start":
