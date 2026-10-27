@@ -2244,6 +2244,170 @@
         }
       ],
       "image_sha256": "65b7aa7e597510098c196dc6c77c27593edd3b2ce435f55bd4c94d26751de4d7"
+    },
+    {
+      "id": "inventory-20261027164628",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261027164628.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            203,
+            87,
+            239,
+            351
+          ],
+          "expected_quantity": 2,
+          "state": "owned",
+          "card_name": "Кубок победителя PMGO",
+          "card_id": "card_40",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 351,
+            "luminance_mean": 139.809,
+            "luminance_median": 141.0,
+            "luminance_stddev": 62.409,
+            "saturation_mean": 82.391,
+            "saturation_median": 70.0,
+            "saturated_pixel_ratio": 0.5025,
+            "frame_luminance_mean": 152.281,
+            "frame_saturation_mean": 76.243,
+            "center_luminance_mean": 131.231,
+            "center_luminance_median": 122.0,
+            "center_luminance_stddev": 65.718,
+            "center_saturation_mean": 93.324,
+            "title_luminance_mean": 129.391,
+            "title_luminance_median": 133.0,
+            "title_luminance_stddev": 57.564,
+            "title_saturation_mean": 99.927,
+            "bottom_luminance_mean": 157.495,
+            "bottom_luminance_median": 168.0,
+            "bottom_luminance_stddev": 65.454,
+            "bottom_saturation_mean": 50.487
+          }
+        },
+        {
+          "box": [
+            471,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Блестящий удар",
+          "card_id": "card_39",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 161.932,
+            "luminance_median": 167.0,
+            "luminance_stddev": 40.341,
+            "saturation_mean": 63.049,
+            "saturation_median": 58.0,
+            "saturated_pixel_ratio": 0.3993,
+            "frame_luminance_mean": 160.684,
+            "frame_saturation_mean": 66.646,
+            "center_luminance_mean": 157.042,
+            "center_luminance_median": 169.0,
+            "center_luminance_stddev": 40.818,
+            "center_saturation_mean": 65.135,
+            "title_luminance_mean": 157.341,
+            "title_luminance_median": 157.0,
+            "title_luminance_stddev": 33.221,
+            "title_saturation_mean": 74.334,
+            "bottom_luminance_mean": 176.097,
+            "bottom_luminance_median": 190.0,
+            "bottom_luminance_stddev": 45.539,
+            "bottom_saturation_mean": 49.531
+          }
+        },
+        {
+          "box": [
+            739,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Ford Mustang GTD",
+          "card_id": "card_38",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 147.139,
+            "luminance_median": 168.0,
+            "luminance_stddev": 73.744,
+            "saturation_mean": 56.236,
+            "saturation_median": 49.0,
+            "saturated_pixel_ratio": 0.3705,
+            "frame_luminance_mean": 164.062,
+            "frame_saturation_mean": 62.651,
+            "center_luminance_mean": 124.246,
+            "center_luminance_median": 110.0,
+            "center_luminance_stddev": 87.139,
+            "center_saturation_mean": 62.66,
+            "title_luminance_mean": 186.067,
+            "title_luminance_median": 196.0,
+            "title_luminance_stddev": 30.877,
+            "title_saturation_mean": 34.222,
+            "bottom_luminance_mean": 165.619,
+            "bottom_luminance_median": 182.0,
+            "bottom_luminance_stddev": 58.714,
+            "bottom_saturation_mean": 46.735
+          }
+        },
+        {
+          "box": [
+            1006,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Ford F-15 pp Raptor",
+          "card_id": "card_37",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 157.594,
+            "luminance_median": 169.0,
+            "luminance_stddev": 65.415,
+            "saturation_mean": 60.098,
+            "saturation_median": 53.0,
+            "saturated_pixel_ratio": 0.431,
+            "frame_luminance_mean": 167.595,
+            "frame_saturation_mean": 60.969,
+            "center_luminance_mean": 141.196,
+            "center_luminance_median": 155.0,
+            "center_luminance_stddev": 77.957,
+            "center_saturation_mean": 66.318,
+            "title_luminance_mean": 186.092,
+            "title_luminance_median": 188.0,
+            "title_luminance_stddev": 38.685,
+            "title_saturation_mean": 35.666,
+            "bottom_luminance_mean": 169.722,
+            "bottom_luminance_median": 185.0,
+            "bottom_luminance_stddev": 54.855,
+            "bottom_saturation_mean": 57.949
+          }
+        }
+      ],
+      "image_sha256": "65b7aa7e597510098c196dc6c77c27593edd3b2ce435f55bd4c94d26751de4d7"
     }
   ]
 }
