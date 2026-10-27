@@ -2534,6 +2534,170 @@
         }
       ],
       "image_sha256": "daf308784a1d5fc75daf258d33ca100dd77281a92eacc6cce2873f6817776d8f"
+    },
+    {
+      "id": "inventory-20261027165037",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261027165037.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            152,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Запечатывания лидера",
+          "card_id": "card_98",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 144.882,
+            "luminance_median": 142.0,
+            "luminance_stddev": 36.618,
+            "saturation_mean": 59.483,
+            "saturation_median": 60.0,
+            "saturated_pixel_ratio": 0.3705,
+            "frame_luminance_mean": 153.698,
+            "frame_saturation_mean": 41.386,
+            "center_luminance_mean": 128.752,
+            "center_luminance_median": 129.0,
+            "center_luminance_stddev": 35.219,
+            "center_saturation_mean": 75.903,
+            "title_luminance_mean": 149.946,
+            "title_luminance_median": 156.0,
+            "title_luminance_stddev": 24.534,
+            "title_saturation_mean": 47.539,
+            "bottom_luminance_mean": 169.869,
+            "bottom_luminance_median": 181.0,
+            "bottom_luminance_stddev": 37.391,
+            "bottom_saturation_mean": 35.344
+          }
+        },
+        {
+          "box": [
+            474,
+            152,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Гильдия охотников",
+          "card_id": "card_118",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 150.754,
+            "luminance_median": 149.0,
+            "luminance_stddev": 34.633,
+            "saturation_mean": 55.193,
+            "saturation_median": 56.0,
+            "saturated_pixel_ratio": 0.316,
+            "frame_luminance_mean": 156.228,
+            "frame_saturation_mean": 41.723,
+            "center_luminance_mean": 140.191,
+            "center_luminance_median": 139.0,
+            "center_luminance_stddev": 33.851,
+            "center_saturation_mean": 65.907,
+            "title_luminance_mean": 150.293,
+            "title_luminance_median": 156.0,
+            "title_luminance_stddev": 24.85,
+            "title_saturation_mean": 47.367,
+            "bottom_luminance_mean": 170.639,
+            "bottom_luminance_median": 183.0,
+            "bottom_luminance_stddev": 38.319,
+            "bottom_saturation_mean": 36.553
+          }
+        },
+        {
+          "box": [
+            743,
+            152,
+            240,
+            352
+          ],
+          "expected_quantity": 10,
+          "state": "owned",
+          "card_name": "бинт охотника",
+          "card_id": "card_113",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 127.504,
+            "luminance_median": 127.0,
+            "luminance_stddev": 39.649,
+            "saturation_mean": 17.493,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.1405,
+            "frame_luminance_mean": 142.962,
+            "frame_saturation_mean": 2.933,
+            "center_luminance_mean": 117.163,
+            "center_luminance_median": 122.0,
+            "center_luminance_stddev": 43.993,
+            "center_saturation_mean": 35.188,
+            "title_luminance_mean": 122.339,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 29.383,
+            "title_saturation_mean": 0.623,
+            "bottom_luminance_mean": 135.485,
+            "bottom_luminance_median": 127.0,
+            "bottom_luminance_stddev": 31.786,
+            "bottom_saturation_mean": 1.443
+          }
+        },
+        {
+          "box": [
+            1012,
+            152,
+            240,
+            352
+          ],
+          "expected_quantity": 5,
+          "state": "owned",
+          "card_name": "Багряная крепость",
+          "card_id": "card_97",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 131.445,
+            "luminance_median": 129.0,
+            "luminance_stddev": 35.67,
+            "saturation_mean": 5.855,
+            "saturation_median": 0.0,
+            "saturated_pixel_ratio": 0.0081,
+            "frame_luminance_mean": 143.513,
+            "frame_saturation_mean": 2.438,
+            "center_luminance_mean": 124.571,
+            "center_luminance_median": 128.0,
+            "center_luminance_stddev": 36.306,
+            "center_saturation_mean": 10.749,
+            "title_luminance_mean": 121.377,
+            "title_luminance_median": 116.0,
+            "title_luminance_stddev": 27.585,
+            "title_saturation_mean": 0.478,
+            "bottom_luminance_mean": 137.28,
+            "bottom_luminance_median": 128.0,
+            "bottom_luminance_stddev": 33.824,
+            "bottom_saturation_mean": 1.702
+          }
+        }
+      ],
+      "image_sha256": "2f89f70ffd7deb90ebea66e169b46e89a92731897c5112a09b885e01e6a127a8"
     }
   ]
 }
