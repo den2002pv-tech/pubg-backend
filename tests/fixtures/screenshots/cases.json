@@ -2408,6 +2408,132 @@
         }
       ],
       "image_sha256": "65b7aa7e597510098c196dc6c77c27593edd3b2ce435f55bd4c94d26751de4d7"
+    },
+    {
+      "id": "inventory-20261027164804",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261027164804.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            471,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Шут судьбы",
+          "card_id": "card_13",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 118.332,
+            "luminance_median": 108.0,
+            "luminance_stddev": 62.787,
+            "saturation_mean": 133.738,
+            "saturation_median": 135.0,
+            "saturated_pixel_ratio": 0.7384,
+            "frame_luminance_mean": 151.407,
+            "frame_saturation_mean": 86.815,
+            "center_luminance_mean": 90.546,
+            "center_luminance_median": 80.0,
+            "center_luminance_stddev": 56.007,
+            "center_saturation_mean": 171.879,
+            "title_luminance_mean": 113.742,
+            "title_luminance_median": 96.0,
+            "title_luminance_stddev": 52.383,
+            "title_saturation_mean": 152.66,
+            "bottom_luminance_mean": 166.404,
+            "bottom_luminance_median": 183.0,
+            "bottom_luminance_stddev": 57.454,
+            "bottom_saturation_mean": 68.702
+          }
+        },
+        {
+          "box": [
+            739,
+            88,
+            239,
+            350
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Древний секрет",
+          "card_id": "card_12",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 350,
+            "luminance_mean": 149.201,
+            "luminance_median": 149.0,
+            "luminance_stddev": 43.296,
+            "saturation_mean": 89.563,
+            "saturation_median": 94.0,
+            "saturated_pixel_ratio": 0.6359,
+            "frame_luminance_mean": 161.273,
+            "frame_saturation_mean": 77.917,
+            "center_luminance_mean": 135.855,
+            "center_luminance_median": 140.0,
+            "center_luminance_stddev": 38.249,
+            "center_saturation_mean": 105.185,
+            "title_luminance_mean": 155.4,
+            "title_luminance_median": 155.0,
+            "title_luminance_stddev": 27.499,
+            "title_saturation_mean": 91.019,
+            "bottom_luminance_mean": 169.84,
+            "bottom_luminance_median": 188.0,
+            "bottom_luminance_stddev": 54.801,
+            "bottom_saturation_mean": 56.165
+          }
+        },
+        {
+          "box": [
+            1006,
+            87,
+            239,
+            351
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "",
+          "card_id": "",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 239,
+            "height": 351,
+            "luminance_mean": 146.51,
+            "luminance_median": 143.0,
+            "luminance_stddev": 37.257,
+            "saturation_mean": 64.08,
+            "saturation_median": 63.0,
+            "saturated_pixel_ratio": 0.4528,
+            "frame_luminance_mean": 158.463,
+            "frame_saturation_mean": 42.458,
+            "center_luminance_mean": 131.979,
+            "center_luminance_median": 133.0,
+            "center_luminance_stddev": 35.79,
+            "center_saturation_mean": 82.555,
+            "title_luminance_mean": 150.245,
+            "title_luminance_median": 155.0,
+            "title_luminance_stddev": 27.035,
+            "title_saturation_mean": 47.664,
+            "bottom_luminance_mean": 166.888,
+            "bottom_luminance_median": 162.0,
+            "bottom_luminance_stddev": 38.48,
+            "bottom_saturation_mean": 40.644
+          }
+        }
+      ],
+      "image_sha256": "daf308784a1d5fc75daf258d33ca100dd77281a92eacc6cce2873f6817776d8f"
     }
   ]
 }
