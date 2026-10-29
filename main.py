@@ -7,7 +7,9 @@ import hmac
 import json
 import math
 import os
+import platform
 import re
+import threading
 import time
 import uuid
 from collections import deque
@@ -74,6 +76,7 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 # Keep diagnostic storage bounded in memory.
 # Logs contain detector diagnostics only, never credentials or source images.
 SCAN_DIAGNOSTIC_LOGS: deque[dict[str, Any]] = deque(maxlen=100)
+SCREENSHOT_TEST_RUN_LOCK = threading.Lock()
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
@@ -1494,6 +1497,387 @@ def _safe_screenshot_upload_id(value: str) -> str:
     return value
 
 
+def _read_limit(path: str, collection_errors: list[str] | None = None) -> int | None:
+    try:
+        value = Path(path).read_text(encoding="ascii").strip()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        if collection_errors is not None:
+            collection_errors.append(f"{Path(path).name}: {type(exc).__name__}")
+        return None
+    if not value or value == "max":
+        return None
+    try:
+        limit = int(value)
+    except ValueError:
+        if collection_errors is not None:
+            collection_errors.append(f"{Path(path).name}: invalid value")
+        return None
+    return limit if limit > 0 else None
+
+
+def _resource_snapshot() -> dict[str, Any]:
+    snapshot: dict[str, Any] = {
+        "rss_bytes": None,
+        "vms_bytes": None,
+        "user_cpu_seconds": None,
+        "system_cpu_seconds": None,
+        "container_memory_bytes": None,
+        "container_cpu_seconds": None,
+        "cpu_count": os.cpu_count(),
+        "available_cpu_count": None,
+        "cpu_limit": None,
+        "memory_limit_bytes": None,
+        "metric_source": "stdlib",
+        "collection_errors": [],
+    }
+    try:
+        import resource
+
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        snapshot["user_cpu_seconds"] = float(usage.ru_utime)
+        snapshot["system_cpu_seconds"] = float(usage.ru_stime)
+    except (ImportError, OSError, AttributeError) as exc:
+        snapshot["collection_errors"].append(f"process_cpu: {type(exc).__name__}")
+
+    try:
+        status = Path("/proc/self/status").read_text(encoding="ascii")
+        for line in status.splitlines():
+            if line.startswith("VmRSS:"):
+                snapshot["rss_bytes"] = int(line.split()[1]) * 1024
+            elif line.startswith("VmSize:"):
+                snapshot["vms_bytes"] = int(line.split()[1]) * 1024
+        if snapshot["rss_bytes"] is None or snapshot["vms_bytes"] is None:
+            snapshot["collection_errors"].append("process_memory: missing /proc/self/status fields")
+    except (OSError, ValueError, IndexError) as exc:
+        snapshot["collection_errors"].append(f"process_memory: {type(exc).__name__}")
+
+    collection_errors = snapshot["collection_errors"]
+    memory_limit = _read_limit("/sys/fs/cgroup/memory.max", collection_errors)
+    if memory_limit is None:
+        memory_limit = _read_limit(
+            "/sys/fs/cgroup/memory/memory.limit_in_bytes", collection_errors
+        )
+    snapshot["memory_limit_bytes"] = memory_limit
+    container_memory = _read_limit("/sys/fs/cgroup/memory.current", collection_errors)
+    if container_memory is None:
+        container_memory = _read_limit(
+            "/sys/fs/cgroup/memory/memory.usage_in_bytes", collection_errors
+        )
+    snapshot["container_memory_bytes"] = container_memory
+
+    try:
+        cpu_max = Path("/sys/fs/cgroup/cpu.max").read_text(encoding="ascii").split()
+        if len(cpu_max) == 2 and cpu_max[0] != "max":
+            quota, period = int(cpu_max[0]), int(cpu_max[1])
+            if quota > 0 and period > 0:
+                snapshot["cpu_limit"] = quota / period
+    except FileNotFoundError:
+        try:
+            quota = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read_text(encoding="ascii"))
+            period = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read_text(encoding="ascii"))
+            if quota > 0 and period > 0:
+                snapshot["cpu_limit"] = quota / period
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError) as exc:
+            snapshot["collection_errors"].append(f"container_cpu_limit: {type(exc).__name__}")
+    except (OSError, ValueError) as exc:
+        snapshot["collection_errors"].append(f"container_cpu_limit: {type(exc).__name__}")
+
+    try:
+        usage = Path("/sys/fs/cgroup/cpu.stat").read_text(encoding="ascii")
+        for line in usage.splitlines():
+            key, _, value = line.partition(" ")
+            if key == "usage_usec":
+                snapshot["container_cpu_seconds"] = int(value) / 1_000_000
+                break
+    except (OSError, ValueError) as exc:
+        if not isinstance(exc, FileNotFoundError):
+            snapshot["collection_errors"].append(f"container_cpu: {type(exc).__name__}")
+        else:
+            try:
+                usage_ns = int(Path("/sys/fs/cgroup/cpuacct/cpuacct.usage").read_text(encoding="ascii"))
+                snapshot["container_cpu_seconds"] = usage_ns / 1_000_000_000
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError) as fallback_exc:
+                snapshot["collection_errors"].append(
+                    f"container_cpu: {type(fallback_exc).__name__}"
+                )
+
+    if snapshot["cpu_limit"] is None:
+        try:
+            snapshot["available_cpu_count"] = len(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            snapshot["available_cpu_count"] = snapshot["cpu_count"]
+        if snapshot["available_cpu_count"] is not None:
+            snapshot["cpu_limit"] = float(snapshot["available_cpu_count"])
+    else:
+        try:
+            snapshot["available_cpu_count"] = len(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            snapshot["available_cpu_count"] = snapshot["cpu_count"]
+    return snapshot
+
+
+def _resource_delta(before: dict[str, Any], after: dict[str, Any], duration_seconds: float) -> dict[str, Any]:
+    def delta(key: str) -> float | None:
+        first, last = before.get(key), after.get(key)
+        if isinstance(first, (int, float)) and isinstance(last, (int, float)):
+            return round(last - first, 6)
+        return None
+
+    cpu_delta = None
+    user_delta = delta("user_cpu_seconds")
+    system_delta = delta("system_cpu_seconds")
+    if user_delta is not None and system_delta is not None:
+        cpu_delta = user_delta + system_delta
+    cpu_avg = (
+        round(cpu_delta / duration_seconds * 100, 2)
+        if cpu_delta is not None and duration_seconds > 0 else None
+    )
+    return {
+        "cpu_time_before": (
+            before.get("user_cpu_seconds", 0) + before.get("system_cpu_seconds", 0)
+            if before.get("user_cpu_seconds") is not None
+            and before.get("system_cpu_seconds") is not None else None
+        ),
+        "cpu_time_after": (
+            after.get("user_cpu_seconds", 0) + after.get("system_cpu_seconds", 0)
+            if after.get("user_cpu_seconds") is not None
+            and after.get("system_cpu_seconds") is not None else None
+        ),
+        "cpu_percent_before": None,
+        "cpu_percent_after": None,
+        "user_cpu_delta": user_delta,
+        "system_cpu_delta": system_delta,
+        "cpu_avg_percent": cpu_avg,
+        "observation_duration_seconds": round(duration_seconds, 6),
+        "rss_before": before.get("rss_bytes"),
+        "rss_after": after.get("rss_bytes"),
+        "rss_delta": delta("rss_bytes"),
+        "vms_before": before.get("vms_bytes"),
+        "vms_after": after.get("vms_bytes"),
+        "container_memory_before": before.get("container_memory_bytes"),
+        "container_memory_after": after.get("container_memory_bytes"),
+        "container_cpu_seconds_delta": delta("container_cpu_seconds"),
+        "cpu_limit": after.get("cpu_limit"),
+        "memory_limit": after.get("memory_limit_bytes"),
+    }
+
+
+class _ResourceMonitor:
+    def __init__(self, interval_seconds: float = 0.1):
+        self.interval_seconds = interval_seconds
+        self.stop_event = threading.Event()
+        self.lock = threading.Lock()
+        self.thread: threading.Thread | None = None
+        self.start_state: dict[str, Any] = {}
+        self.end_state: dict[str, Any] = {}
+        self._previous: dict[str, Any] | None = None
+        self._previous_at = 0.0
+        self._current_case: dict[str, Any] | None = None
+        self._aggregate = self._new_aggregate()
+        self.collection_errors: set[str] = set()
+
+    @staticmethod
+    def _new_aggregate() -> dict[str, Any]:
+        return {
+            "sample_count": 0,
+            "cpu_percent_sum": 0.0,
+            "cpu_percent_count": 0,
+            "cpu_peak_percent": None,
+            "rss_peak_bytes": None,
+            "container_memory_peak_bytes": None,
+        }
+
+    def __enter__(self):
+        self._started_at = time.perf_counter()
+        self._start_time = datetime.now(timezone.utc)
+        self.start_state = _resource_snapshot()
+        self._record_sample(self.start_state, time.perf_counter())
+        self.thread = threading.Thread(target=self._sample_loop, daemon=True)
+        self.thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
+
+    def stop(self) -> None:
+        if self.stop_event.is_set():
+            return
+        self.stop_event.set()
+        if self.thread is not None:
+            self.thread.join()
+        self.end_state = _resource_snapshot()
+        self._record_sample(self.end_state, time.perf_counter())
+        self._ended_at = time.perf_counter()
+        self._end_time = datetime.now(timezone.utc)
+
+    def _sample_loop(self) -> None:
+        while not self.stop_event.wait(self.interval_seconds):
+            self._record_sample(_resource_snapshot(), time.perf_counter())
+
+    def _record_sample(self, snapshot: dict[str, Any], sampled_at: float) -> None:
+        errors = snapshot.get("collection_errors", [])
+        with self.lock:
+            self.collection_errors.update(errors)
+            aggregates = [self._aggregate]
+            if self._current_case is not None:
+                aggregates.append(self._current_case["samples"])
+            for aggregate in aggregates:
+                aggregate["sample_count"] += 1
+                rss = snapshot.get("rss_bytes")
+                if isinstance(rss, (int, float)):
+                    aggregate["rss_peak_bytes"] = max(aggregate["rss_peak_bytes"] or 0, rss)
+                container_memory = snapshot.get("container_memory_bytes")
+                if isinstance(container_memory, (int, float)):
+                    aggregate["container_memory_peak_bytes"] = max(
+                        aggregate["container_memory_peak_bytes"] or 0,
+                        container_memory,
+                    )
+            previous = self._previous
+            elapsed = sampled_at - self._previous_at
+            if previous is not None and elapsed > 0:
+                cpu = _resource_delta(previous, snapshot, elapsed)["cpu_avg_percent"]
+                if cpu is not None:
+                    for aggregate in aggregates:
+                        aggregate["cpu_percent_sum"] += cpu
+                        aggregate["cpu_percent_count"] += 1
+                        aggregate["cpu_peak_percent"] = max(
+                            aggregate["cpu_peak_percent"] or 0, cpu
+                        )
+            self._previous = snapshot
+            self._previous_at = sampled_at
+
+    def start_case(self) -> tuple[dict[str, Any], float, dict[str, Any]]:
+        before = _resource_snapshot()
+        started_at = time.perf_counter()
+        case_aggregate = self._new_aggregate()
+        case_aggregate["sample_count"] = 1
+        if isinstance(before.get("rss_bytes"), (int, float)):
+            case_aggregate["rss_peak_bytes"] = before["rss_bytes"]
+        if isinstance(before.get("container_memory_bytes"), (int, float)):
+            case_aggregate["container_memory_peak_bytes"] = before["container_memory_bytes"]
+        with self.lock:
+            self.collection_errors.update(before.get("collection_errors", []))
+            self._current_case = {"samples": case_aggregate}
+        return before, started_at, case_aggregate
+
+    def finish_case(
+        self,
+        before: dict[str, Any],
+        started_at: float,
+        case_aggregate: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        after = _resource_snapshot()
+        duration = time.perf_counter() - started_at
+        with self.lock:
+            self.collection_errors.update(after.get("collection_errors", []))
+            case_aggregate["sample_count"] += 1
+            if isinstance(after.get("rss_bytes"), (int, float)):
+                case_aggregate["rss_peak_bytes"] = max(
+                    case_aggregate["rss_peak_bytes"] or 0, after["rss_bytes"]
+                )
+            if isinstance(after.get("container_memory_bytes"), (int, float)):
+                case_aggregate["container_memory_peak_bytes"] = max(
+                    case_aggregate["container_memory_peak_bytes"] or 0,
+                    after["container_memory_bytes"],
+                )
+            self._current_case = None
+        metrics = _resource_delta(before, after, duration)
+        sampled = {
+            "sample_count": case_aggregate["sample_count"],
+            "cpu_peak_percent": case_aggregate["cpu_peak_percent"],
+            "cpu_sample_avg_percent": (
+                round(case_aggregate["cpu_percent_sum"] / case_aggregate["cpu_percent_count"], 2)
+                if case_aggregate["cpu_percent_count"] else None
+            ),
+            "sampled_peak_rss_bytes": case_aggregate["rss_peak_bytes"],
+            "sampled_peak_container_memory_bytes": case_aggregate["container_memory_peak_bytes"],
+        }
+        cpu_metrics = {
+            key: value for key, value in metrics.items()
+            if key.startswith("cpu_") or key in {
+                "user_cpu_delta", "system_cpu_delta", "observation_duration_seconds",
+            }
+        }
+        cpu_metrics.update({
+            "sample_count": sampled["sample_count"],
+            "cpu_peak_percent": sampled["cpu_peak_percent"],
+            "cpu_sample_avg_percent": sampled["cpu_sample_avg_percent"],
+            "container_cpu_seconds_delta": metrics["container_cpu_seconds_delta"],
+            "cpu_limit": metrics["cpu_limit"],
+        })
+        memory_metrics = {
+            key: value for key, value in metrics.items()
+            if key.startswith(("rss_", "vms_", "container_memory"))
+            or key == "memory_limit"
+        }
+        memory_metrics.update({
+            "sample_count": sampled["sample_count"],
+            "sampled_peak_rss_bytes": sampled["sampled_peak_rss_bytes"],
+            "sampled_peak_container_memory_bytes": sampled["sampled_peak_container_memory_bytes"],
+        })
+        return after, {"cpu": cpu_metrics, "memory": memory_metrics}
+
+    def summary(self) -> dict[str, Any]:
+        with self.lock:
+            aggregate = dict(self._aggregate)
+            errors = sorted(self.collection_errors)
+        cpu_delta = _resource_delta(
+            self.start_state,
+            self.end_state,
+            max(0.0, self._ended_at - self._started_at),
+        )
+        return {
+            "start_state": self.start_state,
+            "end_state": self.end_state,
+            "start_time": self._start_time.isoformat(),
+            "end_time": self._end_time.isoformat(),
+            "cpu": cpu_delta,
+            "duration_seconds": max(0.0, self._ended_at - self._started_at),
+            "sample_count": aggregate["sample_count"],
+            "cpu_peak_percent": aggregate["cpu_peak_percent"],
+            "cpu_sample_avg_percent": (
+                round(aggregate["cpu_percent_sum"] / aggregate["cpu_percent_count"], 2)
+                if aggregate["cpu_percent_count"] else None
+            ),
+            "sampled_peak_rss_bytes": aggregate["rss_peak_bytes"],
+            "sampled_peak_container_memory_bytes": aggregate["container_memory_peak_bytes"],
+            "collection_errors": errors,
+        }
+
+
+def _aggregate_metric(values: list[float]) -> dict[str, float | int | None]:
+    ordered = sorted(float(value) for value in values if isinstance(value, (int, float)))
+    if not ordered:
+        return {"count": 0, "sum": 0.0, "avg": None, "median": None, "min": None, "max": None, "p90": None, "p95": None}
+
+    def percentile(p: float) -> float:
+        if len(ordered) == 1:
+            return ordered[0]
+        index = max(0, min(len(ordered) - 1, math.ceil(p / 100 * len(ordered)) - 1))
+        return ordered[index]
+    return {
+        "count": len(ordered),
+        "sum": round(sum(ordered), 3),
+        "avg": round(sum(ordered) / len(ordered), 3),
+        "median": round(ordered[len(ordered) // 2] if len(ordered) % 2 else (ordered[len(ordered) // 2 - 1] + ordered[len(ordered) // 2]) / 2, 3),
+        "min": round(ordered[0], 3),
+        "max": round(ordered[-1], 3),
+        "p90": round(percentile(90), 3),
+        "p95": round(percentile(95), 3),
+    }
+
+
+def _aggregate_resource_metric(values: list[float]) -> dict[str, float | int | None]:
+    aggregate = _aggregate_metric(values)
+    return {key: value for key, value in aggregate.items() if key != "sum" and key != "p95"}
+
+
 @app.get("/admin/screenshot-tests")
 def get_screenshot_tests(authorization: str | None = Header(default=None)):
     require_admin(authorization)
@@ -1751,29 +2135,157 @@ def delete_screenshot_test(case_id: str, authorization: str | None = Header(defa
 @app.post("/admin/screenshot-tests/run")
 def run_screenshot_tests(authorization: str | None = Header(default=None)):
     require_admin(authorization)
+    if not SCREENSHOT_TEST_RUN_LOCK.acquire(blocking=False):
+        raise HTTPException(status_code=409, detail="Проверка скриншотов уже выполняется")
+    try:
+        with _ResourceMonitor() as resource_monitor:
+            return _run_screenshot_tests(resource_monitor)
+    finally:
+        SCREENSHOT_TEST_RUN_LOCK.release()
+
+
+def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
+    manifest_started = time.perf_counter()
     branch = _screenshot_test_branch()
+    cases = _screenshot_test_manifest(branch).get("cases", [])
+    manifest_fetch_ms = round((time.perf_counter() - manifest_started) * 1000, 1)
+    start_time = resource_monitor._start_time
     results = []
+    catalog_started = time.perf_counter()
     catalog = load_db()
-    for case in _screenshot_test_manifest(branch)["cases"]:
+    catalog_load_ms = round((time.perf_counter() - catalog_started) * 1000, 1)
+    processed = 0
+    for case in cases:
+        case_before, case_started, case_samples = resource_monitor.start_case()
+        case_profile: dict[str, Any] = {}
+        case_timings: dict[str, Any] = {}
         errors = []
+        if not isinstance(case, dict):
+            _, resource_metrics = resource_monitor.finish_case(
+                case_before, case_started, case_samples
+            )
+            error = "Некорректная запись эталона в манифесте"
+            results.append({
+                "id": "?", "passed": False, "errors": [error],
+                "expected_cards": 0, "detected_cards": 0,
+                "quantity_matches": 0, "quantity_checked": 0,
+                "identity_matches": 0, "identity_checked": 0,
+                "profile": {"case_total_ms": round((time.perf_counter() - case_started) * 1000, 1)},
+                "timings": {"case_total_ms": round((time.perf_counter() - case_started) * 1000, 1)},
+                "cpu_metrics": resource_metrics["cpu"],
+                "memory_metrics": resource_metrics["memory"],
+                "measurement_limitations": [],
+                "status": "error", "error": error, "error_stage": "fixture_manifest",
+            })
+            continue
+        case_id = str(case.get("id", "?"))
+        raw_cards = case.get("cards", [])
+        if not isinstance(raw_cards, list) or any(not isinstance(card, dict) for card in raw_cards):
+            _, resource_metrics = resource_monitor.finish_case(
+                case_before, case_started, case_samples
+            )
+            error = "Некорректный список карт в эталоне"
+            results.append({
+                "id": case_id, "passed": False, "errors": [error],
+                "expected_cards": 0, "detected_cards": 0,
+                "quantity_matches": 0, "quantity_checked": 0,
+                "identity_matches": 0, "identity_checked": 0,
+                "profile": {"case_total_ms": round((time.perf_counter() - case_started) * 1000, 1)},
+                "timings": {"case_total_ms": round((time.perf_counter() - case_started) * 1000, 1)},
+                "cpu_metrics": resource_metrics["cpu"],
+                "memory_metrics": resource_metrics["memory"],
+                "measurement_limitations": [],
+                "status": "error", "error": error, "error_stage": "fixture_manifest",
+            })
+            continue
+        expected_owned_count = sum(
+            1 for card in raw_cards if card.get("state", "owned") == "owned"
+        )
         path = case.get("image_path", "")
         if not isinstance(path, str) or not path.startswith(SCREENSHOT_TEST_IMAGES_PATH + "/") or ".." in Path(path).parts:
             data = None
+            fetch_error = "Некорректный путь к эталонному изображению"
         else:
-            data = _github_read_bytes(path, branch)
+            try:
+                data = _github_read_bytes(path, branch)
+                fetch_error = None
+            except Exception as exc:
+                data = None
+                fetch_error = f"Ошибка загрузки эталона: {type(exc).__name__}"
+        case_timings["fetch_ms"] = round((time.perf_counter() - case_started) * 1000, 1)
         if data is None:
-            results.append({"id": case.get("id", "?"), "passed": False, "errors": ["Файл скриншота отсутствует"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0, "identity_matches": 0, "identity_checked": 0})
+            _, resource_metrics = resource_monitor.finish_case(case_before, case_started, case_samples)
+            total_ms = round((time.perf_counter() - case_started) * 1000, 1)
+            error = fetch_error or "Файл скриншота отсутствует"
+            case_profile.update({"case_total_ms": total_ms, "result": "fixture_load_error"})
+            case_timings.update({"case_total_ms": total_ms})
+            result_entry = {
+                "id": case_id, "passed": False, "errors": [error],
+                "expected_cards": expected_owned_count, "detected_cards": 0,
+                "quantity_matches": 0, "quantity_checked": 0,
+                "identity_matches": 0, "identity_checked": 0,
+                "profile": case_profile, "timings": case_timings,
+                "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
+                "measurement_limitations": ["Изображение не загружено; показатели включают время получения эталона."],
+                "status": "error", "error": error, "error_stage": "fixture_load",
+            }
+            results.append(result_entry)
             continue
+        stage = "decode"
         try:
+            load_started = time.perf_counter()
             with Image.open(BytesIO(data)) as source:
                 source.load()
-                result = scan_screenshot(source.convert("RGB"), save_previews=False)
+                image = source.convert("RGB")
+            case_timings["decode_ms"] = round((time.perf_counter() - load_started) * 1000, 1)
+            stage = "scan"
+            scan_started = time.perf_counter()
+            result = scan_screenshot(image, save_previews=False)
+            case_timings["scan_ms"] = round((time.perf_counter() - scan_started) * 1000, 1)
+            case_profile.update(dict(result.get("profile", {})))
+            case_profile["scan_total_ms"] = case_timings["scan_ms"]
         except Exception as exc:
-            results.append({"id": case.get("id", "?"), "passed": False, "errors": [f"Ошибка сканирования: {type(exc).__name__}"], "expected_cards": len(case.get("cards", [])), "detected_cards": 0, "quantity_matches": 0, "quantity_checked": 0, "identity_matches": 0, "identity_checked": sum(1 for card in case.get("cards", []) if card.get("state", "owned") == "owned" and card.get("identity_verified") is True)})
+            _, resource_metrics = resource_monitor.finish_case(case_before, case_started, case_samples)
+            total_ms = round((time.perf_counter() - case_started) * 1000, 1)
+            error = f"Ошибка этапа {stage}: {type(exc).__name__}"
+            case_profile.update({"case_total_ms": total_ms, "result": f"{stage}_exception"})
+            case_timings.update({"case_total_ms": total_ms})
+            result_entry = {
+                "id": case_id, "passed": False, "errors": [error],
+                "expected_cards": expected_owned_count, "detected_cards": 0,
+                "quantity_matches": 0, "quantity_checked": 0,
+                "identity_matches": 0,
+                "identity_checked": sum(
+                    1 for card in case.get("cards", [])
+                    if card.get("state", "owned") == "owned"
+                    and card.get("identity_verified") is True
+                ),
+                "profile": case_profile, "timings": case_timings,
+                "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
+                "measurement_limitations": ["Ресурсные пики являются интервальными оценками."],
+                "status": "error", "error": error, "error_stage": stage,
+            }
+            results.append(result_entry)
             continue
-        owned = [c for c in case.get("cards", []) if c.get("state", "owned") == "owned"]
-        detected = list(result.get("cards", []))
-        catalog_matches = _enrich_admin_scan(detected, catalog)
+        owned = [c for c in raw_cards if c.get("state", "owned") == "owned"]
+        detected_result = result.get("cards", [])
+        if not isinstance(detected_result, list):
+            errors.append("Сканер вернул некорректный список карт")
+            detected = []
+        else:
+            detected = [card for card in detected_result if isinstance(card, dict)]
+            if len(detected) != len(detected_result):
+                errors.append("Сканер вернул некорректную запись карты")
+        matching_started = time.perf_counter()
+        try:
+            catalog_matches = _enrich_admin_scan(detected, catalog)
+            if not isinstance(catalog_matches, list):
+                raise TypeError("invalid catalog match result")
+        except Exception as exc:
+            catalog_matches = []
+            errors.append(f"Ошибка сопоставления с каталогом: {type(exc).__name__}")
+        case_timings["matching_ms"] = round((time.perf_counter() - matching_started) * 1000, 1)
+        quality_started = time.perf_counter()
         if len(owned) != len(detected):
             errors.append(f"Количество карт: ожидалось {len(owned)}, найдено {len(detected)}")
         unmatched = list(detected)
@@ -1782,13 +2294,28 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
         identity_checked = sum(1 for card in owned if card.get("identity_verified") is True)
         for expected in owned:
             box = expected.get("box", [])
-            if not isinstance(box, list) or len(box) != 4:
+            if (
+                not isinstance(box, list)
+                or len(box) != 4
+                or any(not isinstance(value, int) or isinstance(value, bool) for value in box)
+                or box[2] <= 0
+                or box[3] <= 0
+            ):
                 errors.append("Некорректная эталонная рамка")
                 continue
             ex, ey, ew, eh = box
             best, best_iou = None, 0.0
             for actual in unmatched:
-                ax, ay, aw, ah = actual.get("box", [0, 0, 0, 0])
+                actual_box = actual.get("box")
+                if (
+                    not isinstance(actual_box, list)
+                    or len(actual_box) != 4
+                    or any(not isinstance(value, int) for value in actual_box)
+                    or actual_box[2] <= 0
+                    or actual_box[3] <= 0
+                ):
+                    continue
+                ax, ay, aw, ah = actual_box
                 ix, iy = max(ex, ax), max(ey, ay)
                 iw, ih = max(0, min(ex + ew, ax + aw) - ix), max(0, min(ey + eh, ay + ah) - iy)
                 inter = iw * ih
@@ -1810,11 +2337,26 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
             if coverage < 0.90: errors.append(f"{label}: покрытие карты {coverage:.0%}, требуется ≥ 90%")
             if precision < 0.75: errors.append(f"{label}: точность кропа {precision:.0%}, требуется ≥ 75%")
             checked += 1
-            if int(best.get("quantity", 1)) == int(expected.get("expected_quantity", 1)): matched += 1
-            else: errors.append(f"{label}: ожидалось {expected.get('expected_quantity', 1)}, найдено {best.get('quantity', 1)}")
+            try:
+                actual_quantity = int(best.get("quantity", 1))
+                expected_quantity = int(expected.get("expected_quantity", 1))
+            except (TypeError, ValueError):
+                errors.append(f"{label}: некорректное количество в результате сканирования или эталоне")
+            else:
+                if actual_quantity == expected_quantity:
+                    matched += 1
+                else:
+                    errors.append(
+                        f"{label}: ожидалось {expected_quantity}, найдено {actual_quantity}"
+                    )
             if expected.get("identity_verified") is True:
                 expected_id = str(expected.get("card_id") or "").strip()
-                actual_identity = catalog_matches[actual_index] if actual_index is not None and actual_index < len(catalog_matches) else {}
+                actual_identity = (
+                    catalog_matches[actual_index]
+                    if actual_index is not None and actual_index < len(catalog_matches)
+                    and isinstance(catalog_matches[actual_index], dict)
+                    else {}
+                )
                 actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""
                 if expected_id == actual_id:
                     identity_matches += 1
@@ -1822,9 +2364,219 @@ def run_screenshot_tests(authorization: str | None = Header(default=None)):
                     expected_label = expected_id or "неизвестная карта"
                     actual_label = actual_id or "совпадение не найдено"
                     errors.append(f"{label}: ID карты — ожидалось {expected_label}, распознано {actual_label}")
-        results.append({"id": case.get("id", "?"), "passed": not errors, "errors": errors, "expected_cards": len(owned), "detected_cards": len(detected), "quantity_matches": matched, "quantity_checked": checked, "identity_matches": identity_matches, "identity_checked": identity_checked})
+        case_timings["quality_check_ms"] = round((time.perf_counter() - quality_started) * 1000, 1)
+        case_profile["quality_passed"] = not errors
+        case_profile["quantity_matches"] = matched
+        case_profile["quantity_checked"] = checked
+        case_profile["identity_matches"] = identity_matches
+        case_profile["identity_checked"] = identity_checked
+        processed += 1
+        _, resource_metrics = resource_monitor.finish_case(case_before, case_started, case_samples)
+        result_started = time.perf_counter()
+        result_entry = {
+            "id": case_id, "passed": not errors, "errors": errors,
+            "expected_cards": len(owned), "detected_cards": len(detected),
+            "quantity_matches": matched, "quantity_checked": checked,
+            "identity_matches": identity_matches, "identity_checked": identity_checked,
+            "profile": case_profile, "timings": case_timings,
+            "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
+            "measurement_limitations": ["Пики CPU и памяти являются интервальными оценками; короткие пики могут быть пропущены."],
+            "status": "passed" if not errors else "failed",
+        }
+        case_timings["result_assembly_ms"] = round((time.perf_counter() - result_started) * 1000, 1)
+        case_timings["case_total_ms"] = round((time.perf_counter() - case_started) * 1000, 1)
+        case_timings["scanner_total_ms"] = case_profile.get("total_ms")
+        case_profile["case_total_ms"] = case_timings["case_total_ms"]
+        results.append(result_entry)
+    resource_monitor.stop()
     passed = sum(x["passed"] for x in results)
-    return {"count": len(results), "passed": passed, "failed": len(results) - passed, "results": results}
+    test_duration_ms = round(resource_monitor.summary()["duration_seconds"] * 1000, 1)
+    report_id = uuid.uuid4().hex
+    aggregate_timing_values: dict[str, list[float]] = {}
+    aggregate_cpu_values: dict[str, list[float]] = {}
+    aggregate_memory_values: dict[str, list[float]] = {}
+    for item in results:
+        for key, value in item.get("timings", {}).items():
+            if isinstance(value, (int, float)):
+                aggregate_timing_values.setdefault(key, []).append(float(value))
+        for key, value in item.get("profile", {}).items():
+            if key.endswith("_ms") and isinstance(value, (int, float)):
+                aggregate_timing_values.setdefault(f"scanner.{key}", []).append(float(value))
+        for key in ("cpu_avg_percent", "cpu_peak_percent", "user_cpu_delta", "system_cpu_delta"):
+            value = item.get("cpu_metrics", {}).get(key)
+            if isinstance(value, (int, float)):
+                aggregate_cpu_values.setdefault(key, []).append(float(value))
+        for key in ("rss_delta", "sampled_peak_rss_bytes", "vms_after", "container_memory_after"):
+            value = item.get("memory_metrics", {}).get(key)
+            if isinstance(value, (int, float)):
+                aggregate_memory_values.setdefault(key, []).append(float(value))
+    aggregate_timing_values["test.manifest_fetch_ms"] = [manifest_fetch_ms]
+    aggregate_timing_values["test.catalog_load_ms"] = [catalog_load_ms]
+
+    resource_summary = resource_monitor.summary()
+    scan_times = [
+        float(item["timings"]["scan_ms"])
+        for item in results
+        if isinstance(item.get("timings", {}).get("scan_ms"), (int, float))
+    ]
+    error_count = sum(1 for item in results if item.get("status") == "error" or item.get("error"))
+    end_time = datetime.fromisoformat(resource_summary["end_time"])
+    total_cpu = resource_summary["cpu"]
+    cpu_metrics = {
+        "process": total_cpu,
+        "container": {
+            "cpu_seconds_delta": total_cpu.get("container_cpu_seconds_delta"),
+            "cpu_limit": resource_summary["end_state"].get("cpu_limit"),
+        },
+        "system": None,
+        "sampled_peak_percent": resource_summary["cpu_peak_percent"],
+        "sampled_average_percent": resource_summary["cpu_sample_avg_percent"],
+    }
+    memory_metrics = {
+        "process": {
+            "rss_before": resource_summary["start_state"].get("rss_bytes"),
+            "rss_after": resource_summary["end_state"].get("rss_bytes"),
+            "rss_delta": _resource_delta(
+                resource_summary["start_state"],
+                resource_summary["end_state"],
+                test_duration_ms / 1000,
+            )["rss_delta"],
+            "vms_before": resource_summary["start_state"].get("vms_bytes"),
+            "vms_after": resource_summary["end_state"].get("vms_bytes"),
+            "sampled_peak_rss_bytes": resource_summary["sampled_peak_rss_bytes"],
+        },
+        "container": {
+            "memory_before": resource_summary["start_state"].get("container_memory_bytes"),
+            "memory_after": resource_summary["end_state"].get("container_memory_bytes"),
+            "sampled_peak_memory_bytes": resource_summary["sampled_peak_container_memory_bytes"],
+            "memory_limit_bytes": resource_summary["end_state"].get("memory_limit_bytes"),
+        },
+    }
+    report = {
+        "schema_version": 1,
+        "metadata": {
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            "duration_ms": test_duration_ms,
+            "run_id": report_id,
+            "schema_version": 1,
+            "case_count": len(cases),
+            "processed_count": processed,
+            "passed_count": passed,
+            "failed_count": len(results) - passed,
+            "error_count": error_count,
+            "profiling_mode": "server-side stdlib process and cgroup sampling",
+            "timings": {
+                "manifest_fetch_ms": manifest_fetch_ms,
+                "catalog_load_ms": catalog_load_ms,
+                "total_ms": test_duration_ms,
+            },
+        },
+        "environment": {
+            "python_version": platform.python_version(),
+            "pillow_version": getattr(Image, "__version__", "unknown"),
+            "psutil_version": None,
+            "os": platform.platform(),
+            "platform": platform.system(),
+            "git_sha": get_app_commit(),
+            "cpu_count": resource_summary["end_state"].get("cpu_count"),
+            "available_cpu_count": resource_summary["end_state"].get("available_cpu_count"),
+            "cpu_limit": resource_summary["end_state"].get("cpu_limit"),
+            "memory_limit": resource_summary["end_state"].get("memory_limit_bytes"),
+            "container_info": {
+                "memory_limit_bytes": resource_summary["end_state"].get("memory_limit_bytes"),
+                "cpu_limit": resource_summary["end_state"].get("cpu_limit"),
+            },
+            "profiling_source": resource_summary["end_state"].get("metric_source"),
+        },
+        "summary": {
+            "total_cases": len(cases),
+            "processed_cases": processed,
+            "successful_cases": passed,
+            "failed_cases": len(results) - passed,
+            "error_cases": error_count,
+            "passed_quality_checks": sum(1 for item in results if item.get("passed") is True),
+            "failed_quality_checks": sum(1 for item in results if item.get("passed") is False),
+            "total_duration_ms": test_duration_ms,
+            "manifest_fetch_ms": manifest_fetch_ms,
+            "catalog_load_ms": catalog_load_ms,
+            "total_scan_time_ms": round(sum(scan_times), 3),
+            "avg_scan_time_ms": round(sum(scan_times) / len(scan_times), 3) if scan_times else None,
+            "median_scan_time_ms": _aggregate_metric(scan_times)["median"],
+            "max_case_duration_ms": max((float(item.get("timings", {}).get("case_total_ms", 0.0)) for item in results if isinstance(item.get("timings"), dict)), default=0.0),
+            "peak_rss": resource_summary["sampled_peak_rss_bytes"],
+            "peak_cpu": resource_summary["cpu_peak_percent"],
+        },
+        "resource_usage": {
+            "start_state": resource_summary["start_state"],
+            "end_state": resource_summary["end_state"],
+            "rss": memory_metrics["process"],
+            "vms": {
+                "before": memory_metrics["process"]["vms_before"],
+                "after": memory_metrics["process"]["vms_after"],
+            },
+            "peak_rss": resource_summary["sampled_peak_rss_bytes"],
+            "cpu_metrics": cpu_metrics,
+            "container_metrics": memory_metrics["container"],
+            "monitoring_interval_ms": int(resource_monitor.interval_seconds * 1000),
+            "sample_count": resource_summary["sample_count"],
+            "limitations": [
+                "CPU and memory peaks are sampled; peaks shorter than the sampling interval may be missed.",
+                "Process CPU is measured with resource.getrusage; CPU percent may exceed 100% for multithreaded work.",
+                "System-wide CPU usage is not collected. Container metrics are null when cgroup counters are unavailable.",
+                "No image bytes are stored in the report.",
+            ],
+            "collection_errors": resource_summary["collection_errors"],
+        },
+        "aggregate_timings": {key: _aggregate_metric(values) for key, values in aggregate_timing_values.items()},
+        "aggregate_resources": {
+            "cpu": {key: _aggregate_resource_metric(values) for key, values in aggregate_cpu_values.items()},
+            "memory": {key: _aggregate_resource_metric(values) for key, values in aggregate_memory_values.items()},
+        },
+        "cases": [
+            {
+                "case_id": item.get("id"),
+                "image_path": case.get("image_path") if isinstance(case, dict) else None,
+                "image_dimensions": [
+                    item.get("profile", {}).get("input_width"),
+                    item.get("profile", {}).get("input_height"),
+                ] if item.get("profile", {}).get("input_width") is not None else (
+                    case.get("source_screenshot_size") if isinstance(case, dict) else None
+                ),
+                "expected_cards": item.get("expected_cards"),
+                "detected_cards": item.get("detected_cards"),
+                "quality_result": item.get("passed"),
+                "matches": {"quantity": item.get("quantity_matches"), "identity": item.get("identity_matches")},
+                "mismatches": {"quantity": max(item.get("quantity_checked", 0) - item.get("quantity_matches", 0), 0), "identity": max(item.get("identity_checked", 0) - item.get("identity_matches", 0), 0)},
+                "profile": item.get("profile"),
+                "timings": item.get("timings"),
+                "cpu_metrics": item.get("cpu_metrics"),
+                "memory_metrics": item.get("memory_metrics"),
+                "status": item.get("status"),
+                "errors": item.get("errors", []),
+                "error_stage": item.get("error_stage"),
+                "error": item.get("error"),
+                "measurement_limitations": item.get("measurement_limitations", []),
+            }
+            for case, item in zip(cases, results)
+        ],
+    }
+    filename = f"scanner-quality-report-{start_time.strftime('%Y-%m-%dT%H-%M-%S')}.json"
+    return {
+        "count": len(results),
+        "processed": processed,
+        "passed": passed,
+        "failed": len(results) - passed,
+        "errors": error_count,
+        "results": results,
+        "run_id": report_id,
+        "profile": report["summary"],
+        "report": report,
+        "report_filename": filename,
+        "created_at": start_time.isoformat(),
+        "branch": branch,
+        "app_commit": get_app_commit(),
+    }
 
 
 @app.post("/admin/counter-tests/run")
