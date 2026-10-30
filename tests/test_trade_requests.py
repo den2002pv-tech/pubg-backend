@@ -226,6 +226,27 @@ def test_agreed_request_shows_code_button_only_to_sender():
 
     assert "tr:29:code" in sender_actions
     assert "tr:29:code" not in recipient_actions
+    assert "tr:29:complete" not in sender_actions
+    assert "tr:29:complete" not in recipient_actions
+
+
+def test_completion_is_rejected_until_exchange_code_has_been_sent(monkeypatch):
+    request = {
+        "id": 30,
+        "status": "agreed",
+        "sender_telegram_id": 100,
+        "recipient_telegram_id": 200,
+        "offered_card_id": "card_1",
+        "requested_card_id": "card_2",
+        "exchange_code_sent_at": None,
+    }
+    monkeypatch.setattr(trades, "get_trade_request", lambda request_id, viewer_id: dict(request))
+
+    with pytest.raises(HTTPException) as exc:
+        trades._transition(30, 100, "complete")
+
+    assert exc.value.status_code == 409
+    assert "код обмена" in str(exc.value.detail).lower()
 
 
 def test_exchange_code_is_sent_only_once_to_recipient(monkeypatch):
@@ -556,7 +577,9 @@ def test_final_completion_transfers_cards_atomically_and_clears_wishlist(monkeyp
 
     assert result["status"] == "completed"
     assert committed == [True]
-    assert sum("UPDATE user_cards" in query for query, _ in executed) == 2
+    inventory_decrements = [query for query, _ in executed if "UPDATE user_cards" in query]
+    assert len(inventory_decrements) == 2
+    assert all("quantity > 1" in query for query in inventory_decrements)
     assert sum("INSERT INTO user_cards" in query for query, _ in executed) == 2
     assert sum("DELETE FROM desired_cards" in query for query, _ in executed) == 2
     assert ("card_2", 100) in [params for query, params in executed if "INSERT INTO user_cards" in query]
