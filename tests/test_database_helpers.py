@@ -235,7 +235,6 @@ def test_sync_cards_upserts_catalog_and_removes_stale_cards(monkeypatch):
     assert database.sync_cards({
         "card_1": {"name": "Карта 1"},
         "card_2": {"name": "Карта 2"},
-        "invalid": None,
     }) == 2
 
     assert captured["committed"] is True
@@ -245,6 +244,44 @@ def test_sync_cards_upserts_catalog_and_removes_stale_cards(monkeypatch):
     ]
     assert len(delete_calls) == 1
     assert delete_calls[0][1] == (["card_1", "card_2"],)
+
+
+def test_sync_cards_partial_invalid_catalog_does_not_delete_user_card_rows(monkeypatch):
+    captured = {"calls": [], "committed": False}
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=None):
+            captured["calls"].append((query, params))
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            captured["committed"] = True
+
+    monkeypatch.setattr(database, "get_connection", lambda: FakeConnection())
+
+    assert database.sync_cards({
+        "card_1": {"name": "Карта 1"},
+        "card_2": {"name": "Карта 2"},
+        "damaged_card": None,
+    }) == 2
+
+    assert captured["committed"] is True
+    assert not any("DELETE FROM cards" in query for query, _ in captured["calls"])
 
 
 def test_sync_cards_empty_catalog_does_not_delete_database_rows(monkeypatch):
