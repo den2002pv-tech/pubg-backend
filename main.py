@@ -2374,6 +2374,8 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 or box[3] <= 0
             ):
                 errors.append("Некорректная эталонная рамка")
+                if expected.get("identity_verified") is True:
+                    identity_details.append(_empty_identity_detail(expected))
                 continue
             ex, ey, ew, eh = box
             best, best_iou = None, 0.0
@@ -2408,7 +2410,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                         "distances_to_expected": {k: None for k in ("full_phash", "full_dhash", "visual_phash", "visual_dhash", "frame_colorhash_bits", "frame_colorhash_ratio")},
                         "distances_to_matched": None, "distances_to_runner_up": None,
                         "crop": {"box": None, "width": None, "height": None},
-                        "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": None},
+                        "quantity": {"expected": _identity_quantity(expected.get("expected_quantity", 1)), "detected": None},
                         "has_counter_evidence": False, "hash_reuse": False,
                     })
                 continue
