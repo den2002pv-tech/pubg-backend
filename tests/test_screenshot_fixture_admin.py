@@ -1,5 +1,6 @@
 import asyncio
 import builtins
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -15,6 +16,49 @@ def _png_bytes(size=(100, 120)):
     buffer = io.BytesIO()
     Image.new("RGB", size, "white").save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def test_screenshot_fixture_bytes_are_cached_by_sha(tmp_path, monkeypatch):
+    data = _png_bytes()
+    expected_sha = hashlib.sha256(data).hexdigest()
+    fetches = []
+    monkeypatch.setattr(main, "SCREENSHOT_FIXTURE_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(
+        main,
+        "_github_read_bytes",
+        lambda path, branch: fetches.append((path, branch)) or data,
+    )
+
+    first = main._screenshot_fixture_bytes(
+        "tests/fixtures/screenshots/images/cache-test.png",
+        "feature/card-counter",
+        expected_sha,
+    )
+    second = main._screenshot_fixture_bytes(
+        "tests/fixtures/screenshots/images/cache-test.png",
+        "feature/card-counter",
+        expected_sha,
+    )
+
+    assert first == data
+    assert second == data
+    assert fetches == [(
+        "tests/fixtures/screenshots/images/cache-test.png",
+        "feature/card-counter",
+    )]
+    assert (tmp_path / expected_sha).read_bytes() == data
+
+
+def test_screenshot_fixture_bytes_reject_sha_mismatch(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "SCREENSHOT_FIXTURE_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(main, "_github_read_bytes", lambda path, branch: _png_bytes())
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        main._screenshot_fixture_bytes(
+            "tests/fixtures/screenshots/images/cache-test.png",
+            "feature/card-counter",
+            "0" * 64,
+        )
 
 
 def test_screenshot_fixture_preview_keeps_original_png_and_returns_detected_boxes(tmp_path, monkeypatch):

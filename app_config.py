@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+import subprocess
 
 
 DEFAULT_PUBLIC_BASE_URL = "https://pubg-card.enzonic.dev"
@@ -10,4 +12,19 @@ def get_public_base_url() -> str:
 
 
 def get_app_commit() -> str:
-    return os.getenv("APP_COMMIT", "unknown").strip() or "unknown"
+    for variable in ("APP_COMMIT", "GITHUB_SHA", "RENDER_GIT_COMMIT", "SOURCE_VERSION"):
+        commit = os.getenv(variable, "").strip()
+        if commit:
+            return commit
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=12", "HEAD"],
+            cwd=Path(__file__).resolve().parent,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return result.stdout.strip() or "unknown"

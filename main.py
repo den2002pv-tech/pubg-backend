@@ -10,6 +10,7 @@ import math
 import os
 import platform
 import re
+import tempfile
 import threading
 import time
 import uuid
@@ -1672,6 +1673,52 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
 
 SCREENSHOT_TEST_CASES_PATH = "tests/fixtures/screenshots/cases.json"
 SCREENSHOT_TEST_IMAGES_PATH = "tests/fixtures/screenshots/images"
+SCREENSHOT_FIXTURE_CACHE_DIR = Path(tempfile.gettempdir()) / "pubg-backend-screenshot-fixtures"
+
+
+def _cache_screenshot_fixture(data: bytes, digest: str) -> None:
+    cache_path = SCREENSHOT_FIXTURE_CACHE_DIR / digest
+    SCREENSHOT_FIXTURE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if cache_path.is_file():
+        return
+    temporary_path = SCREENSHOT_FIXTURE_CACHE_DIR / f".{digest}.{uuid.uuid4().hex}.tmp"
+    temporary_path.write_bytes(data)
+    temporary_path.replace(cache_path)
+
+
+def _screenshot_fixture_bytes(
+    image_path: str,
+    branch: str,
+    expected_sha: Any,
+) -> bytes | None:
+    digest = str(expected_sha).strip().lower() if expected_sha else ""
+    if digest and not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError("Некорректный SHA-256 эталонного скриншота")
+
+    if digest:
+        cache_path = SCREENSHOT_FIXTURE_CACHE_DIR / digest
+        if cache_path.is_file():
+            cached = cache_path.read_bytes()
+            if hashlib.sha256(cached).hexdigest() == digest:
+                return cached
+            cache_path.unlink()
+
+    local_image = Path(image_path)
+    if local_image.is_file():
+        local_data = local_image.read_bytes()
+        local_digest = hashlib.sha256(local_data).hexdigest()
+        if not digest or local_digest == digest:
+            _cache_screenshot_fixture(local_data, local_digest)
+            return local_data
+
+    data = _github_read_bytes(image_path, branch)
+    if data is None:
+        return None
+    actual_digest = hashlib.sha256(data).hexdigest()
+    if digest and actual_digest != digest:
+        raise ValueError("SHA-256 изображения не совпадает с cases.json")
+    _cache_screenshot_fixture(data, actual_digest)
+    return data
 
 
 def _screenshot_test_branch() -> str:
@@ -2422,7 +2469,7 @@ def _run_screenshot_tests(
             fetch_error = "Некорректный путь к эталонному изображению"
         else:
             try:
-                data = _github_read_bytes(path, branch)
+                data = _screenshot_fixture_bytes(path, branch, case.get("image_sha256"))
                 fetch_error = None
             except Exception as exc:
                 data = None

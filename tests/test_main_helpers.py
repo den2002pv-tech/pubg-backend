@@ -80,6 +80,21 @@ def test_app_commit_uses_generic_environment_variable(monkeypatch):
     assert main.get_app_commit() == "test-commit"
 
 
+def test_app_commit_falls_back_to_git_when_environment_is_unset(monkeypatch):
+    import app_config
+    from types import SimpleNamespace
+
+    for variable in ("APP_COMMIT", "GITHUB_SHA", "RENDER_GIT_COMMIT", "SOURCE_VERSION"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(
+        app_config.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout="deadbeef1234\n"),
+    )
+
+    assert main.get_app_commit() == "deadbeef1234"
+
+
 def test_catalog_audit_reports_missing_and_duplicate_icons_and_possible_counter(tmp_path, monkeypatch):
     cards_dir = tmp_path / "static" / "cards"
     cards_dir.mkdir(parents=True)
