@@ -2439,6 +2439,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""
                 scan_hashes = clean_hashes(best.get("hashes"))
                 raw_hashes = clean_hashes(best.get("raw_hashes"))
+                hash_reuse = bool(raw_hashes) and scan_hashes == raw_hashes
                 detail = _match_card_detailed(scan_hashes, catalog)
                 if raw_hashes != scan_hashes:
                     raw_detail = _match_card_detailed(raw_hashes, catalog)
@@ -2471,7 +2472,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                     "crop": {"box": [ax, ay, aw, ah], "width": aw, "height": ah},
                     "quantity": {"expected": _identity_quantity(expected.get("expected_quantity", 1)), "detected": actual_quantity},
                     "has_counter_evidence": _has_counter_evidence(float(best.get("quantity_confidence", 0) or 0), best.get("counter_debug", {}) if isinstance(best.get("counter_debug"), dict) else {}),
-                    "hash_reuse": bool(scan_hashes == raw_hashes),
+                    "hash_reuse": hash_reuse,
                 })
         case_timings["quality_check_ms"] = round((time.perf_counter() - quality_started) * 1000, 1)
         case_profile["quality_passed"] = not errors
