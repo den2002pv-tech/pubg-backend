@@ -257,7 +257,12 @@ def test_quality_report_download_uses_authorized_run_response():
     admin_html = Path(main.__file__).with_name("admin.html").read_text(encoding="utf-8")
 
     assert "api('/admin/screenshot-tests/run'" in admin_html
-    assert "JSON.stringify(d.report,null,2)" in admin_html
+    assert "api('/admin/screenshot-tests/run'" in admin_html
+    assert "const report=d.report&&typeof d.report==='object'?d.report:d" in admin_html
+    assert "JSON.stringify(report,null,2)" in admin_html
+    assert "application/json;charset=utf-8" in admin_html
+    assert "link.download=d.report_filename" in admin_html
+    assert "report_download_url" not in admin_html
     assert "report_download_url" not in admin_html
     assert "link.download=d.report_filename" in admin_html
 
