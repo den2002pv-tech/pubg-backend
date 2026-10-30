@@ -110,9 +110,23 @@ def test_scanner_save_status_is_persistent_and_retryable():
     status = by_id["scanSaveStatus"]
     assert status.get("role") == "status"
     assert status.get("aria-live") == "polite"
-    assert "Сохранено успешно: обновлено карт" in HTML
-    assert "Не удалось сохранить изменения:" in HTML
+    assert "Сканирование завершено. Сохранено карт:" in HTML
+    assert "Карты распознаны, но сохранить коллекцию не удалось:" in HTML
     assert "Повторить сохранение (" in HTML
+
+
+def test_scanner_exposes_busy_progress_and_retry_states():
+    parser = inspect_markup()
+    by_id = {attrs.get("id"): attrs for _, attrs in parser.elements if attrs.get("id")}
+    assert by_id["scanSpinner"].get("aria-hidden") == "true"
+    assert "retryScanBtn" in by_id
+    assert "hidden" in by_id["retryScanBtn"]
+    assert "xhr.upload.addEventListener('progress'" in HTML
+    assert "Сервер пока не ответил. Продолжаем ожидание" in HTML
+    assert "Нет подключения к интернету" in HTML
+    assert "Карты распознаны, но подтвердить сохранение не удалось" in HTML
+    assert "Результат мог сохраниться; повтор тех же количеств безопасен." in HTML
+    assert "statusEl.setAttribute('aria-busy', String(busy))" in HTML
 
 
 def test_closed_quantity_dialog_is_removed_from_keyboard_order():

@@ -54,6 +54,71 @@ def test_scan_metrics_are_bounded_and_profile_is_allowlisted():
     )
 
 
+def test_scan_profile_accepts_bounded_pipeline_details_only():
+    result = sanitize_event({
+        "name": "scan_completed",
+        "properties": {
+            "profile": {
+                "upload_format": "PNG",
+                "upload_size_bytes": 1200000,
+                "input_width": 1600,
+                "raw_hash_calculation_count": 2,
+                "hash_reuse_count": 4,
+                "counter_threshold_ms": 12.34,
+                "catalog_load_ms": 3.44,
+                "hash_input_dimensions": [{"raw": [200, 300]}],
+                "filename": "private.png",
+            },
+        },
+    })
+
+    assert result == (
+        "scan_completed",
+        {
+            "profile": {
+                "upload_format": "PNG",
+                "upload_size_bytes": 1200000,
+                "input_width": 1600,
+                "raw_hash_calculation_count": 2,
+                "hash_reuse_count": 4,
+                "counter_threshold_ms": 12.3,
+                "catalog_load_ms": 3.4,
+            },
+        },
+    )
+
+
+def test_scan_events_keep_correlation_id_and_normalized_occurrence_time():
+    result = sanitize_event({
+        "name": "scan_completed",
+        "properties": {
+            "scan_id": "scan-ab12-xy",
+            "occurred_at": "2026-10-21T12:11:54.155+02:00",
+            "duration_ms": 2770.1,
+        },
+    })
+    assert result == (
+        "scan_completed",
+        {
+            "scan_id": "scan-ab12-xy",
+            "occurred_at": "2026-10-21T10:11:54.155Z",
+            "duration_ms": 2770.1,
+        },
+    )
+
+
+def test_invalid_scan_correlation_and_timestamp_are_ignored():
+    result = sanitize_event({
+        "name": "scan_failed",
+        "properties": {
+            "scan_id": "invalid id with spaces",
+            "occurred_at": "not-a-timestamp",
+            "duration_ms": 123.4,
+        },
+    })
+    assert result == ("scan_failed", {"duration_ms": 123.4})
+
+
 def test_invalid_rating_is_dropped():
     assert sanitize_event({"name": "feedback_submitted", "properties": {"rating": 10}}) == (
         "feedback_submitted",

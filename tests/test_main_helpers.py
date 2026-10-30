@@ -7,6 +7,19 @@ import pytest
 import main
 
 
+def test_lifespan_runs_startup_database(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main, "startup_database", lambda: calls.append("startup"))
+
+    async def exercise_lifespan():
+        assert calls == []
+        async with main.lifespan(main.app):
+            assert calls == ["startup"]
+        assert calls == ["startup"]
+
+    asyncio.run(exercise_lifespan())
+
+
 def test_clean_hashes_keeps_valid_values_and_normalizes_strings():
     assert main.clean_hashes({
         "full_dhash": " ab12 ",
@@ -38,6 +51,83 @@ def test_hamming_distance_counts_different_bits():
 
 def test_hamming_returns_none_for_invalid_hashes():
     assert main._hamming("not-hex", "01") is None
+
+
+def test_card_icon_public_url_uses_enzonic_default(monkeypatch):
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    assert main._card_icon_public_url("/static/cards/card.webp") == (
+        "https://pubg-card.enzonic.dev/static/cards/card.webp"
+    )
+
+
+def test_card_icon_public_url_uses_public_base_url_override(monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://cards.example/")
+    assert main._card_icon_public_url("/static/cards/card.webp") == (
+        "https://cards.example/static/cards/card.webp"
+    )
+
+
+def test_app_commit_uses_generic_environment_variable(monkeypatch):
+    monkeypatch.setenv("APP_COMMIT", "test-commit")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "stale-render-commit")
+    assert main.get_app_commit() == "test-commit"
+
+
+def test_catalog_audit_reports_missing_and_duplicate_icons_and_possible_counter(tmp_path, monkeypatch):
+    cards_dir = tmp_path / "static" / "cards"
+    cards_dir.mkdir(parents=True)
+    icon_path = cards_dir / "card-1.webp"
+    main.Image.new("RGB", (256, 384), "white").save(icon_path, "WEBP")
+    (cards_dir / "unused.webp").write_bytes(icon_path.read_bytes())
+    monkeypatch.setattr(main, "STATIC_DIR", tmp_path / "static")
+    monkeypatch.setattr(main, "CARDS_DIR", cards_dir)
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+    monkeypatch.setattr(main, "load_db", lambda: {
+        "card_1": {
+            "name": "Карта 1", "hashes": {"full_dhash": "abcd"},
+            "icon": "/static/cards/card-1.webp",
+        },
+        "card_2": {
+            "name": "Карта 2", "hashes": {"full_dhash": "abcd"},
+            "icon": "/static/cards/card-1.webp",
+        },
+        "card_3": {"name": "Карта без иконки", "hashes": {"full_dhash": "abcd"}},
+    })
+    monkeypatch.setattr(
+        main,
+        "_detect_counter",
+        lambda image: (image, 3, 0.91, {"reason": "ok"}),
+    )
+
+    report = main.audit_card_catalog(authorization="admin-token")
+
+    assert report["total"] == 3
+    assert report["problem_cards"] == 3
+    assert report["counts"]["possible_counter"] == 2
+    assert report["counts"]["duplicate_icon"] == 2
+    assert report["counts"]["missing_icon"] == 1
+    assert report["unreferenced_icons"] == ["unused.webp"]
+    assert report["cards"][0]["detected_quantity"] == 3
+
+
+def test_catalog_audit_reports_unreadable_icon_without_aborting(tmp_path, monkeypatch):
+    cards_dir = tmp_path / "static" / "cards"
+    cards_dir.mkdir(parents=True)
+    (cards_dir / "bad.webp").write_bytes(b"not an image")
+    monkeypatch.setattr(main, "STATIC_DIR", tmp_path / "static")
+    monkeypatch.setattr(main, "CARDS_DIR", cards_dir)
+    monkeypatch.setattr(main, "require_admin", lambda authorization: None)
+    monkeypatch.setattr(main, "load_db", lambda: {
+        "card_1": {
+            "name": "Карта 1", "hashes": {"full_dhash": "abcd"},
+            "icon": "/static/cards/bad.webp",
+        },
+    })
+
+    report = main.audit_card_catalog(authorization="admin-token")
+
+    assert report["counts"]["unreadable_icon"] == 1
+    assert report["cards"][0]["issues"][0]["code"] == "unreadable_icon"
 
 
 def test_session_token_is_valid_with_configured_password(monkeypatch):
@@ -122,10 +212,67 @@ def test_match_card_returns_exact_hash_match():
         }
     }
 
-    card_id, distance = main._match_card(hashes, db)
+    profile = {}
+    card_id, distance = main._match_card(hashes, db, profile)
 
     assert card_id == "card_1"
     assert distance == 0
+    assert profile == {
+        "matching_calls": 1,
+        "catalog_candidates_before_filter": 1,
+        "matching_hash_comparisons": 5,
+        "matching_candidates_after_filter": 1,
+    }
+
+
+def test_match_card_accepts_clear_majority_with_one_hash_outlier():
+    hashes = {
+        "full_phash": "0000000000000000",
+        "full_dhash": "0000000000000000",
+        "visual_phash": "0000000000000000",
+        "visual_dhash": "0000000000000000",
+        "frame_colorhash": "eeeeeeee",
+    }
+    stored_hashes = {
+        **hashes,
+        "full_dhash": "0000000000000001",
+        "visual_phash": "0000000000000fff",
+        "visual_dhash": "0000000003ffffff",
+    }
+
+    card_id, distance = main._match_card(
+        hashes,
+        {"card_1": {"name": "Карта 1", "hashes": stored_hashes}},
+    )
+
+    assert card_id == "card_1"
+    assert distance == 0.5
+
+
+def test_match_card_rejects_weak_fallback_with_large_hash_outlier():
+    hashes = {
+        "full_phash": "0000000000000000",
+        "full_dhash": "0000000000000000",
+        "visual_phash": "0000000000000000",
+        "visual_dhash": "0000000000000000",
+        "frame_colorhash": "eeeeeeee",
+    }
+    stored_hashes = {
+        **hashes,
+        "full_phash": "00000000000000ff",
+        "full_dhash": "00000000000001ff",
+        "visual_phash": "0000000000000fff",
+        "visual_dhash": "0000000003ffffff",
+    }
+    db = {"card_1": {"name": "Карта 1", "hashes": stored_hashes}}
+
+    card_id, distance = main._match_card(hashes, db)
+    diagnostics = main._match_card_diagnostics(hashes, db)
+
+    assert card_id is None
+    assert distance == float("inf")
+    assert diagnostics[0]["accepted"] is False
+    assert "hash_outlier_too_large" in diagnostics[0]["reasons"]
 
 
 def test_match_card_rejects_ambiguous_near_duplicate_cards():
@@ -154,6 +301,9 @@ def test_match_card_rejects_ambiguous_near_duplicate_cards():
 
     assert card_id is None
     assert distance == float("inf")
+    diagnostics = main._match_card_diagnostics(hashes, db)
+    assert diagnostics[0]["accepted"] is False
+    assert "ambiguous_runner_up" in diagnostics[0]["reasons"]
 
 
 def test_match_card_does_not_match_when_hashes_are_missing():
@@ -174,6 +324,36 @@ def test_match_card_does_not_match_when_hashes_are_missing():
     card_id, _distance = main._match_card(hashes, db)
 
     assert card_id is None
+
+
+def test_admin_scan_enrichment_skips_duplicate_matching_pass(monkeypatch):
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    calls = []
+    monkeypatch.setattr(main, "_match_card_diagnostics", lambda _hashes, _db: [])
+    monkeypatch.setattr(
+        main,
+        "_match_card",
+        lambda _hashes, _db: (calls.append(_hashes) or "card_1", 1.0),
+    )
+
+    result = main._enrich_admin_scan(
+        [{
+            "hashes": dict(hashes),
+            "raw_hashes": dict(hashes),
+            "width": 40,
+            "height": 70,
+        }],
+        {"card_1": {"name": "Card"}},
+    )
+
+    assert len(calls) == 1
+    assert result[0]["id"] == "card_1"
 
 
 
@@ -205,6 +385,137 @@ def test_normalize_collection_updates_clamps_quantity_and_rejects_invalid_values
 
     assert exc.value.status_code == 400
 
+
+def test_confirm_collection_returns_saved_state_only_after_bulk_persistence(monkeypatch):
+    calls = []
+    saved_cards = [{"id": "card_1", "quantity": 4}, {"id": "card_2", "quantity": 0}]
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(main, "set_user_card_quantities", lambda telegram_id, updates: calls.append((telegram_id, updates)))
+    monkeypatch.setattr(main, "get_user_cards", lambda _telegram_id: saved_cards)
+
+    result = asyncio.run(main.confirm_my_collection({
+        "cards": [
+            {"id": "card_1", "quantity": 2},
+            {"id": "card_2", "quantity": 0},
+            {"id": "card_1", "quantity": 4},
+        ]
+    }, init_data="valid-test-init-data"))
+
+    assert calls == [(12345, [("card_1", 4), ("card_2", 0)])]
+    assert result == {"status": "ok", "saved": 2, "cards": saved_cards}
+
+
+def test_confirm_collection_does_not_return_success_when_persistence_fails(monkeypatch):
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(
+        main,
+        "set_user_card_quantities",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("database write failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="database write failed"):
+        asyncio.run(main.confirm_my_collection(
+            {"cards": [{"id": "card_1", "quantity": 1}]},
+            init_data="valid-test-init-data",
+        ))
+
+
+
+
+def test_save_duplicate_guard_blocks_confident_existing_card_match():
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    db = {"card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)}}
+
+    duplicate = main._find_duplicate_card_for_save("Сумрачные крылья", hashes, db)
+
+    assert duplicate is not None
+    assert duplicate["id"] == "card_99"
+    assert duplicate["reason"] == "confident_hash_match"
+
+
+def test_save_duplicate_guard_catches_ambiguous_same_name_card():
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    db = {
+        "card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+        "card_116": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+    }
+
+    # Matching is intentionally ambiguous, but saving must not create card_117.
+    assert main._match_card(hashes, db)[0] is None
+    duplicate = main._find_duplicate_card_for_save("  Сумрачные   крылья ", hashes, db)
+
+    assert duplicate is not None
+    assert duplicate["id"] in {"card_99", "card_116"}
+    assert duplicate["reason"] == "ambiguous_same_name_hash_match"
+
+
+def test_save_duplicate_guard_allows_ambiguous_different_name_card():
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    db = {
+        "card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+        "card_116": {"name": "Другая карта", "hashes": dict(hashes)},
+    }
+
+    assert main._find_duplicate_card_for_save("Новая карта", hashes, db) is None
+
+
+
+def test_save_card_returns_conflict_instead_of_creating_ambiguous_same_name_duplicate(monkeypatch, tmp_path):
+    monkeypatch.setenv("ADMIN_PASSWORD", "test-only-password")
+    monkeypatch.delenv("ADMIN_SESSION_SECRET", raising=False)
+    monkeypatch.setattr(main, "DB_FILE", tmp_path / "card_hashes.json")
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path / "temp_images")
+    monkeypatch.setattr(main, "CARDS_DIR", tmp_path / "static" / "cards")
+    main.TEMP_DIR.mkdir(parents=True)
+    main.Image.new("RGB", (120, 180), (240, 30, 30)).save(
+        main.TEMP_DIR / "scan-card.jpg", "JPEG"
+    )
+
+    hashes = {
+        "full_phash": "aaaaaaaaaaaaaaaa",
+        "full_dhash": "bbbbbbbbbbbbbbbb",
+        "visual_phash": "cccccccccccccccc",
+        "visual_dhash": "dddddddddddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    main.save_db({
+        "card_99": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+        "card_116": {"name": "Сумрачные крылья", "hashes": dict(hashes)},
+    })
+    token = main._make_session()
+
+    with pytest.raises(main.HTTPException) as exc:
+        asyncio.run(main.save_card(
+            main.CardSaveSchema(
+                name="Сумрачные крылья",
+                preview="/temp-images/scan-card.jpg",
+                hashes=hashes,
+            ),
+            authorization=f"Bearer {token}",
+        ))
+
+    assert exc.value.status_code == 409
+    assert set(main.load_db()) == {"card_99", "card_116"}
 
 
 def test_save_card_reuses_scanned_preview_as_permanent_icon(monkeypatch, tmp_path):
@@ -249,7 +560,7 @@ def test_github_commit_always_targets_working_branch(monkeypatch):
     monkeypatch.delenv("GITHUB_BRANCH", raising=False)
     assert main._github_commit_branch() == "feature/card-counter"
 
-    # A stale Render setting must not redirect admin data commits to main.
+    # A stale platform setting must not redirect admin data commits to main.
     monkeypatch.setenv("GITHUB_BRANCH", "main")
     assert main._github_commit_branch() == "feature/card-counter"
 
@@ -334,7 +645,7 @@ def test_scan_screenshot_keeps_gray_rarity_cards(monkeypatch):
     monkeypatch.setattr(
         scanner,
         "calculate_card_hashes",
-        lambda crop: {
+        lambda crop, _timings=None: {
             "full_dhash": "abcd",
             "full_phash": "abcd",
             "visual_phash": "abcd",
@@ -353,3 +664,82 @@ def test_scan_screenshot_keeps_gray_rarity_cards(monkeypatch):
     assert result["count"] == 1
     assert result["cards"][0]["quantity"] == 5
     assert result["cards"][0]["hashes"]["full_dhash"] == "abcd"
+
+
+def test_scan_upload_profile_separates_read_decode_and_conversion():
+    from io import BytesIO
+
+    from fastapi import UploadFile
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (32, 24), (20, 30, 40)).save(buffer, format="PNG")
+    upload = UploadFile(filename="fixture.png", file=BytesIO(buffer.getvalue()))
+    profile = {}
+
+    image = asyncio.run(main._read_image(upload, profile))
+
+    assert image.mode == "RGB"
+    assert image.size == (32, 24)
+    assert profile["upload_format"] == "PNG"
+    assert profile["upload_source_width"] == 32
+    assert profile["upload_source_height"] == 24
+    assert profile["upload_size_bytes"] == len(buffer.getvalue())
+    assert profile["upload_read_ms"] >= 0
+    assert profile["upload_image_decode_ms"] >= 0
+    assert profile["upload_rgb_convert_ms"] >= 0
+
+
+@pytest.mark.parametrize(("same_hashes", "expected_calls"), [(True, 1), (False, 2)])
+def test_scan_skips_matching_second_pass_only_for_equal_hashes(
+    monkeypatch, same_hashes, expected_calls,
+):
+    from copy import deepcopy
+
+    card_hashes = {
+        "full_phash": "aaaa",
+        "full_dhash": "bbbb",
+        "visual_phash": "cccc",
+        "visual_dhash": "dddd",
+        "frame_colorhash": "eeee",
+    }
+    raw_hashes = deepcopy(card_hashes)
+    if not same_hashes:
+        raw_hashes["full_dhash"] = "ffff"
+    monkeypatch.setattr(
+        main,
+        "_read_image",
+        lambda _file, _profile: asyncio.sleep(0, result=None),
+    )
+    monkeypatch.setattr(main, "load_db", lambda: {"card_1": {}})
+    monkeypatch.setattr(
+        main,
+        "scan_screenshot",
+        lambda _image, save_previews: {
+            "cards": [{
+                "hashes": card_hashes,
+                "raw_hashes": raw_hashes,
+                "preview": "",
+                "quantity": 1,
+                "duplicates": 0,
+                "row": 0,
+                "col": 0,
+            }],
+            "count": 1,
+            "image_size": [100, 100],
+            "profile": {},
+        },
+    )
+    calls = []
+
+    def match(hashes, db, profile):
+        calls.append(hashes)
+        profile["matching_calls"] = profile.get("matching_calls", 0) + 1
+        return "card_1", 1.0
+
+    monkeypatch.setattr(main, "_match_card", match)
+
+    result = asyncio.run(main.scan(file=object(), init_data=""))
+
+    assert len(calls) == expected_calls
+    assert result["profile"]["matched_count"] == 1

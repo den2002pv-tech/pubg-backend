@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from database import get_connection
@@ -16,7 +17,29 @@ ALLOWED_SORTS = {"name", "rarity", "quantity", "duplicates", "id"}
 ALLOWED_FAILURES = {"timeout", "network", "server", "unknown"}
 ALLOWED_TRADE_ACTIONS = {"open", "accept", "decline", "cancel", "confirm", "code_submit", "request"}
 ALLOWED_FEEDBACK_CATEGORIES = {"bug", "slow", "confusing", "feature", "other"}
-PROFILE_KEYS = {"rgb_convert_ms", "upload_decode_ms", "detection_ms", "counter_ms", "raw_hash_ms", "clean_hash_ms", "preview_ms", "matching_ms", "total_ms", "server_total_ms"}
+PROFILE_TIME_KEYS = {
+    "rgb_convert_ms", "upload_decode_ms", "upload_read_ms", "upload_image_decode_ms",
+    "upload_rgb_convert_ms", "detection_ms", "counter_ms", "counter_image_prepare_ms",
+    "counter_threshold_ms", "counter_fallback_ms", "raw_hash_ms", "clean_hash_ms",
+    "hash_normalization_ms", "hash_frame_extract_ms", "hash_compute_ms", "preview_ms",
+    "catalog_load_ms", "matching_evaluation_ms", "matching_ms", "total_ms",
+    "server_total_ms", "client_form_data_ms",
+    "client_wake_ms", "client_upload_ms", "client_response_wait_ms",
+    "client_response_parse_ms", "client_request_ms",
+}
+PROFILE_COUNT_KEYS = {
+    "card_crop_count", "counter_attempts", "counter_threshold_passes",
+    "counter_fallback_passes", "counter_contours", "hash_calculation_count",
+    "hash_operation_count", "raw_hash_calculation_count",
+    "clean_hash_calculation_count", "hash_reuse_count", "matching_calls",
+    "catalog_candidates_before_filter", "matching_hash_comparisons",
+    "matching_candidates_after_filter", "matched_count",
+}
+PROFILE_DIMENSION_KEYS = {
+    "input_width", "input_height", "upload_source_width", "upload_source_height",
+}
+PROFILE_SIZE_KEYS = {"upload_size_bytes", "client_file_size_bytes"}
+ALLOWED_IMAGE_FORMATS = {"BMP", "GIF", "JPEG", "PNG", "TIFF", "WEBP", "UNKNOWN", "OTHER"}
 
 
 def init_analytics_db() -> None:
@@ -70,6 +93,27 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
         if isinstance(val, (int, float)) and not isinstance(val, bool):
             props[key] = max(0, min(int(val), 10000))
 
+    scan_id = raw.get("scan_id")
+    if (
+        isinstance(scan_id, str)
+        and 1 <= len(scan_id) <= 64
+        and all(char.isalnum() or char in "-_" for char in scan_id)
+    ):
+        props["scan_id"] = scan_id
+
+    occurred_at = raw.get("occurred_at")
+    if isinstance(occurred_at, str) and len(occurred_at) <= 64:
+        try:
+            parsed_at = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+            if parsed_at.tzinfo is not None:
+                props["occurred_at"] = (
+                    parsed_at.astimezone(timezone.utc)
+                    .isoformat(timespec="milliseconds")
+                    .replace("+00:00", "Z")
+                )
+        except ValueError:
+            pass
+
     duration = raw.get("duration_ms")
     if isinstance(duration, (int, float)) and not isinstance(duration, bool):
         props["duration_ms"] = round(max(0.0, min(float(duration), 600000.0)), 1)
@@ -81,10 +125,27 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
     profile = raw.get("profile")
     if isinstance(profile, dict):
         safe_profile = {}
-        for key in PROFILE_KEYS:
+        for key in PROFILE_TIME_KEYS:
             val = profile.get(key)
             if isinstance(val, (int, float)) and not isinstance(val, bool):
                 safe_profile[key] = round(max(0.0, min(float(val), 600000.0)), 1)
+        for key in PROFILE_COUNT_KEYS:
+            val = profile.get(key)
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                safe_profile[key] = max(0, min(int(val), 10000))
+        for key in PROFILE_DIMENSION_KEYS:
+            val = profile.get(key)
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                safe_profile[key] = max(0, min(int(val), 100000))
+        for key in PROFILE_SIZE_KEYS:
+            val = profile.get(key)
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                safe_profile[key] = max(0, min(int(val), 100000000))
+        image_format = profile.get("upload_format")
+        if isinstance(image_format, str):
+            safe_profile["upload_format"] = (
+                image_format if image_format in ALLOWED_IMAGE_FORMATS else "OTHER"
+            )
         if safe_profile:
             props["profile"] = safe_profile
 
@@ -217,4 +278,3 @@ def clear_scan_performance_metrics() -> int:
             cleared = len(cur.fetchall())
         conn.commit()
     return cleared
-

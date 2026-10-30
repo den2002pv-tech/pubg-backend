@@ -10,6 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
+import main
 from scanner import scan_screenshot
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -148,6 +149,13 @@ class ScreenshotFixtureTests(unittest.TestCase):
                 quantity = card.get("expected_quantity", 1)
                 self.assertIsInstance(quantity, int)
                 self.assertGreaterEqual(quantity, 1)
+                identity_verified = card.get("identity_verified", False)
+                self.assertIsInstance(identity_verified, bool)
+                if identity_verified:
+                    self.assertEqual(
+                        "owned", card.get("state", "owned"),
+                        f"{case_id}: only owned cards can have a verified identity",
+                    )
 
     def test_crop_quality_accepts_a_complete_card_crop(self):
         expected = [100, 100, 200, 300]
@@ -245,6 +253,52 @@ class ScreenshotFixtureTests(unittest.TestCase):
                             msg=f"{case['id']}: unowned card {unowned.get('card_name')} "
                                 f"was included as inventory crop {actual['box']} (IoU={overlap:.3f})",
                         )
+
+
+    def test_verified_screenshot_card_identities_match_catalog(self):
+        verified_cases = [
+            case for case in self.cases
+            if any(card.get("identity_verified") is True and card.get("state", "owned") == "owned" for card in case.get("cards", []))
+        ]
+        if not verified_cases:
+            self.skipTest(
+                "No screenshot cards have manually verified catalogue IDs yet; "
+                "confirm IDs in the admin screenshot-fixture panel"
+            )
+        catalog = main.load_db()
+        for case in verified_cases:
+            with self.subTest(case_id=case.get("id")):
+                with Image.open(ROOT / case["image_path"]) as source:
+                    screenshot = source.convert("RGB")
+                detected = scan_screenshot(screenshot, save_previews=False)["cards"]
+                matched = main._enrich_admin_scan(detected, catalog)
+                available = set(range(len(detected)))
+                for expected in case.get("cards", []):
+                    if expected.get("identity_verified") is not True or expected.get("state", "owned") != "owned":
+                        continue
+                    ex, ey, ew, eh = expected["box"]
+                    best_index, best_iou = None, 0.0
+                    for index in available:
+                        ax, ay, aw, ah = detected[index]["box"]
+                        ix, iy = max(ex, ax), max(ey, ay)
+                        iw = max(0, min(ex + ew, ax + aw) - ix)
+                        ih = max(0, min(ey + eh, ay + ah) - iy)
+                        inter = iw * ih
+                        union = ew * eh + aw * ah - inter
+                        score = inter / union if union else 0.0
+                        if score > best_iou:
+                            best_index, best_iou = index, score
+                    label = expected.get("card_name") or expected.get("card_id") or case["id"]
+                    self.assertIsNotNone(best_index, f"{label}: no detected card crop")
+                    self.assertGreaterEqual(best_iou, MIN_IOU, f"{label}: detected crop does not overlap its label")
+                    available.remove(best_index)
+                    expected_id = str(expected.get("card_id") or "").strip()
+                    actual = matched[best_index]
+                    actual_id = str(actual.get("id") or "").strip() if actual.get("matched") else ""
+                    self.assertEqual(
+                        expected_id, actual_id,
+                        f"{label}: expected card ID {expected_id or '<unknown>'}, got {actual_id or '<unmatched>'}",
+                    )
 
 
 if __name__ == "__main__":

@@ -120,17 +120,13 @@ button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
 .item img{width:100%;height:240px;object-fit:contain;background:#0b1220;border-radius:10px;border:1px solid rgba(148,163,184,.12)}
 .icon{width:180px!important;height:270px!important;display:block;margin:auto;object-fit:contain;cursor:zoom-in;border-radius:12px;transition:transform .15s ease,width .15s,height .15s}
 .icon:hover{transform:scale(1.02)}
-body.icon-size-large .icon{width:260px!important;height:390px!important}
 .icon-zoomable{display:block;max-width:100%;max-height:420px;object-fit:contain;cursor:zoom-in;border-radius:10px}
-.icon-size-control{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:rgba(19,29,45,.9);border:1px solid var(--border);border-radius:12px}
-.icon-size-control label{flex:0 0 auto;color:var(--muted);font-size:14px}
-.icon-size-control select{max-width:220px;margin:0}
 #iconZoomModal{position:fixed;inset:0;z-index:11000;background:rgba(2,6,23,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
 #iconZoomModal[hidden]{display:none}
 #iconZoomModal img{display:block;max-width:96vw;max-height:82vh;width:auto;height:auto;object-fit:contain;background:#0b1220;border-radius:12px;border:1px solid rgba(148,163,184,.15);box-shadow:var(--shadow)}
 #iconZoomModal .icon-zoom-title{max-width:92vw;margin:0 48px 14px;text-align:center;font-size:18px;font-weight:700;overflow-wrap:anywhere}
 #iconZoomModal .icon-zoom-close{position:absolute;top:12px;right:12px;width:44px;height:44px;padding:0;margin:0;border-radius:50%;font-size:28px;line-height:1;background:rgba(15,23,42,.9);color:#fff;border:1px solid rgba(148,163,184,.2)}
-@media(max-width:520px){.icon-size-control{align-items:stretch;flex-direction:column}.icon-size-control select{max-width:none}.icon{width:180px!important;height:270px!important}body.icon-size-large .icon{width:230px!important;height:345px!important}}
+@media(max-width:520px){.icon{width:180px!important;height:270px!important}}
 .badge{display:inline-block;padding:5px 10px;border-radius:999px;background:rgba(148,163,184,.14);font-size:12px;margin-top:5px;color:var(--text)}
 .has{background:rgba(56,211,159,.18);color:#9ef0d2}.missing{background:rgba(255,180,84,.15);color:#ffc877}
 textarea{height:260px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
@@ -218,15 +214,6 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
     </div>
   </div>
 
-  <div class="icon-size-control">
-    <label for="iconSizeSelect">Размер иконок</label>
-    <select id="iconSizeSelect" aria-label="Размер иконок">
-      <option value="normal" selected>Увеличенный</option>
-      <option value="large">Крупный</option>
-    </select>
-    <span class="muted">Нажми на иконку, чтобы открыть её крупно.</span>
-  </div>
-
   <div class="tabs">
     <button class="tab active" data-tab="scan">🧪 Хеши</button>
     <button class="tab" data-tab="icons">🖼️ Иконки</button>
@@ -234,7 +221,6 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
     <button class="tab" data-tab="temp">🗑️ Временные</button>
     <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
     <button class="tab" data-tab="screenshotTests">🖼️ Качество скриншотов</button>
-    <button class="tab" data-tab="clubPosts">🌐 PUBG Club</button>
     <button class="tab" data-tab="users">👥 Пользователи</button>
     <button class="tab" data-tab="analytics">📊 Метрики</button>
   </div>
@@ -298,6 +284,7 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
       <div class="row">
         <button id="queueCounterTestsBtn" type="button" class="btn-secondary">➕ Добавить отмеченные в очередь</button>
         <button id="saveCounterTestsBtn" type="button" class="btn-green">💾 Отправить всю очередь одним commit</button>
+        <button id="clearCounterQueueBtn" type="button" class="btn-danger">Очистить очередь</button>
       </div>
       <div id="saveCounterTestsStatus" class="muted"></div>
       <div id="counterQueueStatus" class="muted"></div>
@@ -359,23 +346,9 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
     </form>
   </dialog>
 
-<section id="screenshotTests" class="panel"><div class="box"><h2>Тесты качества распознавания</h2><p class="shot-muted">Загрузи оригинальный PNG. Система предложит рамки, а ты проверишь координаты, количество и состояние карт. Оригинал и эталон сохраняются в GitHub.</p><div class="row"><div class="stat"><span id="shotCount">—</span><small>Эталонов</small></div><div><label>Рабочая ветка</label><div id="shotBranch" class="badge">feature/card-counter</div></div><button id="shotRefresh" class="btn-secondary" type="button">Обновить</button></div><div id="shotStatus" class="muted" role="status" aria-live="polite"></div></div>
+<section id="screenshotTests" class="panel"><div class="box"><h2>Тесты качества распознавания</h2><p class="shot-muted">Загрузи оригинальный PNG. Проверь рамки, количество и состояние. Для проверки идентичности выбери карту из каталога и отдельно отметь, что ID проверен вручную. Если карту нельзя уверенно сопоставить с каталогом, оставь ID пустым и подтверди этот результат. Оригинал и эталон сохраняются в GitHub.</p><div class="row"><div class="stat"><span id="shotCount">—</span><small>Эталонов</small></div><div><label>Рабочая ветка</label><div id="shotBranch" class="badge">feature/card-counter</div></div><button id="shotRefresh" class="btn-secondary" type="button">Обновить</button></div><div id="shotStatus" class="muted" role="status" aria-live="polite"></div></div>
 <div class="box"><h3>1. Добавить скриншот</h3><div class="row"><input id="shotFile" type="file" accept="image/png,.png" aria-label="PNG скриншот"><button id="shotUpload" type="button">Загрузить и найти карты</button></div><div id="shotEditor" hidden><div class="row"><div><label for="shotId">ID теста</label><input id="shotId" maxlength="80" placeholder="inventory-gray-cards-01"></div><div><label for="shotTitle">Описание</label><input id="shotTitle" maxlength="120" placeholder="Серые карты"></div><div><label>Размер оригинала</label><div id="shotSize" class="badge"></div></div></div><div class="shot-layout"><div><div class="shot-canvas-wrap"><canvas id="shotCanvas"></canvas><div id="shotCanvasEmpty" class="muted">Здесь появится скриншот</div></div><div class="row"><button id="shotDraw" class="btn-secondary" type="button">＋ Нарисовать рамку</button><button id="shotReset" class="btn-secondary" type="button">Восстановить найденные</button></div><p class="shot-muted">Чтобы добавить карту вручную, нажми «Нарисовать рамку» и протяни прямоугольник по изображению.</p></div><div><div id="shotCards"></div><button id="shotSave" type="button">Сохранить эталон в GitHub</button></div></div></div></div>
-<div class="box"><div class="row"><h3 style="flex:2">2. Сохранённые эталоны</h3><button id="shotAnalyze" class="btn-secondary" type="button">🔬 Анализ отличий</button><button id="shotRun" type="button">▶ Проверить все</button></div><p class="shot-muted">Для каждой вручную размеченной карты автоматически собираются яркость, насыщенность, контраст и признаки отдельных областей. Анализ сравнивает состояния «Есть в инвентаре» и «Нет в инвентаре / затемнена».</p><div id="shotAnalysis" class="shot-result" role="status" aria-live="polite">Нажми «Анализ отличий», чтобы сравнить собранные эталоны.</div><div id="shotRunSummary" class="muted" role="status">Проверка ещё не запускалась.</div><div id="shotSaved"></div></div></section>
-  <section id="clubPosts" class="panel">
-    <div class="box">
-      <h2>Публикации PUBG MOBILE Club — #cardexchange</h2>
-      <p class="muted">Показывает последние публикации, доступные на публичной странице темы. Это просмотр: публикации не изменяют инвентарь и не запускают распознавание автоматически.</p>
-      <div class="row">
-        <div class="stat"><span id="clubPostsCount">—</span><small>Публикаций загружено</small></div>
-        <button id="refreshClubPostsBtn" type="button" class="btn-secondary">Обновить публикации</button>
-        <a id="clubTopicLink" class="btn-secondary" href="https://share.club.gpubgm.com/2vRUE5jmLe0" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;padding:10px;margin-top:6px;border-radius:7px">Открыть тему в PUBG Club ↗</a>
-      </div>
-      <div id="clubPostsStatus" class="muted" role="status" aria-live="polite">Нажми «Обновить публикации», чтобы загрузить тему.</div>
-      <div id="clubPostsList" class="card-grid"></div>
-    </div>
-  </section>
-
+<div class="box"><div class="row"><h3 style="flex:2">2. Сохранённые эталоны</h3><button id="shotAnalyze" class="btn-secondary" type="button">🔬 Анализ отличий</button><button id="shotRun" type="button">▶ Проверить все</button></div><p class="shot-muted">«Проверить все» проверяет обнаружение, рамки, количество и только вручную подтверждённые ID карт. В разделе эталонов можно подтвердить ID уже сохранённых случаев. Автоматическое предположение сканера не считается подтверждением. Анализ отличий сравнивает визуальные признаки состояний.</p><div id="shotAnalysis" class="shot-result" role="status" aria-live="polite">Нажми «Анализ отличий», чтобы сравнить собранные эталоны.</div><div id="shotRunSummary" class="muted" role="status">Проверка ещё не запускалась.</div><div id="shotRunActions" class="row" aria-live="polite"></div><div id="shotSaved"></div></div></section>
   <section id="icons" class="panel">
     <div class="box">
       <h2>Иконки карт</h2>
@@ -426,6 +399,12 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
       <div id="commitStatus" class="muted"></div>
       <textarea id="jsonOutput" readonly></textarea>
       <div id="cardList" class="card-grid" style="margin-top:15px"></div>
+      <hr>
+      <h3>Проверка каталога</h3>
+      <p class="muted">Проверяет записи и файлы иконок, точные дубликаты и возможные значки количества. Проверка счётчика использует эвристику текущего детектора: результаты нужно просмотреть вручную; каталог не изменяется.</p>
+      <button id="auditCatalogBtn" class="btn-secondary" type="button">🔍 Проверить каталог</button>
+      <div id="catalogAuditStatus" class="muted" role="status" aria-live="polite"></div>
+      <div id="catalogAuditResults" class="card-grid" style="margin-top:15px"></div>
     </div>
   </section>
 
@@ -452,7 +431,7 @@ let iconFilterMode='all';
 function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
 function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
 function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-const API_BASE = 'https://pubg-backend-3rtc.onrender.com';
+const API_BASE = '';
 function assetUrl(url){
   if(!url)return '';
   if(/^https?:\/\//i.test(url) || url.startsWith('data:'))return url;
@@ -480,9 +459,6 @@ function openIconZoom(src,title){
   modal.hidden=false;modal.querySelector('.icon-zoom-close').focus();
 }
 
-document.getElementById('iconSizeSelect').addEventListener('change',event=>{
-  document.body.classList.toggle('icon-size-large',event.target.value==='large');
-});
 document.addEventListener('click',event=>{
   const image=event.target.closest('img.icon, img.icon-zoomable');
   if(!image)return;
@@ -653,6 +629,69 @@ async function loadCards(){
     renderCardList();
   }catch(e){status('Не удалось загрузить базу: '+e.message,'err')}
 }
+document.getElementById('auditCatalogBtn').onclick=async()=>{
+  const button=document.getElementById('auditCatalogBtn');
+  const summary=document.getElementById('catalogAuditStatus');
+  const results=document.getElementById('catalogAuditResults');
+  button.disabled=true;
+  summary.className='muted';
+  summary.textContent='Проверка каталога и изображений…';
+  results.replaceChildren();
+  try{
+    const response=await api('/admin/catalog-audit');
+    if(!response.ok)throw new Error(await readError(response));
+    const report=await response.json();
+    const counts=report.counts||{};
+    summary.className=report.problem_cards?'err':'ok';
+    summary.textContent='Проверено карт: '+report.total+
+      ' · с замечаниями: '+report.problem_cards+
+      ' · возможных счётчиков: '+(counts.possible_counter||0)+
+      ' · отсутствующих иконок: '+(counts.missing_icon||0)+
+      ' · нечитаемых иконок: '+(counts.unreadable_icon||0)+
+      ' · точных дубликатов: '+(counts.duplicate_icon||0);
+    const orphaned=report.unreferenced_icons||[];
+    if(orphaned.length){
+      const note=document.createElement('p');
+      note.className='muted';
+      note.textContent='Файлы иконок без записи в каталоге: '+orphaned.join(', ');
+      results.append(note);
+    }
+    const flagged=(report.cards||[]).filter(card=>card.issues&&card.issues.length);
+    if(!flagged.length&&!orphaned.length){
+      const clean=document.createElement('p');
+      clean.className='muted';
+      clean.textContent='Замечаний не найдено.';
+      results.append(clean);
+      return;
+    }
+    flagged.forEach(card=>{
+      const item=document.createElement('article');
+      item.className='item';
+      if(card.icon){
+        const image=document.createElement('img');
+        image.src=assetUrl(card.icon);
+        image.alt='Иконка '+(card.name||card.card_id);
+        image.loading='lazy';
+        item.append(image);
+      }
+      const title=document.createElement('h4');
+      title.textContent=(card.name||'Название не указано')+' · '+card.card_id;
+      item.append(title);
+      card.issues.forEach(issue=>{
+        const detail=document.createElement('p');
+        detail.className=issue.code==='possible_counter'?'err':'muted';
+        detail.textContent=issue.message;
+        item.append(detail);
+      });
+      results.append(item);
+    });
+  }catch(error){
+    summary.className='err';
+    summary.textContent='Проверка каталога не выполнена: '+error.message;
+  }finally{
+    button.disabled=false;
+  }
+};
 function renderCardList(){
   const q=document.getElementById('search').value.trim().toLowerCase();
   const filter=document.getElementById('filter').value;
@@ -724,9 +763,19 @@ function setCounterTestQueue(queue){
 function renderCounterQueueStatus(){
   const queue=getCounterTestQueue();
   const el=document.getElementById("counterQueueStatus");
-  if(el)el.textContent="В очереди: "+queue.length+" тест(ов). "+(queue.length?"Можно продолжать сканирование; commit пока не создаётся.":"Добавь отмеченные примеры после сканирования.");
+  if(el)el.textContent="В очереди: "+queue.length+" тест(ов). "+(queue.length?"Очередь ссылается на временные кропы: не удаляй временные файлы, пока не сохранишь тесты.":"Добавь отмеченные примеры после сканирования.");
   const button=document.getElementById("saveCounterTestsBtn");
   if(button)button.textContent=queue.length?"💾 Отправить "+queue.length+" тест(ов) одним commit":"💾 Отправить всю очередь одним commit";
+  const clearButton=document.getElementById("clearCounterQueueBtn");
+  if(clearButton)clearButton.disabled=queue.length===0;
+}
+function clearCounterTestQueue(){
+  const queue=getCounterTestQueue();
+  if(!queue.length)return;
+  if(!confirm("Удалить из очереди все "+queue.length+" тест(ов)? Эталоны в GitHub не изменятся."))return;
+  setCounterTestQueue([]);
+  const status=document.getElementById("saveCounterTestsStatus");
+  if(status){status.className="muted";status.textContent="Очередь очищена. Сохранённые эталоны в GitHub не затронуты.";}
 }
 function collectCurrentCounterCases(){
   const cards=window.lastScan||[];
@@ -761,7 +810,7 @@ async function saveCounterTestsBatch(){
   const button=document.getElementById("saveCounterTestsBtn");
   const queue=getCounterTestQueue();
   if(!queue.length){status.className="err";status.textContent="Очередь пуста. Сначала добавь результаты сканирования.";return}
-  if(!confirm("Отправить "+queue.length+" эталонных тест(ов) в GitHub одним commit? После этого Render может перезапуститься."))return;
+  if(!confirm("Отправить "+queue.length+" эталонных тест(ов) в GitHub одним commit? После этого проверьте деплой приложения в Enzonic."))return;
   button.disabled=true;button.textContent="Сохраняем одним commit...";
   status.className="muted";status.textContent="Отправляем "+queue.length+" тест(ов), изображения и диагностику одним commit...";
   try{
@@ -769,7 +818,7 @@ async function saveCounterTestsBatch(){
     const d=await r.json();if(!r.ok)throw new Error(d.detail||"Ошибка сохранения");
     setCounterTestQueue([]);
     status.className="ok";
-    status.textContent="Сохранено "+d.saved_count+" тест(ов); "+d.correct_count+" совпали с алгоритмом. Ветка "+d.branch+", commit "+String(d.git_commit).slice(0,10)+". Render может перезапуститься один раз после этого commit.";
+    status.textContent="Сохранено "+d.saved_count+" тест(ов); "+d.correct_count+" совпали с алгоритмом. Ветка "+d.branch+", commit "+String(d.git_commit).slice(0,10)+". Проверьте деплой приложения в Enzonic.";
     await loadCounterTests();
   }catch(e){
     status.className="err";status.textContent="Не удалось сохранить очередь: "+e.message+". Данные оставлены в очереди — можно повторить отправку.";
@@ -888,17 +937,106 @@ async function shotBlob(path){const r=await api(path);if(!r.ok)throw new Error(a
 function shotPoint(e){const r=shotCanvas.getBoundingClientRect();return{x:Math.round((e.clientX-r.left)*shotImg.width/r.width),y:Math.round((e.clientY-r.top)*shotImg.height/r.height)}}
 function shotDraw(){if(!shotImg)return;const scale=Math.min(1,Math.max(260,shotCanvas.parentElement.clientWidth-4)/shotImg.width);shotCanvas.width=shotImg.width;shotCanvas.height=shotImg.height;shotCanvas.style.width=Math.round(shotImg.width*scale)+'px';shotCtx.drawImage(shotImg,0,0);shotBoxes.forEach((b,i)=>{shotCtx.strokeStyle=b.state==='unowned'?'#ff6b6b':'#52e08b';shotCtx.lineWidth=Math.max(2,shotImg.width/500);shotCtx.strokeRect(...b.box);shotCtx.fillStyle='#fff';shotCtx.font='bold '+Math.max(14,shotImg.width/70)+'px sans-serif';shotCtx.fillText(String(i+1),b.box[0]+3,Math.max(17,b.box[1]-5))})}
 function shotOpenIcon(src,title){let modal=document.getElementById('shotIconModal');if(!modal){modal=document.createElement('div');modal.id='shotIconModal';modal.hidden=true;modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-label','Увеличенная иконка карты');const close=document.createElement('button');close.type='button';close.className='shot-icon-close';close.textContent='×';close.setAttribute('aria-label','Закрыть увеличенную иконку');const heading=document.createElement('div');heading.className='shot-icon-title';heading.id='shotIconModalTitle';const image=document.createElement('img');image.alt='Увеличенная иконка карты';const hint=document.createElement('div');hint.className='shot-icon-hint';hint.textContent='Нажми вне изображения или ×, чтобы закрыть';modal.append(close,heading,image,hint);document.body.append(modal);close.onclick=()=>{modal.hidden=true};modal.onclick=e=>{if(e.target===modal)modal.hidden=true};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!modal.hidden)modal.hidden=true})}modal.querySelector('.shot-icon-title').textContent=title||'Иконка карты';modal.querySelector('img').src=src;modal.hidden=false;modal.querySelector('.shot-icon-close').focus()}
-function shotRenderCards(){const root=document.getElementById('shotCards');root.innerHTML='';if(!shotBoxes.length){root.innerHTML='<p class="muted">Рамок нет — нарисуй их на изображении.</p>';return}shotBoxes.forEach((b,i)=>{const el=document.createElement('article');el.className='shot-card';const head=document.createElement('div');head.className='shot-head';const h=document.createElement('b');h.textContent='Карта '+(i+1);const del=document.createElement('button');del.type='button';del.className='btn-danger';del.textContent='Удалить';del.style.width='auto';del.onclick=()=>{shotBoxes.splice(i,1);shotRenderCards();shotDraw()};head.append(h,del);const match=document.createElement('div');match.className='shot-match';const crop=document.createElement('canvas');crop.width=120;crop.height=160;crop.setAttribute('aria-label','Фрагмент скриншота для карты '+(i+1));if(shotImg){const [cx,cy,cw,ch]=b.box;const ctx=crop.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,crop.width,crop.height);if(cw>0&&ch>0)ctx.drawImage(shotImg,cx,cy,cw,ch,0,0,crop.width,crop.height)}crop.style.width='60px';crop.style.height='80px';crop.style.objectFit='contain';crop.style.flex='0 0 auto';crop.style.background='#111';crop.style.borderRadius='4px';match.append(crop);if(b.icon){const icon=document.createElement('img');icon.src=assetUrl(b.icon);icon.alt='Иконка из каталога';icon.loading='lazy';icon.className='shot-icon-open';icon.title='Открыть иконку на весь экран';icon.setAttribute('role','button');icon.tabIndex=0;icon.onclick=()=>shotOpenIcon(icon.src,b.card_name||b.card_id||'Иконка карты '+(i+1));icon.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();shotOpenIcon(icon.src,b.card_name||b.card_id||'Иконка карты '+(i+1))}};match.append(icon)}const info=document.createElement('div');const name=document.createElement('b');name.textContent=b.matched?(b.card_name||'Найденная карта'):'Карта не сопоставлена с каталогом';const id=document.createElement('div');id.className='shot-muted';id.textContent=b.card_id?(b.card_id+(b.match_distance!=null?' · расстояние '+b.match_distance:'')):'Слева — фрагмент скриншота. Введи название карты в поле ниже.';info.append(name,id);match.append(info);el.append(head,match);const grid=document.createElement('div');grid.className='shot-card-fields';const inp=(label,val,cb,wide=false,type='number')=>{const l=document.createElement('label');if(wide)l.className='wide';l.textContent=label;const x=document.createElement(type==='select'?'select':'input');if(type!=='select'){x.type=type;x.value=val??'';if(type==='number'){x.min='0';x.step='1'}x.placeholder=type==='text'?'Введите название карты':''}else{[['owned','Есть в инвентаре'],['unowned','Нет в инвентаре / затемнена']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;x.append(o)});x.value=val||'owned'}x.oninput=()=>{cb(type==='select'?x.value:type==='text'?x.value:Number(x.value));if(type==='text')name.textContent=x.value.trim()||'Название карты не указано'};x.onchange=()=>cb(type==='select'?x.value:type==='text'?x.value:Number(x.value));l.append(x);grid.append(l);return x};['X','Y','Ширина','Высота'].forEach((n,j)=>inp(n,b.box[j],v=>{b.box[j]=v;shotDraw()}));inp('Название карты',b.card_name||'',v=>b.card_name=v,true,'text');inp('Эталонное количество',b.expected_quantity,v=>b.expected_quantity=v);inp('Состояние',b.state,v=>{b.state=v;shotDraw()},true,'select');el.append(grid);root.append(el)})}
-function shotAddBox(box,q=1){shotBoxes.push({box:box.map(Number),expected_quantity:Number(q)||1,state:'owned',card_name:'',card_id:''});shotRenderCards();shotDraw()}
-async function loadShotFixtures(){const root=document.getElementById('shotSaved');root.innerHTML='<p class="muted">Загрузка…</p>';shotUrls.forEach(URL.revokeObjectURL);shotUrls=[];try{const r=await api('/admin/screenshot-tests');if(!r.ok)throw new Error(await readError(r));const d=await r.json();document.getElementById('shotCount').textContent=d.count;document.getElementById('shotBranch').textContent=d.branch;root.innerHTML='';if(!d.cases.length){root.textContent='Эталонов пока нет. Загрузи первый скриншот выше.';return}for(const c of d.cases){const el=document.createElement('article');el.className='shot-result';const img=document.createElement('img');img.alt='Исходный скриншот '+c.id;img.src=await shotBlob(c.image_url);const title=document.createElement('h4');title.textContent=(c.title||c.id)+' · '+c.cards.length+' карт';const meta=document.createElement('p');meta.className='shot-muted';meta.textContent=c.id+' · '+(c.source_screenshot_size||[]).join(' × ')+' · '+c.cards.filter(x=>(x.state||'owned')==='owned').length+' в инвентаре';const del=document.createElement('button');del.className='btn-danger';del.textContent='Удалить эталон';del.onclick=async()=>{if(!confirm('Удалить эталон '+c.id+' и PNG из GitHub?'))return;const rr=await api('/admin/screenshot-tests/'+encodeURIComponent(c.id),{method:'DELETE'});if(!rr.ok){shotMsg(await readError(rr),'err');return}shotMsg('Эталон удалён. Commit '+(await rr.json()).git_commit,'ok');loadShotFixtures()};el.append(img,title,meta,del);root.append(el)}}catch(e){root.innerHTML='';shotMsg('Не удалось загрузить эталоны: '+e.message,'err')}}
+function shotFillCatalogSelect(select,selected=''){
+  select.innerHTML='';
+  const unknown=document.createElement('option');unknown.value='';unknown.textContent='Неизвестная / отсутствует в каталоге';select.append(unknown);
+  Object.entries(db||{}).sort((a,b)=>String(a[1]?.name||a[0]).localeCompare(String(b[1]?.name||b[0]),'ru')).forEach(([id,info])=>{
+    const option=document.createElement('option');option.value=id;option.textContent=(info?.name||id)+' · '+id;select.append(option);
+  });
+  if(selected&&!Array.from(select.options).some(option=>option.value===selected)){
+    const missing=document.createElement('option');missing.value=selected;missing.textContent=selected+' (не найден в текущем каталоге)';select.append(missing);
+  }
+  select.value=selected||'';
+}
+function shotRenderCards(){
+  const root=document.getElementById('shotCards');root.innerHTML='';
+  if(!shotBoxes.length){root.innerHTML='<p class="muted">Рамок нет — нарисуй их на изображении.</p>';return}
+  shotBoxes.forEach((b,i)=>{
+    const el=document.createElement('article');el.className='shot-card';
+    const head=document.createElement('div');head.className='shot-head';
+    const h=document.createElement('b');h.textContent='Карта '+(i+1);
+    const del=document.createElement('button');del.type='button';del.className='btn-danger';del.textContent='Удалить';del.style.width='auto';
+    del.onclick=()=>{shotBoxes.splice(i,1);shotRenderCards();shotDraw()};head.append(h,del);
+    const match=document.createElement('div');match.className='shot-match';
+    const crop=document.createElement('canvas');crop.width=120;crop.height=160;crop.setAttribute('aria-label','Фрагмент скриншота для карты '+(i+1));
+    if(shotImg){const [cx,cy,cw,ch]=b.box;const ctx=crop.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,crop.width,crop.height);if(cw>0&&ch>0)ctx.drawImage(shotImg,cx,cy,cw,ch,0,0,crop.width,crop.height)}
+    crop.style.width='60px';crop.style.height='80px';crop.style.objectFit='contain';crop.style.flex='0 0 auto';crop.style.background='#111';crop.style.borderRadius='4px';match.append(crop);
+    if(b.icon){const icon=document.createElement('img');icon.src=assetUrl(b.icon);icon.alt='Иконка из каталога';icon.loading='lazy';icon.className='shot-icon-open';icon.title='Открыть иконку на весь экран';icon.setAttribute('role','button');icon.tabIndex=0;icon.onclick=()=>shotOpenIcon(icon.src,b.card_name||b.card_id||'Иконка карты '+(i+1));icon.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();shotOpenIcon(icon.src,b.card_name||b.card_id||'Иконка карты '+(i+1))}};match.append(icon)}
+    const info=document.createElement('div');const name=document.createElement('b');name.textContent=b.card_name||'Карта не подписана';
+    const id=document.createElement('div');id.className='shot-muted';id.textContent=b.matched?'Автопредположение: '+(b.card_id||'без ID')+(b.match_distance!=null?' · расстояние '+b.match_distance:''):'Автосопоставление не найдено; проверь ID вручную.';
+    info.append(name,id);match.append(info);el.append(head,match);
+    const grid=document.createElement('div');grid.className='shot-card-fields';
+    const inp=(label,val,cb,wide=false,type='number')=>{
+      const l=document.createElement('label');if(wide)l.className='wide';l.textContent=label;
+      const x=document.createElement(type==='select'?'select':'input');
+      if(type!=='select'){x.type=type;x.value=val??'';if(type==='number'){x.min='0';x.step='1'}x.placeholder=type==='text'?'Введите название карты':''}
+      else{[['owned','Есть в инвентаре'],['unowned','Нет в инвентаре / затемнена']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;x.append(o)});x.value=val||'owned'}
+      x.oninput=()=>{cb(type==='select'?x.value:type==='text'?x.value:Number(x.value));if(type==='text')name.textContent=x.value.trim()||'Карта не подписана'};
+      x.onchange=()=>cb(type==='select'?x.value:type==='text'?x.value:Number(x.value));l.append(x);grid.append(l);return x
+    };
+    ['X','Y','Ширина','Высота'].forEach((n,j)=>inp(n,b.box[j],v=>{b.box[j]=v;shotDraw()}));
+    inp('Название карты',b.card_name||'',v=>b.card_name=v,true,'text');
+    inp('Эталонное количество',b.expected_quantity,v=>b.expected_quantity=v);
+    inp('Состояние',b.state,v=>{b.state=v;shotRenderCards();shotDraw()},true,'select');
+    const idLabel=document.createElement('label');idLabel.className='wide';idLabel.textContent='Эталонная карта из каталога';
+    const idSelect=document.createElement('select');shotFillCatalogSelect(idSelect,b.card_id||'');
+    idSelect.onchange=()=>{b.card_id=idSelect.value;b.card_name=idSelect.value?(db[idSelect.value]?.name||idSelect.value):'';b.icon=idSelect.value?(db[idSelect.value]?.icon||''):'';b.matched=!!idSelect.value;b.identity_verified=false;shotRenderCards()};
+    idLabel.append(idSelect);grid.append(idLabel);
+    const verifyLabel=document.createElement('label');verifyLabel.className='wide';
+    const verify=document.createElement('input');verify.type='checkbox';verify.checked=b.identity_verified===true;verify.disabled=(b.state||'owned')!=='owned';verify.style.width='auto';verify.style.marginRight='8px';
+    verify.onchange=()=>{b.identity_verified=verify.checked};
+    verifyLabel.append(verify,document.createTextNode('Я вручную проверил ID (пустой ID означает, что карта отсутствует в каталоге)'));grid.append(verifyLabel);
+    el.append(grid);root.append(el);
+  })
+}
+function shotAddBox(box,q=1){shotBoxes.push({box:box.map(Number),expected_quantity:Number(q)||1,state:'owned',card_name:'',card_id:'',identity_verified:false});shotRenderCards();shotDraw()}
+async function loadShotFixtures(){
+  const root=document.getElementById('shotSaved');root.innerHTML='<p class="muted">Загрузка…</p>';shotUrls.forEach(URL.revokeObjectURL);shotUrls=[];
+  try{
+    const r=await api('/admin/screenshot-tests');if(!r.ok)throw new Error(await readError(r));const d=await r.json();
+    document.getElementById('shotCount').textContent=d.count;document.getElementById('shotBranch').textContent=d.branch;root.innerHTML='';
+    if(!d.cases.length){root.textContent='Эталонов пока нет. Загрузи первый скриншот выше.';return}
+    for(const c of d.cases){
+      const el=document.createElement('article');el.className='shot-result';
+      const img=document.createElement('img');img.alt='Исходный скриншот '+c.id;img.src=await shotBlob(c.image_url);
+      const title=document.createElement('h4');title.textContent=(c.title||c.id)+' · '+c.cards.length+' карт';
+      const meta=document.createElement('p');meta.className='shot-muted';meta.textContent=c.id+' · '+(c.source_screenshot_size||[]).join(' × ')+' · '+c.cards.filter(x=>(x.state||'owned')==='owned').length+' в инвентаре · подтверждено ID: '+c.cards.filter(x=>x.identity_verified===true).length;
+      el.append(img,title,meta);
+      const labels=[];
+      c.cards.forEach((card,index)=>{
+        const row=document.createElement('div');row.className='shot-card';
+        const heading=document.createElement('b');heading.textContent='Карта '+(index+1)+' · '+(card.card_name||'Без названия')+' · '+(card.state||'owned');
+        const fields=document.createElement('div');fields.className='shot-card-fields';
+        const idLabel=document.createElement('label');idLabel.className='wide';idLabel.textContent='Правильная карта';
+        const select=document.createElement('select');shotFillCatalogSelect(select,card.card_id||'');select.disabled=(card.state||'owned')!=='owned';
+        const verifiedLabel=document.createElement('label');verifiedLabel.className='wide';
+        const check=document.createElement('input');check.type='checkbox';check.checked=card.identity_verified===true;check.disabled=(card.state||'owned')!=='owned';check.style.width='auto';check.style.marginRight='8px';
+        verifiedLabel.append(check,document.createTextNode('ID проверен вручную'));
+        idLabel.append(select);fields.append(idLabel,verifiedLabel);row.append(heading,fields);el.append(row);
+        const label={card_id:card.card_id||'',identity_verified:card.identity_verified===true};
+        select.onchange=()=>{label.card_id=select.value;label.identity_verified=false;check.checked=false};
+        check.onchange=()=>{label.identity_verified=check.checked};
+        labels.push(label);
+      });
+      const actions=document.createElement('div');actions.className='row';
+      const save=document.createElement('button');save.type='button';save.className='btn-green';save.textContent='Сохранить проверенные ID';
+      save.onclick=async()=>{save.disabled=true;try{const rr=await api('/admin/screenshot-tests/'+encodeURIComponent(c.id)+'/identity',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cards:labels})});if(!rr.ok)throw new Error(await readError(rr));const saved=await rr.json();shotMsg('ID сохранены. Проверено вручную: '+saved.verified_cards+'. Commit '+saved.git_commit.slice(0,10),'ok');await loadShotFixtures()}catch(e){shotMsg('Не удалось сохранить ID: '+e.message,'err')}finally{save.disabled=false}};
+      const del=document.createElement('button');del.className='btn-danger';del.textContent='Удалить эталон';
+      del.onclick=async()=>{if(!confirm('Удалить эталон '+c.id+' и PNG из GitHub?'))return;const rr=await api('/admin/screenshot-tests/'+encodeURIComponent(c.id),{method:'DELETE'});if(!rr.ok){shotMsg(await readError(rr),'err');return}shotMsg('Эталон удалён. Commit '+(await rr.json()).git_commit,'ok');loadShotFixtures()};
+      actions.append(save,del);el.append(actions);root.append(el);
+    }
+  }catch(e){root.innerHTML='';shotMsg('Не удалось загрузить эталоны: '+e.message,'err')}
+}
 document.getElementById('shotRefresh').onclick=loadShotFixtures;
-document.getElementById('shotUpload').onclick=async()=>{const f=document.getElementById('shotFile').files[0];if(!f){shotMsg('Выбери PNG-скриншот.','err');return}if(f.size>15*1024*1024){shotMsg('Файл больше 15 МБ.','err');return}const b=document.getElementById('shotUpload');b.disabled=true;try{const fd=new FormData();fd.append('file',f);const r=await api('/admin/screenshot-tests/preview',{method:'POST',body:fd});if(!r.ok)throw new Error(await readError(r));const d=await r.json();shotUploadId=d.upload_id;shotDetected=d.cards||[];shotBoxes=shotDetected.map(x=>({box:x.box.map(Number),expected_quantity:Number(x.quantity)||1,state:'owned',card_name:x.matched?(x.card_name||x.card_id||''):'',card_id:x.card_id||'',icon:x.icon||'',matched:!!x.matched,match_distance:x.match_distance}));shotImg=new Image();shotImg.onload=()=>{document.getElementById('shotEditor').hidden=false;document.getElementById('shotCanvasEmpty').hidden=true;document.getElementById('shotSize').textContent=d.image_size.join(' × ');document.getElementById('shotId').value='inventory-'+new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14);shotRenderCards();shotDraw();shotMsg('Найдено рамок: '+shotBoxes.length+'. Проверь рамки и вручную подтверди количество.',shotBoxes.length?'ok':'err')};shotImg.src=await shotBlob(d.image_url)}catch(e){shotMsg('Не удалось обработать PNG: '+e.message,'err')}finally{b.disabled=false}};
+document.getElementById('shotUpload').onclick=async()=>{const f=document.getElementById('shotFile').files[0];if(!f){shotMsg('Выбери PNG-скриншот.','err');return}if(f.size>15*1024*1024){shotMsg('Файл больше 15 МБ.','err');return}const b=document.getElementById('shotUpload');b.disabled=true;try{const fd=new FormData();fd.append('file',f);const r=await api('/admin/screenshot-tests/preview',{method:'POST',body:fd});if(!r.ok)throw new Error(await readError(r));const d=await r.json();shotUploadId=d.upload_id;shotDetected=d.cards||[];shotBoxes=shotDetected.map(x=>({box:x.box.map(Number),expected_quantity:Number(x.quantity)||1,state:'owned',card_name:x.matched?(x.card_name||x.card_id||''):'',card_id:x.card_id||'',icon:x.icon||'',matched:!!x.matched,match_distance:x.match_distance,identity_verified:false}));shotImg=new Image();shotImg.onload=()=>{document.getElementById('shotEditor').hidden=false;document.getElementById('shotCanvasEmpty').hidden=true;document.getElementById('shotSize').textContent=d.image_size.join(' × ');document.getElementById('shotId').value='inventory-'+new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14);shotRenderCards();shotDraw();shotMsg('Найдено рамок: '+shotBoxes.length+'. Проверь рамки и вручную подтверди количество.',shotBoxes.length?'ok':'err')};shotImg.src=await shotBlob(d.image_url)}catch(e){shotMsg('Не удалось обработать PNG: '+e.message,'err')}finally{b.disabled=false}};
 document.getElementById('shotDraw').onclick=()=>{if(!shotImg)return;shotDrawMode=true;shotMsg('Нажми и протяни по изображению, чтобы нарисовать рамку.')};
-document.getElementById('shotReset').onclick=()=>{shotBoxes=shotDetected.map(x=>({box:x.box.map(Number),expected_quantity:Number(x.quantity)||1,state:'owned',card_name:x.matched?(x.card_name||x.card_id||''):'',card_id:x.card_id||'',icon:x.icon||'',matched:!!x.matched,match_distance:x.match_distance}));shotRenderCards();shotDraw();shotMsg('Восстановлены рамки алгоритма. Проверь значения.','ok')};
+document.getElementById('shotReset').onclick=()=>{shotBoxes=shotDetected.map(x=>({box:x.box.map(Number),expected_quantity:Number(x.quantity)||1,state:'owned',card_name:x.matched?(x.card_name||x.card_id||''):'',card_id:x.card_id||'',icon:x.icon||'',matched:!!x.matched,match_distance:x.match_distance,identity_verified:false}));shotRenderCards();shotDraw();shotMsg('Восстановлены рамки алгоритма. Проверь значения.','ok')};
 shotCanvas.onpointerdown=e=>{if(shotDrawMode&&shotImg){shotStart=shotPoint(e);shotCanvas.setPointerCapture(e.pointerId)}};
 shotCanvas.onpointerup=e=>{if(!shotDrawMode||!shotStart||!shotImg)return;const p=shotPoint(e),x=Math.max(0,Math.min(p.x,shotStart.x)),y=Math.max(0,Math.min(p.y,shotStart.y)),w=Math.abs(p.x-shotStart.x),h=Math.abs(p.y-shotStart.y);shotDrawMode=false;shotStart=null;if(w<20||h<20){shotMsg('Рамка слишком мала. Попробуй ещё раз.','err');return}shotAddBox([x,y,w,h]);shotMsg('Рамка добавлена. Укажи эталонное количество.','ok')};
 document.getElementById('shotSave').onclick=async()=>{if(!shotUploadId||!shotImg||!shotBoxes.length){shotMsg('Загрузи скриншот и добавь хотя бы одну рамку.','err');return}const id=shotSlug(document.getElementById('shotId').value);if(id.length<3){shotMsg('ID должен быть длиной не менее 3 символов.','err');return}for(const [i,c] of shotBoxes.entries()){const [x,y,w,h]=c.box;if(![x,y,w,h,c.expected_quantity].every(Number.isInteger)||x<0||y<0||w<20||h<20||x+w>shotImg.width||y+h>shotImg.height||c.expected_quantity<1||c.expected_quantity>999){shotMsg('Проверь координаты и количество карты '+(i+1)+'.','err');return}}const b=document.getElementById('shotSave');b.disabled=true;try{const r=await api('/admin/screenshot-tests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({upload_id:shotUploadId,id,title:document.getElementById('shotTitle').value,cards:shotBoxes})});if(!r.ok)throw new Error(await readError(r));const d=await r.json();shotUploadId=null;shotImg=null;document.getElementById('shotEditor').hidden=true;document.getElementById('shotFile').value='';shotMsg('Эталон сохранён. Commit '+d.git_commit.slice(0,10)+' · '+d.branch,'ok');await loadShotFixtures()}catch(e){shotMsg('Сохранение не выполнено: '+e.message,'err')}finally{b.disabled=false}};
-document.getElementById('shotRun').onclick=async()=>{const b=document.getElementById('shotRun'),s=document.getElementById('shotRunSummary');b.disabled=true;s.textContent='Запуск сканера на сохранённых изображениях…';try{const r=await api('/admin/screenshot-tests/run',{method:'POST'});if(!r.ok)throw new Error(await readError(r));const d=await r.json();s.className=d.failed?'err':'ok';s.textContent='Пройдено '+d.passed+' из '+d.count+' скриншотов; ошибок: '+d.failed;document.querySelectorAll('.shot-run-result').forEach(x=>x.remove());d.results.forEach(x=>{const el=document.createElement('article');el.className='shot-result shot-run-result '+(x.passed?'pass':'fail');const h=document.createElement('h4');h.textContent=(x.passed?'✓ ':'✗ ')+x.id;const p=document.createElement('p');p.textContent='Эталонных карт: '+x.expected_cards+' · Найдено: '+x.detected_cards+' · Совпало количеств: '+x.quantity_matches+'/'+x.quantity_checked;const ul=document.createElement('ul');x.errors.forEach(msg=>{const li=document.createElement('li');li.textContent=msg;ul.append(li)});el.append(h,p,ul);document.getElementById('shotSaved').prepend(el)})}catch(e){s.className='err';s.textContent='Проверка не выполнена: '+e.message}finally{b.disabled=false}};
+document.getElementById('shotRun').onclick=async()=>{const b=document.getElementById('shotRun'),s=document.getElementById('shotRunSummary');b.disabled=true;s.textContent='Запуск сканера на сохранённых изображениях…';try{const r=await api('/admin/screenshot-tests/run',{method:'POST'});if(!r.ok)throw new Error(await readError(r));const d=await r.json();s.className=d.failed?'err':'ok';const profile=d.profile||{};const tf=profile.total_duration_ms!=null?Number(profile.total_duration_ms).toFixed(1):'—';const rss=profile.peak_rss!=null?Number(profile.peak_rss/1024/1024).toFixed(1)+' MB':'—';const cpu=profile.peak_cpu!=null?Number(profile.peak_cpu).toFixed(1)+'%':'—';s.textContent='Обработано '+(d.processed||0)+' из '+d.count+' скриншотов; пройдено: '+d.passed+'; не пройдено: '+d.failed+'; ошибок: '+(d.errors||0)+' · время: '+tf+' мс · пиковый CPU: '+cpu+' · наблюдавшийся пик RSS: '+rss+' · run_id: '+(d.run_id||'unknown');
+const actions=document.getElementById('shotRunActions');if(actions){actions.replaceChildren();const button=document.createElement('button');button.type='button';button.className='btn-green';button.textContent='⬇ Скачать JSON-отчёт';button.setAttribute('aria-label','Скачать полный JSON-отчёт проверки качества');button.onclick=()=>{const report=d.report&&typeof d.report==='object'?d.report:d;const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=d.report_filename||('scanner-quality-report-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json');document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)};actions.appendChild(button)};
+document.querySelectorAll('.shot-run-result').forEach(x=>x.remove());d.results.forEach(x=>{const el=document.createElement('article');el.className='shot-result shot-run-result '+(x.passed?'pass':'fail');const h=document.createElement('h4');h.textContent=(x.passed?'✓ ':'✗ ')+x.id;const p=document.createElement('p');p.textContent='Эталонных карт: '+x.expected_cards+' · Найдено: '+x.detected_cards+' · Совпало количеств: '+x.quantity_matches+'/'+x.quantity_checked+' · Совпало ID: '+(x.identity_matches||0)+'/'+(x.identity_checked||0)+' · Время: '+(x.timings&&x.timings.case_total_ms!=null?Number(x.timings.case_total_ms).toFixed(1)+' мс':'—');const ul=document.createElement('ul');x.errors.forEach(msg=>{const li=document.createElement('li');li.textContent=msg;ul.append(li)});el.append(h,p,ul);document.getElementById('shotSaved').prepend(el)})}catch(e){s.className='err';s.textContent='Проверка не выполнена: '+e.message}finally{b.disabled=false}};
 
 async function loadShotAnalysis(){
   const root=document.getElementById('shotAnalysis'),button=document.getElementById('shotAnalyze');
@@ -1076,6 +1214,7 @@ document.querySelectorAll('[data-counter-view]').forEach(button=>button.addEvent
 document.getElementById('refreshCounterTestsBtn').onclick=loadCounterTests;
 document.getElementById("queueCounterTestsBtn").onclick=()=>{try{addCurrentCounterCasesToQueue()}catch(e){const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message}};
 document.getElementById("saveCounterTestsBtn").onclick=()=>{saveCounterTestsBatch().catch(e=>{const s=document.getElementById("saveCounterTestsStatus");s.className="err";s.textContent=e.message})};
+document.getElementById("clearCounterQueueBtn").onclick=clearCounterTestQueue;
 renderCounterQueueStatus();
 
 let lastBoundaryDiagnostic = null;
@@ -1385,14 +1524,23 @@ async function saveCard(i, forceNew=false){
         rarity,
         preview:card.preview,
         hash:card.hash,
-        hashes:card.hashes
+        hashes:card.hashes,
+        force_new:!!forceNew
       })
     });
 
     const d=await r.json();
 
     if(!r.ok){
-      throw new Error(d.detail||'Ошибка сохранения');
+      const detail=d.detail;
+      const message=typeof detail==='string'
+        ? detail
+        : (detail?.message||'Ошибка сохранения');
+      const duplicate=detail&&typeof detail==='object' ? detail.duplicate : null;
+      const existing=duplicate
+        ? `\nСуществующая карта: ${duplicate.id} · ${duplicate.name||''}`
+        : '';
+      throw new Error(message+existing);
     }
 
     card.matched=true;
@@ -1687,8 +1835,20 @@ async function loadTemp(){
   })
 }
 document.getElementById('deleteTempBtn').onclick=async()=>{
-  if(!confirm('Удалить все временные изображения?'))return;
-  const r=await api('/admin/temp-files',{method:'DELETE'});const d=await r.json();if(!r.ok){alert(d.detail||'Ошибка');return}await loadAll()
+  const queue=getCounterTestQueue();
+  const prompt=queue.length
+    ? 'Удалить все временные изображения И очистить очередь из '+queue.length+' тест(ов)? Эти тесты ещё не сохранены в GitHub. Сохранённые эталоны не затрагиваются.'
+    : 'Удалить все временные изображения? Постоянные иконки и эталоны в GitHub не затрагиваются.';
+  if(!confirm(prompt))return;
+  const r=await api('/admin/temp-files',{method:'DELETE'});
+  let d={};try{d=await r.json()}catch(e){}
+  if(!r.ok){alert(d.detail||'Не удалось удалить временные файлы');return}
+  if(queue.length){
+    setCounterTestQueue([]);
+    const status=document.getElementById('saveCounterTestsStatus');
+    if(status){status.className='muted';status.textContent='Временные файлы удалены, очередь из '+queue.length+' несохранённых тест(ов) очищена. Сохранённые эталоны в GitHub не затронуты.';}
+  }
+  await loadAll()
 };
 document.getElementById('refreshBtn').onclick=loadAll;
 document.getElementById('copyBtn').onclick=()=>navigator.clipboard.writeText(document.getElementById('jsonOutput').value);
@@ -1781,49 +1941,6 @@ document.getElementById('commitBtn').onclick=async()=>{
   finally{b.disabled=false;b.textContent='💾 Отправить все изменения одним commit'}
 };
 
-function safeClubMediaUrl(value){
-  try{
-    const url=new URL(String(value||''));
-    return url.protocol==='https:' ? url.href : '';
-  }catch{return ''}
-}
-async function loadClubPosts(){
-  const status=document.getElementById('clubPostsStatus');
-  const root=document.getElementById('clubPostsList');
-  const button=document.getElementById('refreshClubPostsBtn');
-  status.className='muted';status.textContent='Загружаем публичную тему PUBG MOBILE Club…';
-  button.disabled=true;root.innerHTML='';
-  try{
-    const response=await api('/admin/pubg-club/posts');
-    const data=await response.json();
-    if(!response.ok)throw new Error(data.detail||'Не удалось загрузить публикации');
-    document.getElementById('clubPostsCount').textContent=Number(data.count||0);
-    document.getElementById('clubTopicLink').href=safeClubMediaUrl(data.topic_url)||'https://share.club.gpubgm.com/2vRUE5jmLe0';
-    const posts=Array.isArray(data.posts)?data.posts:[];
-    if(!posts.length){
-      root.innerHTML='<p class="muted">Публичная страница не вернула публикаций. Попробуй обновить позже.</p>';
-    }
-    posts.forEach(post=>{
-      const el=document.createElement('article');el.className='item';
-      const images=(Array.isArray(post.image_urls)?post.image_urls:[]).map(safeClubMediaUrl).filter(Boolean);
-      const videoPreview=safeClubMediaUrl(post.video_preview);
-      const media=images.length?images:videoPreview?[videoPreview]:[];
-      const mediaHtml=media.map(url=>'<a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="'+esc(url)+'" alt="Медиа публикации PUBG Club" style="height:220px;object-fit:contain" referrerpolicy="no-referrer"></a>').join('');
-      const text=String(post.content||'').trim();
-      el.innerHTML='<h3>Публикация</h3>'+
-        '<div class="muted">ID: <code>'+esc(post.iid||'—')+'</code></div>'+
-        (post.published_at?'<div class="muted">Дата: '+esc(post.published_at)+'</div>':'')+
-        '<p style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(text||'Без текста')+'</p>'+
-        (mediaHtml?'<div class="card-grid">'+mediaHtml+'</div>':'<p class="muted">Нет доступного изображения или превью.</p>');
-      root.appendChild(el);
-    });
-    status.className='ok';status.textContent='Загружено '+posts.length+' публикаций из темы '+String(data.topic||'cardexchange')+'. Источник: публичная страница PUBG MOBILE Club.';
-  }catch(error){
-    status.className='err';status.textContent='Не удалось загрузить публикации: '+error.message;
-  }finally{button.disabled=false}
-}
-document.getElementById('refreshClubPostsBtn').addEventListener('click',loadClubPosts);
-
 async function loadAnalytics() {
   const status = document.getElementById('analyticsStatus');
   status.textContent = 'Загружаем метрики…';
@@ -1912,7 +2029,7 @@ document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
   document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
   document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='screenshotTests')loadShotFixtures();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();if(btn.dataset.tab==='clubPosts')loadClubPosts();
+  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='screenshotTests')loadShotFixtures();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();
 });
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 

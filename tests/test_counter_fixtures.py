@@ -40,6 +40,9 @@ class CounterFixtureTests(unittest.TestCase):
                 with Image.open(image_path) as source:
                     image = source.convert("RGB")
                 _, actual, confidence, debug = _detect_counter(image)
+                self.assertGreaterEqual(debug["timing_ms"]["total_ms"], 0)
+                for threshold_run in debug.get("threshold_runs", []):
+                    self.assertGreaterEqual(threshold_run["duration_ms"], 0)
                 self.assertEqual(
                     case["expected_quantity"],
                     actual,

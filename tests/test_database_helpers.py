@@ -152,6 +152,57 @@ def test_set_user_card_quantity_positive_quantity_removes_card_from_wishlist(mon
     assert captured["calls"][1][1] == (12345, "card_1")
 
 
+def test_set_user_card_quantities_is_atomic_and_deduplicates_ids(monkeypatch):
+    captured = {"calls": []}
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, query, params=None):
+            captured["calls"].append((query, params))
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            captured["committed"] = True
+
+    monkeypatch.setattr(database, "get_connection", lambda: FakeConnection())
+
+    database.set_user_card_quantities(12345, [
+        (" card_1 ", 2),
+        ("card_2", 0),
+        ("card_1", 5),
+    ])
+
+    assert captured["calls"][0][1] == (["card_1", "card_2"], [5, 0], 12345)
+    assert "INSERT INTO user_cards" in captured["calls"][0][0]
+    assert captured["calls"][1][1] == (12345, ["card_1"])
+    assert "DELETE FROM desired_cards" in captured["calls"][1][0]
+    assert captured["committed"] is True
+
+
+def test_set_user_card_quantities_skips_empty_updates(monkeypatch):
+    monkeypatch.setattr(
+        database,
+        "get_connection",
+        lambda: (_ for _ in ()).throw(AssertionError("empty updates must not open a transaction")),
+    )
+
+    database.set_user_card_quantities(12345, [])
+
+
 
 def test_sync_cards_upserts_catalog_and_removes_stale_cards(monkeypatch):
     captured = {"calls": [], "committed": False}
