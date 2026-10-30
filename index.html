@@ -2151,7 +2151,7 @@ function renderTradeRequests(requests) {
       const alreadyAgreed = isSender ? request.sender_agreed_at : request.recipient_agreed_at;
       if (!alreadyAgreed) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="agree">🤝 Подтвердить обмен</button>');
     }
-    if (request.status === 'agreed') {
+    if (request.status === 'agreed' && request.exchange_code_sent_at) {
       const alreadyCompleted = isSender ? request.sender_completed_at : request.recipient_completed_at;
       if (!alreadyCompleted) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
     }
