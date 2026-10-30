@@ -146,9 +146,11 @@ def load_db() -> dict[str, Any]:
     else:
         try:
             loaded = json.loads(DB_FILE.read_text(encoding="utf-8"))
-            data = loaded if isinstance(loaded, dict) else {}
-        except Exception:
-            data = {}
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Card catalogue contains invalid JSON: {DB_FILE}") from exc
+        if not isinstance(loaded, dict):
+            raise RuntimeError(f"Card catalogue must contain a JSON object: {DB_FILE}")
+        data = loaded
 
     _DB_CACHE_SIGNATURE = signature
     _DB_CACHE_DATA = data
