@@ -197,12 +197,22 @@ def test_load_db_returns_empty_dict_when_file_is_missing(monkeypatch, tmp_path):
     assert main.load_db() == {}
 
 
-def test_load_db_returns_empty_dict_for_invalid_json(monkeypatch, tmp_path):
+def test_load_db_fails_fast_for_invalid_json(monkeypatch, tmp_path):
     db_file = tmp_path / "broken.json"
     db_file.write_text("{invalid json", encoding="utf-8")
     monkeypatch.setattr(main, "DB_FILE", db_file)
 
-    assert main.load_db() == {}
+    with pytest.raises(RuntimeError, match="invalid JSON"):
+        main.load_db()
+
+
+def test_load_db_rejects_non_object_catalogue(monkeypatch, tmp_path):
+    db_file = tmp_path / "not-an-object.json"
+    db_file.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match="JSON object"):
+        main.load_db()
 
 
 def test_save_db_and_load_db_round_trip(monkeypatch, tmp_path):
