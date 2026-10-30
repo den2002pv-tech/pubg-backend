@@ -523,6 +523,7 @@ def test_final_completion_transfers_cards_atomically_and_clears_wishlist(monkeyp
     request = {
         "id": 41,
         "status": "agreed",
+        "exchange_code_sent_at": "already-sent",
         "sender_telegram_id": 100,
         "recipient_telegram_id": 200,
         "offered_card_id": "card_1",
@@ -590,6 +591,7 @@ def test_final_completion_rolls_back_if_a_card_is_no_longer_available(monkeypatc
     request = {
         "id": 42,
         "status": "agreed",
+        "exchange_code_sent_at": "already-sent",
         "sender_telegram_id": 100,
         "recipient_telegram_id": 200,
         "offered_card_id": "card_1",
