@@ -375,152 +375,186 @@ def _migrate_frame_color_hashes() -> None:
         save_db(db)
 
 
-def _match_card(
-    card_hashes: dict[str, str],
-    db: dict[str, Any],
-    profile: dict[str, int] | None = None,
-) -> tuple[str | None, float]:
-    """
-    Match by hash voting, with a conservative confidence-margin fallback.
-
-    Every match must have enough acceptable hash votes and a clear score
-    margin over the runner-up. Strong votes alone are not enough: duplicate or
-    visually similar catalogue entries can otherwise receive the wrong ID.
-    Animated cards may pass without two strong hashes only when:
-      - they have at least 3 acceptable grayscale hashes;
-      - no hash exceeds the existing outlier safety ceiling;
-      - their frame color is compatible;
-      - they are clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
-
-    With at least two strong hashes, one outlier is tolerated; the vote quorum
-    and confidence margin prevent it from deciding a match.
-    Ambiguous scans intentionally remain unmatched rather than being assigned
-    to a different card.
-    """
+def _match_card_detailed(card_hashes: dict[str, str], db: dict[str, Any], profile: dict[str, int] | None = None) -> dict[str, Any]:
+    """Detailed equivalent of _match_card; thresholds and candidate ranking are unchanged."""
     candidates: list[dict[str, Any]] = []
-    hash_comparisons = 0
+    rejected: list[str] = []
+    comparisons = 0
     if profile is not None:
         profile["matching_calls"] = profile.get("matching_calls", 0) + 1
-    standard_keys = (
-        "full_phash",
-        "full_dhash",
-        "visual_phash",
-        "visual_dhash",
-    )
-
+    keys = ("full_phash", "full_dhash", "visual_phash", "visual_dhash")
     for card_id, info in db.items():
         stored = clean_hashes(info.get("hashes"))
+        per_hash: dict[str, int | None] = {}
         distances: list[int] = []
-
-        for key in standard_keys:
-            value = card_hashes.get(key)
-            other = stored.get(key)
-            if not value or not other:
-                continue
-            d = _hamming(value, other)
+        for key in keys:
+            value, other = card_hashes.get(key), stored.get(key)
+            d = _hamming(value, other) if value and other else None
+            per_hash[key] = d
             if d is not None:
-                hash_comparisons += 1
+                comparisons += 1
                 distances.append(d)
-
         if not distances:
             legacy = info.get("hash")
-            value = card_hashes.get("full_dhash", "")
-            d = _hamming(value, str(legacy)) if legacy else None
+            d = _hamming(card_hashes.get("full_dhash", ""), str(legacy)) if legacy else None
             if d is not None:
-                hash_comparisons += 1
+                comparisons += 1
                 distances.append(d)
-
+                per_hash["full_dhash"] = d
         if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            rejected.append("unmatched_low_strong")
             continue
-
         distances.sort()
-        strong_count = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
-        acceptable_count = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
-
-        if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+        strong = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
+        acceptable = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
+        if acceptable < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            rejected.append("unmatched_low_strong")
             continue
-
-        if (
-            distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6
-            and strong_count < CARD_MATCH_MIN_STRONG_HASHES
-        ):
+        if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6 and strong < CARD_MATCH_MIN_STRONG_HASHES:
+            rejected.append("unmatched_outlier_hash")
             continue
-
-        scan_color = card_hashes.get("frame_colorhash")
-        stored_color = stored.get("frame_colorhash")
-
+        scan_color, stored_color = card_hashes.get("frame_colorhash"), stored.get("frame_colorhash")
+        color_bits = None
         if scan_color and not stored_color:
+            rejected.append("unmatched_color_reject")
             continue
-
         if scan_color and stored_color:
-            color_distance = _hamming(scan_color, stored_color)
-            if color_distance is None:
+            color_bits = _hamming(scan_color, stored_color)
+            if color_bits is None:
+                rejected.append("unmatched_color_reject")
                 continue
-            hash_comparisons += 1
-            color_bits = max(1, len(scan_color) * 4)
-            color_ratio = color_distance / color_bits
-            if color_ratio > 0.55 and strong_count < 3:
+            comparisons += 1
+            color_ratio = color_bits / max(1, len(scan_color) * 4)
+            if color_ratio > 0.55 and strong < 3:
+                rejected.append("unmatched_color_reject")
                 continue
             color_penalty = color_ratio * 8.0
         else:
-            color_ratio = 0.0
-            color_penalty = 0.0
-
-        score = (distances[0] + distances[1]) / 2 + color_penalty
+            color_ratio, color_penalty = 0.0, 0.0
         candidates.append({
-            "id": card_id,
-            "score": score,
-            "strong": strong_count,
-            "acceptable": acceptable_count,
-            "color_ratio": color_ratio,
+            "id": card_id, "score": (distances[0] + distances[1]) / 2 + color_penalty,
+            "strong": strong, "acceptable": acceptable, "color_ratio": color_ratio,
+            "color_penalty": color_penalty, "distances": per_hash, "color_bits": color_bits,
         })
-
     if profile is not None:
-        profile["catalog_candidates_before_filter"] = (
-            profile.get("catalog_candidates_before_filter", 0) + len(db)
-        )
-        profile["matching_hash_comparisons"] = (
-            profile.get("matching_hash_comparisons", 0) + hash_comparisons
-        )
-        profile["matching_candidates_after_filter"] = (
-            profile.get("matching_candidates_after_filter", 0) + len(candidates)
-        )
-
+        profile["catalog_candidates_before_filter"] = profile.get("catalog_candidates_before_filter", 0) + len(db)
+        profile["matching_hash_comparisons"] = profile.get("matching_hash_comparisons", 0) + comparisons
+        profile["matching_candidates_after_filter"] = profile.get("matching_candidates_after_filter", 0) + len(candidates)
     if not candidates:
-        return None, float("inf")
-
+        reason = ("unmatched_no_candidates" if not db else
+                  "unmatched_color_reject" if "unmatched_color_reject" in rejected else
+                  "unmatched_outlier_hash" if "unmatched_outlier_hash" in rejected else
+                  "unmatched_low_strong" if rejected else "unmatched_no_candidates")
+        return {"id": None, "candidate_id": None, "score": None, "candidate_score": None,
+                "runner_up_id": None, "runner_up_score": None, "margin": None,
+                "strong_count": 0, "acceptable_count": 0, "color_ratio": None,
+                "color_penalty": None, "distances": None, "runner_up_distances": None, "reason": reason}
     candidates.sort(key=lambda item: item["score"])
     best = candidates[0]
-    runner_up = candidates[1] if len(candidates) > 1 else None
-
-    # Never select a card merely because it has enough passing hash votes:
-    # two different cards can share similar artwork/frame hashes. Ambiguous
-    # results must remain unmatched instead of silently assigning the wrong ID.
-    margin = (
-        runner_up["score"] - best["score"]
-        if runner_up is not None
-        else float("inf")
-    )
-
-    # Strong votes are necessary, but not sufficient when another catalogue
-    # entry is nearly as close. Keep the same explicit confidence margin for
-    # both the normal and animated-card fallback paths.
+    runner = candidates[1] if len(candidates) > 1 else None
+    margin = runner["score"] - best["score"] if runner else float("inf")
+    accepted = False
+    reason = "unmatched_low_strong"
     if best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES:
-        if runner_up is None or margin > CARD_MATCH_CONFIDENT_MARGIN:
-            return best["id"], best["score"]
-        return None, float("inf")
+        if runner is None or margin > CARD_MATCH_CONFIDENT_MARGIN:
+            accepted, reason = True, "matched"
+        else:
+            reason = "unmatched_low_margin"
+    elif (best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
+          and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO
+          and margin > CARD_MATCH_CONFIDENT_MARGIN):
+        accepted, reason = True, "matched"
+    elif runner is not None and margin <= CARD_MATCH_CONFIDENT_MARGIN:
+        reason = "unmatched_low_margin"
+    elif best["color_ratio"] > CARD_MATCH_COLOR_MAX_RATIO:
+        reason = "unmatched_color_reject"
+    return {
+        "id": best["id"] if accepted else None, "candidate_id": best["id"],
+        "score": best["score"] if accepted else None, "candidate_score": best["score"],
+        "runner_up_id": runner["id"] if runner else None,
+        "runner_up_score": runner["score"] if runner else None,
+        "margin": margin if runner else None, "strong_count": best["strong"],
+        "acceptable_count": best["acceptable"], "color_ratio": best["color_ratio"],
+        "color_penalty": best["color_penalty"], "distances": best["distances"],
+        "frame_colorhash_bits": best["color_bits"],
+        "runner_up_distances": runner["distances"] if runner else None, "reason": reason,
+    }
 
-    # Conservative fallback for animated/dynamic cards. Do not simply lower
-    # the strong-vote threshold globally; require enough acceptable hashes,
-    # compatible frame colour, and a clear lead over every alternative.
-    if (
-        best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
-        and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO
-        and margin > CARD_MATCH_CONFIDENT_MARGIN
-    ):
-        return best["id"], best["score"]
 
-    return None, float("inf")
+def _match_card(card_hashes: dict[str, str], db: dict[str, Any], profile: dict[str, int] | None = None) -> tuple[str | None, float]:
+    """Keep the public/internal legacy return contract unchanged."""
+    result = _match_card_detailed(card_hashes, db, profile)
+    return (result["id"], float(result["score"])) if result["id"] is not None else (None, float("inf"))
+
+
+def _identity_hash_distances(scan_hashes: dict[str, str], info: dict[str, Any] | None) -> dict[str, Any]:
+    stored = clean_hashes((info or {}).get("hashes"))
+    result = {key: (_hamming(scan_hashes.get(key, ""), stored.get(key, ""))
+                    if scan_hashes.get(key) and stored.get(key) else None)
+              for key in ("full_phash", "full_dhash", "visual_phash", "visual_dhash")}
+    scan_color, stored_color = scan_hashes.get("frame_colorhash"), stored.get("frame_colorhash")
+    bits = _hamming(scan_color, stored_color) if scan_color and stored_color else None
+    result["frame_colorhash_bits"] = bits
+    result["frame_colorhash_ratio"] = bits / max(1, len(scan_color) * 4) if bits is not None and scan_color else None
+    return result
+
+
+def _identity_percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    pos = (len(ordered) - 1) * percentile
+    lo, hi = math.floor(pos), math.ceil(pos)
+    value = ordered[lo] if lo == hi else ordered[lo] * (hi - pos) + ordered[hi] * (pos - lo)
+    return round(float(value), 3)
+
+
+def _build_identity_stats(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    decisions = ("matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong",
+                 "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash", "unmatched_other")
+    rows = [row for case in cases for row in case.get("identity_details", [])]
+    counts = {key: sum(row.get("decision") == key for row in rows) for key in decisions}
+    correct = [row for row in rows if row.get("decision") == "matched_ok"]
+    scores = [float(row["match_score"]) for row in correct if isinstance(row.get("match_score"), (int, float))]
+    margins = [float(row["margin"]) for row in correct if isinstance(row.get("margin"), (int, float))]
+    hash_keys = ("full_phash", "full_dhash", "visual_phash", "visual_dhash", "frame_colorhash_ratio")
+    hash_values = {key: [] for key in hash_keys}
+    for row in correct:
+        distances = row.get("distances_to_matched") or {}
+        for key in hash_keys:
+            if isinstance(distances.get(key), (int, float)):
+                hash_values[key].append(float(distances[key]))
+    pairs: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        expected = str(row.get("expected_card_id") or "")
+        if row.get("decision") == "wrong_id" and row.get("matched_card_id"):
+            key = (expected, str(row["matched_card_id"]), "wrong_id")
+        elif row.get("runner_up_id"):
+            key = (expected, str(row["runner_up_id"]), "runner_up")
+        else:
+            continue
+        pairs.setdefault(key, []).append(row)
+    confusions = []
+    for (expected, other, relation), items in pairs.items():
+        margins_for_pair = [float(x["margin"]) for x in items if isinstance(x.get("margin"), (int, float))]
+        scores_for_pair = [float(x["match_score"]) for x in items if isinstance(x.get("match_score"), (int, float))]
+        confusions.append({"expected_id": expected, "other_id": other, "relation": relation, "count": len(items),
+                           "avg_margin": round(sum(margins_for_pair) / len(margins_for_pair), 3) if margins_for_pair else None,
+                           "avg_score": round(sum(scores_for_pair) / len(scores_for_pair), 3) if scores_for_pair else None})
+    confusions.sort(key=lambda x: (-x["count"], x["expected_id"], x["other_id"], x["relation"]))
+    checked = len(rows)
+    return {
+        "checked": checked, "correct": counts["matched_ok"], "wrong": counts["wrong_id"],
+        "unmatched": checked - counts["matched_ok"] - counts["wrong_id"], "by_decision": counts,
+        "score_correct": {"median": _identity_percentile(scores, .5), "p90": _identity_percentile(scores, .9),
+                          "max": round(max(scores), 3) if scores else None, "count": len(scores)},
+        "margin_correct": {"median": _identity_percentile(margins, .5), "p90": _identity_percentile(margins, .9),
+                           "min": round(min(margins), 3) if margins else None, "count": len(margins)},
+        "hash_distance_correct_median": {k: _identity_percentile(v, .5) for k, v in hash_values.items()},
+        "hash_distance_correct_p90": {k: _identity_percentile(v, .9) for k, v in hash_values.items()},
+        "top_confusions": confusions[:10],
+    }
+
 
 def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], limit: int = 8) -> list[dict[str, Any]]:
     """Return ranked match diagnostics for admin troubleshooting.
@@ -2292,6 +2326,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
         matched = checked = 0
         identity_matches = 0
         identity_checked = sum(1 for card in owned if card.get("identity_verified") is True)
+        identity_details: list[dict[str, Any]] = []
         for expected in owned:
             box = expected.get("box", [])
             if (
@@ -2326,6 +2361,19 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             label = expected.get("card_name") or expected.get("card_id") or "Карта"
             if best is None or best_iou < 0.70:
                 errors.append(f"{label}: IoU {best_iou:.2f}, требуется не менее 0.70")
+                if expected.get("identity_verified") is True:
+                    identity_details.append({
+                        "expected_card_id": str(expected.get("card_id") or ""),
+                        "expected_card_name": str(expected.get("card_name") or label),
+                        "matched_card_id": None, "matched": False, "decision": "unmatched_other",
+                        "match_score": None, "runner_up_id": None, "runner_up_score": None, "margin": None,
+                        "strong_count": 0, "acceptable_count": 0, "color_ratio": None, "color_penalty": None,
+                        "distances_to_expected": {k: None for k in ("full_phash", "full_dhash", "visual_phash", "visual_dhash", "frame_colorhash_bits", "frame_colorhash_ratio")},
+                        "distances_to_matched": None, "distances_to_runner_up": None,
+                        "crop": {"box": None, "width": None, "height": None},
+                        "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": None},
+                        "has_counter_evidence": False, "hash_reuse": False,
+                    })
                 continue
             actual_index = next((index for index, candidate in enumerate(detected) if candidate is best), None)
             unmatched.remove(best)
@@ -2351,25 +2399,51 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                     )
             if expected.get("identity_verified") is True:
                 expected_id = str(expected.get("card_id") or "").strip()
-                actual_identity = (
-                    catalog_matches[actual_index]
-                    if actual_index is not None and actual_index < len(catalog_matches)
-                    and isinstance(catalog_matches[actual_index], dict)
-                    else {}
-                )
+                actual_identity = catalog_matches[actual_index] if actual_index is not None and actual_index < len(catalog_matches) and isinstance(catalog_matches[actual_index], dict) else {}
                 actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""
-                if expected_id == actual_id:
+                scan_hashes = clean_hashes(best.get("hashes"))
+                raw_hashes = clean_hashes(best.get("raw_hashes"))
+                detail = _match_card_detailed(scan_hashes, catalog)
+                if raw_hashes != scan_hashes:
+                    raw_detail = _match_card_detailed(raw_hashes, catalog)
+                    if raw_detail.get("id") is not None and (detail.get("score") is None or raw_detail["score"] < detail["score"]):
+                        detail, scan_hashes = raw_detail, raw_hashes
+                runner_id = detail.get("runner_up_id")
+                expected_distances = _identity_hash_distances(scan_hashes, catalog.get(expected_id))
+                matched_info = catalog.get(actual_id) if actual_id else None
+                decision = "matched_ok" if actual_id and actual_id == expected_id else "wrong_id" if actual_id else detail.get("reason", "unmatched_other")
+                if decision not in ("matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong", "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash"):
+                    decision = "unmatched_other"
+                if decision == "matched_ok":
                     identity_matches += 1
                 else:
-                    expected_label = expected_id or "неизвестная карта"
-                    actual_label = actual_id or "совпадение не найдено"
-                    errors.append(f"{label}: ID карты — ожидалось {expected_label}, распознано {actual_label}")
+                    errors.append(f"{label}: ID карты — ожидалось {expected_id or 'неизвестная карта'}, распознано {actual_id or 'совпадение не найдено'}")
+                score_value = detail.get("score") if actual_id else detail.get("candidate_score")
+                identity_details.append({
+                    "expected_card_id": expected_id, "expected_card_name": str(expected.get("card_name") or label),
+                    "matched_card_id": actual_id or None, "matched": bool(actual_id), "decision": decision,
+                    "match_score": round(float(score_value), 3) if score_value is not None else None,
+                    "runner_up_id": runner_id,
+                    "runner_up_score": round(float(detail["runner_up_score"]), 3) if detail.get("runner_up_score") is not None else None,
+                    "margin": round(float(detail["margin"]), 3) if detail.get("margin") is not None and math.isfinite(float(detail["margin"])) else None,
+                    "strong_count": int(detail.get("strong_count", 0)), "acceptable_count": int(detail.get("acceptable_count", 0)),
+                    "color_ratio": round(float(detail["color_ratio"]), 4) if detail.get("color_ratio") is not None else None,
+                    "color_penalty": round(float(detail["color_penalty"]), 4) if detail.get("color_penalty") is not None else None,
+                    "distances_to_expected": expected_distances,
+                    "distances_to_matched": _identity_hash_distances(scan_hashes, matched_info) if matched_info else None,
+                    "distances_to_runner_up": _identity_hash_distances(scan_hashes, catalog.get(runner_id)) if runner_id else None,
+                    "crop": {"box": [ax, ay, aw, ah], "width": aw, "height": ah},
+                    "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": actual_quantity},
+                    "has_counter_evidence": _has_counter_evidence(float(best.get("quantity_confidence", 0) or 0), best.get("counter_debug", {}) if isinstance(best.get("counter_debug"), dict) else {}),
+                    "hash_reuse": bool(scan_hashes == raw_hashes),
+                })
         case_timings["quality_check_ms"] = round((time.perf_counter() - quality_started) * 1000, 1)
         case_profile["quality_passed"] = not errors
         case_profile["quantity_matches"] = matched
         case_profile["quantity_checked"] = checked
         case_profile["identity_matches"] = identity_matches
         case_profile["identity_checked"] = identity_checked
+        identity_decision_counts = _build_identity_stats([{"identity_details": identity_details}])["by_decision"]
         processed += 1
         _, resource_metrics = resource_monitor.finish_case(case_before, case_started, case_samples)
         result_started = time.perf_counter()
@@ -2378,6 +2452,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             "expected_cards": len(owned), "detected_cards": len(detected),
             "quantity_matches": matched, "quantity_checked": checked,
             "identity_matches": identity_matches, "identity_checked": identity_checked,
+            "identity_details": identity_details, "identity_decision_counts": identity_decision_counts,
             "profile": case_profile, "timings": case_timings,
             "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
             "measurement_limitations": ["Пики CPU и памяти являются интервальными оценками; короткие пики могут быть пропущены."],
@@ -2453,13 +2528,13 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
         },
     }
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "metadata": {
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat(),
             "duration_ms": test_duration_ms,
             "run_id": report_id,
-            "schema_version": 1,
+            "schema_version": 2,
             "case_count": len(cases),
             "processed_count": processed,
             "passed_count": passed,
@@ -2506,6 +2581,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             "max_case_duration_ms": max((float(item.get("timings", {}).get("case_total_ms", 0.0)) for item in results if isinstance(item.get("timings"), dict)), default=0.0),
             "peak_rss": resource_summary["sampled_peak_rss_bytes"],
             "peak_cpu": resource_summary["cpu_peak_percent"],
+            "identity_stats": _build_identity_stats(results),
         },
         "resource_usage": {
             "start_state": resource_summary["start_state"],
@@ -2547,6 +2623,8 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 "detected_cards": item.get("detected_cards"),
                 "quality_result": item.get("passed"),
                 "matches": {"quantity": item.get("quantity_matches"), "identity": item.get("identity_matches")},
+                "identity_details": item.get("identity_details", []),
+                "identity_decision_counts": item.get("identity_decision_counts", {}),
                 "mismatches": {"quantity": max(item.get("quantity_checked", 0) - item.get("quantity_matches", 0), 0), "identity": max(item.get("identity_checked", 0) - item.get("identity_matches", 0), 0)},
                 "profile": item.get("profile"),
                 "timings": item.get("timings"),
