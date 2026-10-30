@@ -2,6 +2,7 @@
 import numpy as np
 from PIL import Image, ImageDraw
 
+import scanner
 from scanner import (
     _counter_digit_aligned,
     _refine_digit_prediction,
@@ -9,6 +10,22 @@ from scanner import (
     _has_counter_evidence,
     is_card_darkened,
 )
+
+
+def test_counter_contour_processing_is_capped_per_threshold(monkeypatch):
+    contour = np.array([[[0, 0]], [[1, 0]], [[1, 1]], [[0, 1]]], dtype=np.int32)
+    monkeypatch.setattr(scanner, "COUNTER_MAX_CONTOURS_PER_PASS", 2)
+    monkeypatch.setattr(
+        scanner.cv2,
+        "findContours",
+        lambda *_args, **_kwargs: ([contour] * 4, None),
+    )
+
+    _, _, _, debug = scanner._detect_counter(Image.new("RGB", (120, 200), "black"))
+
+    assert debug["threshold_runs"]
+    assert all(run["contours"] == 4 for run in debug["threshold_runs"])
+    assert all(run["processed_contours"] == 2 for run in debug["threshold_runs"])
 
 
 def test_frame_pixel_threshold_matches_rgb_mean_for_random_and_boundary_data():

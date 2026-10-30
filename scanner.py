@@ -15,6 +15,9 @@ CV2_NUM_THREADS = int(os.getenv("CV2_NUM_THREADS", "1"))
 if CV2_NUM_THREADS < 1:
     raise ValueError("CV2_NUM_THREADS must be a positive integer")
 cv2.setNumThreads(CV2_NUM_THREADS)
+COUNTER_MAX_CONTOURS_PER_PASS = int(os.getenv("COUNTER_MAX_CONTOURS_PER_PASS", "64"))
+if COUNTER_MAX_CONTOURS_PER_PASS < 1:
+    raise ValueError("COUNTER_MAX_CONTOURS_PER_PASS must be a positive integer")
 
 NORMALIZED_SIZE = (224, 320)
 
@@ -798,7 +801,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         contour_list: list[np.ndarray],
         allow_ambiguous_digits: bool = False,
     ) -> None:
-        for contour in contour_list:
+        for contour in contour_list[:COUNTER_MAX_CONTOURS_PER_PASS]:
             cx, cy, cw, ch = cv2.boundingRect(contour)
             area = cv2.contourArea(contour)
             if ch < max(4, int(roi_h * 0.12)) or ch > int(roi_h * 0.85):
@@ -896,6 +899,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         threshold_runs.append({
             "threshold": thresh,
             "contours": len(contours),
+            "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
             "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
             "x_candidates_added": len(x_candidates) - x_before,
             "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
@@ -930,6 +934,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         threshold_runs.append({
             "threshold": "220_unjoined_fallback",
             "contours": len(contours),
+            "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
             "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
             "x_candidates_added": len(x_candidates) - x_before,
             "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
@@ -958,6 +963,7 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         threshold_runs.append({
             "threshold": "local_contrast_otsu",
             "contours": len(contours),
+            "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
             "bright_pixel_ratio": round(float(np.count_nonzero(local_mask)) / float(local_mask.size or 1), 4),
             "x_candidates_added": 0,
             "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
