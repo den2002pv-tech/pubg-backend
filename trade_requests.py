@@ -417,6 +417,8 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
             status_code=409,
             detail="Обмен больше не актуален: одна из карт или список «Ищу» изменились",
         )
+    if action == "complete" and not request.get("exchange_code_sent_at"):
+        raise HTTPException(status_code=409, detail="Сначала автор предложения должен передать код обмена")
     with get_connection() as conn:
         with conn.cursor() as cur:
             if action == "accept":
@@ -448,8 +450,6 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
             elif action == "complete":
                 if request["status"] != "agreed":
                     raise HTTPException(status_code=409, detail="Оба игрока должны подтвердить договорённость")
-                if not request.get("exchange_code_sent_at"):
-                    raise HTTPException(status_code=409, detail="Сначала автор предложения должен передать код обмена")
                 field = "sender_completed_at" if actor_id == sender_id else "recipient_completed_at"
                 cur.execute(
                     f"""UPDATE trade_requests SET {field}=COALESCE({field}, NOW()),
