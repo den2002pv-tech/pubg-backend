@@ -510,9 +510,6 @@ def _identity_percentile(values: list[float], percentile: float) -> float | None
 
 
 def _build_identity_stats(cases: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate identity outcomes. Confusions map expected IDs to wrong/runner-up IDs;
-    lower Hamming distances are closer, while lower correct-match margins are riskier.
-    """
     decisions = ("matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong",
                  "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash", "unmatched_other")
     rows = [row for case in cases for row in case.get("identity_details", [])]
@@ -2340,19 +2337,6 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 or box[3] <= 0
             ):
                 errors.append("Некорректная эталонная рамка")
-                if expected.get("identity_verified") is True:
-                    identity_details.append({
-                        "expected_card_id": str(expected.get("card_id") or ""),
-                        "expected_card_name": str(expected.get("card_name") or expected.get("card_id") or "Карта"),
-                        "matched_card_id": None, "matched": False, "decision": "unmatched_other",
-                        "match_score": None, "runner_up_id": None, "runner_up_score": None, "margin": None,
-                        "strong_count": 0, "acceptable_count": 0, "color_ratio": None, "color_penalty": None,
-                        "distances_to_expected": {k: None for k in ("full_phash", "full_dhash", "visual_phash", "visual_dhash", "frame_colorhash_bits", "frame_colorhash_ratio")},
-                        "distances_to_matched": None, "distances_to_runner_up": None,
-                        "crop": {"box": None, "width": None, "height": None},
-                        "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": None},
-                        "has_counter_evidence": False, "hash_reuse": False,
-                    })
                 continue
             ex, ey, ew, eh = box
             best, best_iou = None, 0.0
@@ -2419,7 +2403,6 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""
                 scan_hashes = clean_hashes(best.get("hashes"))
                 raw_hashes = clean_hashes(best.get("raw_hashes"))
-                hash_reuse = scan_hashes == raw_hashes
                 detail = _match_card_detailed(scan_hashes, catalog)
                 if raw_hashes != scan_hashes:
                     raw_detail = _match_card_detailed(raw_hashes, catalog)
@@ -2452,7 +2435,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                     "crop": {"box": [ax, ay, aw, ah], "width": aw, "height": ah},
                     "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": actual_quantity},
                     "has_counter_evidence": _has_counter_evidence(float(best.get("quantity_confidence", 0) or 0), best.get("counter_debug", {}) if isinstance(best.get("counter_debug"), dict) else {}),
-                    "hash_reuse": hash_reuse,
+                    "hash_reuse": bool(scan_hashes == raw_hashes),
                 })
         case_timings["quality_check_ms"] = round((time.perf_counter() - quality_started) * 1000, 1)
         case_profile["quality_passed"] = not errors
@@ -2641,7 +2624,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 "quality_result": item.get("passed"),
                 "matches": {"quantity": item.get("quantity_matches"), "identity": item.get("identity_matches")},
                 "identity_details": item.get("identity_details", []),
-                "identity_decision_counts": item.get("identity_decision_counts", _build_identity_stats([])["by_decision"]),
+                "identity_decision_counts": item.get("identity_decision_counts", {}),
                 "mismatches": {"quantity": max(item.get("quantity_checked", 0) - item.get("quantity_matches", 0), 0), "identity": max(item.get("identity_checked", 0) - item.get("identity_matches", 0), 0)},
                 "profile": item.get("profile"),
                 "timings": item.get("timings"),

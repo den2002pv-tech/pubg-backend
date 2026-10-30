@@ -387,6 +387,15 @@ def test_run_screenshot_fixtures_reports_wrong_catalog_identity(monkeypatch):
     assert result["failed"] == 1
     assert result["results"][0]["identity_checked"] == 1
     assert result["results"][0]["identity_matches"] == 0
+    detail = result["results"][0]["identity_details"][0]
+    assert detail["decision"] == "wrong_id"
+    assert detail["expected_card_id"] == "card_7"
+    assert detail["matched_card_id"] == "card_9"
+    assert "identity_stats" in result["report"]["summary"]
+    assert result["report"]["summary"]["identity_stats"]["wrong"] == 1
+    assert result["report"]["cases"][0]["identity_details"][0]["decision"] == "wrong_id"
+    assert "identity_decision_counts" in result["report"]["cases"][0]
+    assert "identity_matches" in result["report"]["cases"][0]["matches"]
     assert any("ID карты" in error and "card_7" in error and "card_9" in error for error in result["results"][0]["errors"])
 
 
