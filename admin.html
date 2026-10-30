@@ -696,7 +696,8 @@ function renderCardList(){
   const q=document.getElementById('search').value.trim().toLowerCase();
   const filter=document.getElementById('filter').value;
   const list=document.getElementById('cardList');list.innerHTML='';
-  for(const [id,info] of Object.entries(db)){
+  for(const [id,rawInfo] of Object.entries(db)){
+    const info=rawInfo&&typeof rawInfo==='object'&&!Array.isArray(rawInfo)?rawInfo:{};
     const has=!!info.icon;
     if(filter==='icon'&&!has)continue;
     if(filter==='missing'&&has)continue;
@@ -705,7 +706,7 @@ function renderCardList(){
     const img=has?`<img class="icon" src="${esc(assetUrl(info.icon))}" alt="Иконка ${esc(info.name||id)}" data-icon-title="${esc(info.name||id)}" role="button" tabindex="0" title="Открыть иконку крупно" onerror="this.style.display='none'">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
     el.innerHTML=`${img}
       <h3>${esc(info.name||id)}</h3>
-      <div class="muted">${esc(id)} · редкость ${info.rarity||1}</div>
+      <div class="muted">${esc(id)} · редкость ${esc(info.rarity||1)}</div>
       <span class="badge ${has?'has':'missing'}">${has?'Иконка сохранена':'Иконки нет'}</span>
       <details style="margin-top:8px"><summary>Hashes</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(info.hashes||{},null,2))}</pre></details>
       <div class="row" style="margin-top:8px">
@@ -1587,7 +1588,8 @@ async function saveScannedIcon(i){
 function filteredIconCards(){
   const q=(document.getElementById('iconSearch').value||'').trim().toLowerCase();
   const mode=document.getElementById('iconFilter').value;
-  return Object.entries(db).filter(([id,info])=>{
+  return Object.entries(db).filter(([id,rawInfo])=>{
+    const info=rawInfo&&typeof rawInfo==='object'&&!Array.isArray(rawInfo)?rawInfo:{};
     const has=!!info.icon;
     if(mode==='missing'&&has)return false;
     if(mode==='icon'&&!has)return false;
