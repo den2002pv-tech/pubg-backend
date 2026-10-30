@@ -1,0 +1,90 @@
+--- a/main.py
++++ b/main.py
+@@ -34,6 +34,7 @@
+ from pydantic import BaseModel
+ 
+ from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inventory_cards, scan_screenshot
++import identity_diagnostics
+ from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
+ from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
+ from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
+@@ -2292,6 +2293,7 @@
+         matched = checked = 0
+         identity_matches = 0
+         identity_checked = sum(1 for card in owned if card.get("identity_verified") is True)
++        identity_details: list[dict[str, Any]] = []
+         for expected in owned:
+             box = expected.get("box", [])
+             if (
+@@ -2358,6 +2360,14 @@
+                     else {}
+                 )
+                 actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""
++                identity_details.append(
++                    identity_diagnostics.build_identity_detail(
++                        expected,
++                        best,
++                        actual_identity,
++                        catalog,
++                    )
++                )
+                 if expected_id == actual_id:
+                     identity_matches += 1
+                 else:
+@@ -2367,11 +2377,29 @@
+         case_profile["identity_matches"] = identity_matches
+         case_profile["identity_checked"] = identity_checked
+         processed += 1
+         _, resource_metrics = resource_monitor.finish_case(case_before, case_started, case_samples)
+         result_started = time.perf_counter()
++        decision_counts = {
++            "matched_ok": 0,
++            "wrong_id": 0,
++            "unmatched_no_candidates": 0,
++            "unmatched_low_strong": 0,
++            "unmatched_low_margin": 0,
++            "unmatched_color_reject": 0,
++            "unmatched_outlier_hash": 0,
++            "unmatched_other": 0,
++        }
++        for detail in identity_details:
++            key = str(detail.get("decision") or "unmatched_other")
++            if key not in decision_counts:
++                key = "unmatched_other"
++            decision_counts[key] += 1
+         result_entry = {
+             "id": case_id, "passed": not errors, "errors": errors,
+             "expected_cards": len(owned), "detected_cards": len(detected),
+             "quantity_matches": matched, "quantity_checked": checked,
+             "identity_matches": identity_matches, "identity_checked": identity_checked,
++            "identity_details": identity_details,
++            "identity_decision_counts": decision_counts,
+             "profile": case_profile, "timings": case_timings,
+             "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
+@@ -2520,6 +2548,8 @@
+                 "quality_result": item.get("passed"),
+                 "matches": {"quantity": item.get("quantity_matches"), "identity": item.get("identity_matches")},
+                 "mismatches": {"quantity": max(item.get("quantity_checked", 0) - item.get("quantity_matches", 0), 0), "identity": max(item.get("identity_checked", 0) - item.get("identity_matches", 0), 0)},
++                "identity_details": item.get("identity_details") or [],
++                "identity_decision_counts": item.get("identity_decision_counts") or {},
+                 "profile": item.get("profile"),
+                 "timings": item.get("timings"),
+                 "cpu_metrics": item.get("cpu_metrics"),
+@@ -2534,6 +2564,17 @@
+             for case, item in zip(cases, results)
+         ],
+     }
++    all_identity_details: list[dict[str, Any]] = []
++    for item in results:
++        details = item.get("identity_details")
++        if isinstance(details, list):
++            all_identity_details.extend(
++                detail for detail in details if isinstance(detail, dict)
++            )
++    report["summary"]["identity_stats"] = identity_diagnostics.aggregate_identity_stats(
++        all_identity_details
++    )
++    report["schema_version"] = 2
+     filename = f"scanner-quality-report-{start_time.strftime('%Y-%m-%dT%H-%M-%S')}.json"
+     return {
+         "count": len(results),
