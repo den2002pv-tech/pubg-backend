@@ -11,6 +11,26 @@ from scanner import (
 )
 
 
+def test_frame_pixel_threshold_matches_rgb_mean_for_random_and_boundary_data():
+    rng = np.random.default_rng(20261030)
+    random_pixels = rng.integers(0, 256, size=(64, 96, 3), dtype=np.uint8)
+    boundary_pixels = np.array(
+        [[[0, 0, 24], [0, 0, 25], [8, 8, 8], [9, 8, 7],
+          [255, 255, 255], [0, 0, 0], [24, 0, 0]]],
+        dtype=np.uint8,
+    )
+    pixels = np.concatenate((random_pixels.reshape(-1, 3), boundary_pixels.reshape(-1, 3)))
+
+    mean_threshold = pixels.mean(axis=1) > 8.0
+    integer_threshold = pixels.sum(axis=1, dtype=np.uint16) > 24
+
+    np.testing.assert_array_equal(integer_threshold, mean_threshold)
+    np.testing.assert_array_equal(
+        integer_threshold[-7:],
+        np.array([False, True, False, False, True, False, False]),
+    )
+
+
 def test_counter_digit_rejects_noise_far_below_multiply_sign():
     multiply = {"x": 165, "y": 12, "w": 10, "h": 10}
     noise_digit = {"x": 115, "y": 43, "w": 5, "h": 8}

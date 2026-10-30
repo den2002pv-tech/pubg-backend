@@ -458,8 +458,7 @@ def extract_frame_area(card: Image.Image) -> Image.Image:
     card = _image_from_any(card)
 
     arr = np.asarray(card)
-    luminance = arr.mean(axis=2)
-    active = luminance > 8.0
+    active = arr.sum(axis=2, dtype=np.uint16) > 24
 
     if active.any():
         ys, xs = np.where(active)
