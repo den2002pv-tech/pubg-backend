@@ -509,6 +509,13 @@ def _identity_percentile(values: list[float], percentile: float) -> float | None
     return round(float(value), 3)
 
 
+def _identity_quantity(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _empty_identity_detail(expected: dict[str, Any]) -> dict[str, Any]:
     """Represent a verified fixture card for which no detected crop was available."""
     return {
@@ -523,7 +530,7 @@ def _empty_identity_detail(expected: dict[str, Any]) -> dict[str, Any]:
         )},
         "distances_to_matched": None, "distances_to_runner_up": None,
         "crop": {"box": None, "width": None, "height": None},
-        "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": None},
+        "quantity": {"expected": _identity_quantity(expected.get("expected_quantity", 1)), "detected": None},
         "has_counter_evidence": False, "hash_reuse": False,
     }
 
@@ -2413,6 +2420,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             if coverage < 0.90: errors.append(f"{label}: покрытие карты {coverage:.0%}, требуется ≥ 90%")
             if precision < 0.75: errors.append(f"{label}: точность кропа {precision:.0%}, требуется ≥ 75%")
             checked += 1
+            actual_quantity = None
             try:
                 actual_quantity = int(best.get("quantity", 1))
                 expected_quantity = int(expected.get("expected_quantity", 1))
@@ -2461,7 +2469,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                     "distances_to_matched": _identity_hash_distances(scan_hashes, matched_info) if matched_info else None,
                     "distances_to_runner_up": _identity_hash_distances(scan_hashes, catalog.get(runner_id)) if runner_id else None,
                     "crop": {"box": [ax, ay, aw, ah], "width": aw, "height": ah},
-                    "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": actual_quantity},
+                    "quantity": {"expected": _identity_quantity(expected.get("expected_quantity", 1)), "detected": actual_quantity},
                     "has_counter_evidence": _has_counter_evidence(float(best.get("quantity_confidence", 0) or 0), best.get("counter_debug", {}) if isinstance(best.get("counter_debug"), dict) else {}),
                     "hash_reuse": bool(scan_hashes == raw_hashes),
                 })
