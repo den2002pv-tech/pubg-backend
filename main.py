@@ -489,6 +489,8 @@ def _match_card(card_hashes: dict[str, str], db: dict[str, Any], profile: dict[s
 
 def _identity_hash_distances(scan_hashes: dict[str, str], info: dict[str, Any] | None) -> dict[str, Any]:
     stored = clean_hashes((info or {}).get("hashes"))
+    if not stored.get("full_dhash") and (info or {}).get("hash"):
+        stored["full_dhash"] = str(info["hash"])
     result = {key: (_hamming(scan_hashes.get(key, ""), stored.get(key, ""))
                     if scan_hashes.get(key) and stored.get(key) else None)
               for key in ("full_phash", "full_dhash", "visual_phash", "visual_dhash")}
