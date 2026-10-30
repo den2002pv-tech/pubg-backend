@@ -159,7 +159,14 @@ def test_run_screenshot_fixtures_returns_full_report_and_summary_profile(monkeyp
     assert result["profile"]["total_scan_time_ms"] >= 0
     assert result["results"][0]["profile"]["total_ms"] == 120.5
     assert result["results"][0]["timings"]["scanner_total_ms"] == 120.5
-    assert result["report"]["schema_version"] == 1
+    assert result["report"]["schema_version"] == 2
+    assert "identity_stats" in result["report"]["summary"]
+    assert result["report"]["summary"]["identity_stats"]["checked"] == 0
+    assert result["report"]["cases"][0]["identity_details"] == []
+    assert set(result["report"]["cases"][0]["identity_decision_counts"]) == {
+        "matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong",
+        "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash", "unmatched_other",
+    }
     assert result["report"]["metadata"]["run_id"] == result["run_id"]
     assert result["report"]["metadata"]["case_count"] == 1
     assert result["report"]["cases"][0]["case_id"] == "inventory-test-profile"
@@ -388,6 +395,17 @@ def test_run_screenshot_fixtures_reports_wrong_catalog_identity(monkeypatch):
     assert result["failed"] == 1
     assert result["results"][0]["identity_checked"] == 1
     assert result["results"][0]["identity_matches"] == 0
+    detail = result["results"][0]["identity_details"][0]
+    assert detail["decision"] == "wrong_id"
+    assert detail["expected_card_id"] == "card_7"
+    assert detail["matched_card_id"] == "card_9"
+    assert detail["distances_to_expected"] == {
+        "full_phash": None, "full_dhash": None, "visual_phash": None,
+        "visual_dhash": None, "frame_colorhash_bits": None, "frame_colorhash_ratio": None,
+    }
+    assert result["report"]["summary"]["identity_stats"]["wrong"] == 1
+    assert result["report"]["cases"][0]["identity_details"][0]["decision"] == "wrong_id"
+    assert result["report"]["cases"][0]["identity_decision_counts"]["wrong_id"] == 1
     assert any("ID карты" in error and "card_7" in error and "card_9" in error for error in result["results"][0]["errors"])
 
 
