@@ -1588,13 +1588,14 @@ async function saveScannedIcon(i){
 function filteredIconCards(){
   const q=(document.getElementById('iconSearch').value||'').trim().toLowerCase();
   const mode=document.getElementById('iconFilter').value;
-  return Object.entries(db).filter(([id,rawInfo])=>{
-    const info=rawInfo&&typeof rawInfo==='object'&&!Array.isArray(rawInfo)?rawInfo:{};
-    const has=!!info.icon;
-    if(mode==='missing'&&has)return false;
-    if(mode==='icon'&&!has)return false;
-    return !q || `${id} ${info.name||''}`.toLowerCase().includes(q);
-  });
+  return Object.entries(db)
+    .map(([id,rawInfo])=>[id,rawInfo&&typeof rawInfo==='object'&&!Array.isArray(rawInfo)?rawInfo:{}])
+    .filter(([id,info])=>{
+      const has=!!info.icon;
+      if(mode==='missing'&&has)return false;
+      if(mode==='icon'&&!has)return false;
+      return !q || `${id} ${info.name||''}`.toLowerCase().includes(q);
+    });
 }
 
 function renderIconQueue(){
