@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-import main
+import identity_diagnostics as diag
 
 
 class IdentityMatchDiagnosticsTests(unittest.TestCase):
@@ -22,29 +22,29 @@ class IdentityMatchDiagnosticsTests(unittest.TestCase):
             "visual_dhash": "0" * 16,
             "frame_colorhash": "0" * 15 + "1",
         }
-        distances = main._hash_distance_map(scan, stored)
+        distances = diag.hash_distance_map(scan, stored)
         self.assertEqual(1, distances["full_phash"])
         self.assertEqual(0, distances["full_dhash"])
         self.assertEqual(1, distances["frame_colorhash_bits"])
         self.assertIsInstance(distances["frame_colorhash_ratio"], float)
 
     def test_identity_decision_matched_and_wrong(self):
-        self.assertEqual("matched_ok", main._identity_decision("card_1", True, "card_1", []))
-        self.assertEqual("wrong_id", main._identity_decision("card_1", True, "card_2", []))
+        self.assertEqual("matched_ok", diag.identity_decision("card_1", True, "card_1", []))
+        self.assertEqual("wrong_id", diag.identity_decision("card_1", True, "card_2", []))
 
     def test_identity_decision_unmatched_reasons(self):
-        self.assertEqual("unmatched_no_candidates", main._identity_decision("card_1", False, "", []))
+        self.assertEqual("unmatched_no_candidates", diag.identity_decision("card_1", False, "", []))
         self.assertEqual(
             "unmatched_low_margin",
-            main._identity_decision("card_1", False, "", [{"reasons": ["ambiguous_runner_up"], "accepted": False}]),
+            diag.identity_decision("card_1", False, "", [{"reasons": ["ambiguous_runner_up"], "accepted": False}]),
         )
         self.assertEqual(
             "unmatched_low_strong",
-            main._identity_decision("card_1", False, "", [{"reasons": ["less_than_2_strong"], "accepted": False}]),
+            diag.identity_decision("card_1", False, "", [{"reasons": ["less_than_2_strong"], "accepted": False}]),
         )
         self.assertEqual(
             "unmatched_color_reject",
-            main._identity_decision("card_1", False, "", [{"reasons": [], "accepted": False, "color_status": "high"}]),
+            diag.identity_decision("card_1", False, "", [{"reasons": [], "accepted": False, "color_status": "high"}]),
         )
 
     def test_build_identity_detail_matched_ok(self):
@@ -103,7 +103,7 @@ class IdentityMatchDiagnosticsTests(unittest.TestCase):
                 ]
             },
         }
-        detail = main._build_identity_detail(
+        detail = diag.build_identity_detail(
             {"card_id": "card_1", "card_name": "Alpha", "expected_quantity": 3, "identity_verified": True},
             detected,
             catalog_match,
@@ -148,7 +148,7 @@ class IdentityMatchDiagnosticsTests(unittest.TestCase):
                 "margin": None,
             },
         ]
-        stats = main._aggregate_identity_stats(details)
+        stats = diag.aggregate_identity_stats(details)
         self.assertEqual(3, stats["checked"])
         self.assertEqual(1, stats["correct"])
         self.assertEqual(1, stats["wrong"])
