@@ -1264,9 +1264,9 @@ def calculate_card_hashes(
 
 def encode_preview(card: Image.Image) -> str:
     image = card.convert("RGB")
-    image.thumbnail((256, 384), Image.Resampling.LANCZOS)
+    image.thumbnail((256, 384), Image.Resampling.BILINEAR)
     buffer = BytesIO()
-    image.save(buffer, "JPEG", quality=82, optimize=True)
+    image.save(buffer, "JPEG", quality=82, optimize=False)
     encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
     return f"data:image/jpeg;base64,{encoded}"
 

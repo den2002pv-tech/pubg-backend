@@ -295,23 +295,31 @@ def test_screenshot_run_keeps_processing_after_a_case_scan_error(monkeypatch):
     )
     monkeypatch.setattr(main, "_github_read_bytes", lambda path, branch: _png_bytes())
     scan_calls = 0
+    preview_modes = []
 
     def fail_first_scan(image, save_previews=False):
         nonlocal scan_calls
         scan_calls += 1
+        preview_modes.append(save_previews)
         if scan_calls == 1:
             raise ValueError("private details are not returned")
-        return {"cards": [{"box": [10, 12, 40, 60], "quantity": 2}], "profile": {}}
+        return {
+            "cards": [{"box": [10, 12, 40, 60], "quantity": 2}],
+            "profile": {"preview_ms": 3.2},
+        }
 
     monkeypatch.setattr(main, "scan_screenshot", fail_first_scan)
     monkeypatch.setattr(main, "_enrich_admin_scan", lambda cards, catalog: cards)
 
-    result = main.run_screenshot_tests(authorization=None)
+    result = main.run_screenshot_tests(authorization=None, save_previews=True)
 
     assert result["count"] == 2
     assert result["errors"] == 1
+    assert preview_modes == [True, True]
     assert [case["status"] for case in result["report"]["cases"]] == ["error", "passed"]
     assert result["report"]["cases"][0]["error_stage"] == "scan"
+    assert result["report"]["metadata"]["preview_mode"] == "enabled"
+    assert result["report"]["aggregate_timings"]["scanner.preview_ms"]["avg"] == 3.2
     assert "private details" not in result["report"]["cases"][0]["error"]
 
 

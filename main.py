@@ -2252,18 +2252,24 @@ def delete_screenshot_test(case_id: str, authorization: str | None = Header(defa
 
 
 @app.post("/admin/screenshot-tests/run")
-def run_screenshot_tests(authorization: str | None = Header(default=None)):
+def run_screenshot_tests(
+    authorization: str | None = Header(default=None),
+    save_previews: bool = False,
+):
     require_admin(authorization)
     if not SCREENSHOT_TEST_RUN_LOCK.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="Проверка скриншотов уже выполняется")
     try:
         with _ResourceMonitor() as resource_monitor:
-            return _run_screenshot_tests(resource_monitor)
+            return _run_screenshot_tests(resource_monitor, save_previews=save_previews)
     finally:
         SCREENSHOT_TEST_RUN_LOCK.release()
 
 
-def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
+def _run_screenshot_tests(
+    resource_monitor: _ResourceMonitor,
+    save_previews: bool = False,
+) -> dict[str, Any]:
     manifest_started = time.perf_counter()
     branch = _screenshot_test_branch()
     cases = _screenshot_test_manifest(branch).get("cases", [])
@@ -2366,7 +2372,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             case_timings["decode_ms"] = round((time.perf_counter() - load_started) * 1000, 1)
             stage = "scan"
             scan_started = time.perf_counter()
-            result = scan_screenshot(image, save_previews=False)
+            result = scan_screenshot(image, save_previews=save_previews)
             case_timings["scan_ms"] = round((time.perf_counter() - scan_started) * 1000, 1)
             case_profile.update(dict(result.get("profile", {})))
             case_profile["scan_total_ms"] = case_timings["scan_ms"]
@@ -2659,6 +2665,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             "failed_count": len(results) - passed,
             "error_count": error_count,
             "profiling_mode": "server-side stdlib process and cgroup sampling",
+            "preview_mode": "enabled" if save_previews else "disabled",
             "timings": {
                 "manifest_fetch_ms": manifest_fetch_ms,
                 "catalog_load_ms": catalog_load_ms,
