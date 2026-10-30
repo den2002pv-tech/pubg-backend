@@ -1327,10 +1327,14 @@ async def admin_status(authorization: str | None = Header(default=None)):
     logged_in = bool(os.getenv("ADMIN_PASSWORD")) and _valid_session(
         _authorization_token(authorization)
     )
+    db = load_db()
     return {
         "logged_in": logged_in,
-        "cards": len(load_db()),
-        "icons": sum(1 for x in load_db().values() if x.get("icon")),
+        "cards": len(db),
+        "icons": sum(
+            1 for item in db.values()
+            if isinstance(item, dict) and item.get("icon")
+        ),
         "temporary_files": sum(1 for p in TEMP_DIR.iterdir() if p.is_file()),
     }
 
@@ -3495,14 +3499,9 @@ async def save_my_collection(
     if not isinstance(cards, list):
         raise HTTPException(status_code=400, detail="cards должен быть массивом")
     get_or_create_user(auth["id"])
-    saved = 0
-    for item in cards:
-        if not isinstance(item, dict) or not item.get("id"):
-            continue
-        quantity = max(0, int(item.get("quantity", 0) or 0))
-        set_user_card_quantity(auth["id"], str(item["id"]), quantity)
-        saved += 1
-    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"]) }
+    updates = _normalize_collection_updates(cards)
+    set_user_card_quantities(auth["id"], updates)
+    return {"status": "ok", "saved": len(updates), "cards": get_user_cards(auth["id"]) }
 
 
 @app.post("/scan")
