@@ -4,6 +4,7 @@ import threading
 import time
 
 import pytest
+from starlette.requests import Request
 
 import main
 
@@ -691,6 +692,60 @@ def test_scan_upload_profile_separates_read_decode_and_conversion():
     assert profile["upload_rgb_convert_ms"] >= 0
 
 
+def test_scan_upload_rejects_file_over_15_mib():
+    from io import BytesIO
+
+    upload = main.UploadFile(
+        filename="too-large.png",
+        file=BytesIO(b"x" * (main.MAX_SCAN_UPLOAD_BYTES + 1)),
+    )
+
+    with pytest.raises(main.HTTPException) as error:
+        asyncio.run(main._read_image(upload))
+
+    assert error.value.status_code == 413
+    assert "15 МБ" in error.value.detail
+
+
+def test_scan_upload_rejects_more_than_30_megapixels_before_decode(monkeypatch):
+    from io import BytesIO
+
+    class ImageHeader:
+        format = "PNG"
+        size = (6000, 6000)
+
+        def __init__(self):
+            self.loaded = False
+
+        def load(self):
+            self.loaded = True
+
+    header = ImageHeader()
+    monkeypatch.setattr(main.Image, "open", lambda _data: header)
+    upload = main.UploadFile(filename="too-large.png", file=BytesIO(b"header"))
+
+    with pytest.raises(main.HTTPException) as error:
+        asyncio.run(main._read_image(upload))
+
+    assert error.value.status_code == 413
+    assert "30 мегапикселей" in error.value.detail
+    assert not header.loaded
+
+
+def test_scan_rate_limit_applies_per_key(monkeypatch):
+    monkeypatch.setenv("SCAN_RATE_LIMIT", "1")
+    monkeypatch.setenv("SCAN_RATE_WINDOW_SECONDS", "60")
+    main.SCAN_RATE_LIMIT_EVENTS.clear()
+
+    main._enforce_scan_rate_limit("ip:192.0.2.1")
+    with pytest.raises(main.HTTPException) as error:
+        main._enforce_scan_rate_limit("ip:192.0.2.1")
+
+    assert error.value.status_code == 429
+    assert error.value.headers["Retry-After"]
+    main._enforce_scan_rate_limit("ip:192.0.2.2")
+
+
 def test_health_remains_responsive_while_scan_runs(monkeypatch):
     started = threading.Event()
     release = threading.Event()
@@ -708,7 +763,8 @@ def test_health_remains_responsive_while_scan_runs(monkeypatch):
     monkeypatch.setattr(main, "scan_screenshot", blocking_scan)
 
     async def exercise():
-        task = asyncio.create_task(main.scan(file=object(), init_data=""))
+        request = Request({"type": "http", "client": ("192.0.2.10", 12345)})
+        task = asyncio.create_task(main.scan(request=request, file=object(), init_data=""))
         try:
             assert await asyncio.to_thread(started.wait, 1)
             assert await asyncio.wait_for(main.health(), timeout=0.1) == {"status": "ok"}
@@ -768,7 +824,8 @@ def test_scan_skips_matching_second_pass_only_for_equal_hashes(
 
     monkeypatch.setattr(main, "_match_card", match)
 
-    result = asyncio.run(main.scan(file=object(), init_data=""))
+    request = Request({"type": "http", "client": ("192.0.2.11", 12345)})
+    result = asyncio.run(main.scan(request=request, file=object(), init_data=""))
 
     assert len(calls) == expected_calls
     assert result["profile"]["matched_count"] == 1

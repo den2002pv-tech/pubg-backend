@@ -24,7 +24,7 @@ from urllib.request import Request, urlopen
 
 import sentry_sdk
 
-from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -41,6 +41,9 @@ from trade_requests import create_trade_request_for_match, init_trade_request_sc
 
 SCAN_CONCURRENCY = max(1, int(os.getenv("SCAN_CONCURRENCY", "1")))
 SCAN_SEMAPHORE = asyncio.Semaphore(SCAN_CONCURRENCY)
+MAX_SCAN_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_SCAN_IMAGE_PIXELS = 30_000_000
+SCAN_RATE_LIMIT_EVENTS: dict[str, deque[float]] = {}
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -899,6 +902,8 @@ def _decode_image_data(data: bytes) -> tuple[Image.Image, dict[str, Any]]:
     source_image = Image.open(BytesIO(data))
     source_format = source_image.format or "UNKNOWN"
     source_width, source_height = source_image.size
+    if source_width * source_height > MAX_SCAN_IMAGE_PIXELS:
+        raise HTTPException(status_code=413, detail="Разрешение изображения превышает 30 мегапикселей")
     source_image.load()
     decode_ms = (time.perf_counter() - decode_started) * 1000
 
@@ -921,16 +926,49 @@ async def _read_image(
 ) -> Image.Image:
     try:
         read_started = time.perf_counter()
-        data = await file.read()
+        if file.size is not None and file.size > MAX_SCAN_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Файл изображения превышает лимит 15 МБ")
+        data = await file.read(MAX_SCAN_UPLOAD_BYTES + 1)
         read_ms = (time.perf_counter() - read_started) * 1000
+        if len(data) > MAX_SCAN_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Файл изображения превышает лимит 15 МБ")
 
         image, decode_profile = await asyncio.to_thread(_decode_image_data, data)
         if profile is not None:
             profile.update(decode_profile)
             profile["upload_read_ms"] = round(read_ms, 1)
         return image
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Не удалось прочитать изображение") from exc
+
+
+def _enforce_scan_rate_limit(rate_key: str) -> None:
+    limit = int(os.getenv("SCAN_RATE_LIMIT", "10"))
+    window_seconds = int(os.getenv("SCAN_RATE_WINDOW_SECONDS", "60"))
+    if limit < 1 or window_seconds < 1:
+        raise RuntimeError("SCAN_RATE_LIMIT и SCAN_RATE_WINDOW_SECONDS должны быть положительными числами")
+
+    now = time.monotonic()
+    events = SCAN_RATE_LIMIT_EVENTS.setdefault(rate_key, deque())
+    cutoff = now - window_seconds
+    while events and events[0] <= cutoff:
+        events.popleft()
+    if len(events) >= limit:
+        retry_after = max(1, math.ceil(events[0] + window_seconds - now))
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много запросов на сканирование; попробуйте позже",
+            headers={"Retry-After": str(retry_after)},
+        )
+    events.append(now)
+    if len(SCAN_RATE_LIMIT_EVENTS) > 10_000:
+        for key, key_events in list(SCAN_RATE_LIMIT_EVENTS.items()):
+            while key_events and key_events[0] <= cutoff:
+                key_events.popleft()
+            if not key_events:
+                SCAN_RATE_LIMIT_EVENTS.pop(key, None)
 
 
 def _prepare_icon(image: Image.Image) -> Image.Image:
@@ -2019,20 +2057,29 @@ async def preview_screenshot_test(file: UploadFile = File(...), authorization: s
     require_admin(authorization)
     if Path(file.filename or "").suffix.lower() != ".png":
         raise HTTPException(status_code=400, detail="Загрузи оригинальный PNG-скриншот")
-    data = await file.read()
-    if not data or len(data) > 15 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="PNG должен быть не пустым и не больше 15 МБ")
+    if file.size is not None and file.size > MAX_SCAN_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="PNG должен быть не больше 15 МБ")
+    data = await file.read(MAX_SCAN_UPLOAD_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="PNG не должен быть пустым")
+    if len(data) > MAX_SCAN_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="PNG должен быть не больше 15 МБ")
     try:
-        with Image.open(BytesIO(data)) as opened:
-            if opened.format != "PNG":
-                raise ValueError("not png")
-            opened.load()
-            size = [opened.width, opened.height]
-            image = opened.convert("RGB")
+        def decode_png() -> tuple[list[int], Image.Image]:
+            with Image.open(BytesIO(data)) as opened:
+                if opened.format != "PNG":
+                    raise ValueError("not png")
+                size = [opened.width, opened.height]
+                if opened.width * opened.height > MAX_SCAN_IMAGE_PIXELS:
+                    raise HTTPException(status_code=413, detail="Разрешение превышает 30 мегапикселей")
+                opened.load()
+                return size, opened.convert("RGB")
+
+        size, image = await asyncio.to_thread(decode_png)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Не удалось прочитать PNG-скриншот") from exc
-    if image.width * image.height > 30_000_000:
-        raise HTTPException(status_code=400, detail="Разрешение превышает 30 мегапикселей")
     upload_id = uuid.uuid4().hex
     (TEMP_DIR / f"screenshot-fixture-{upload_id}.png").write_bytes(data)
     result = scan_screenshot(image, save_previews=False)
@@ -3315,9 +3362,19 @@ async def save_my_collection(
 
 
 @app.post("/scan")
-async def scan(file: UploadFile = File(...), init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+async def scan(
+    request: Request,
+    file: UploadFile = File(...),
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
     request_started = time.perf_counter()
     auth = _validate_telegram_init_data(init_data) if init_data else None
+    rate_key = (
+        f"user:{auth['id']}"
+        if auth
+        else f"ip:{request.client.host if request.client else 'unknown'}"
+    )
+    _enforce_scan_rate_limit(rate_key)
     decode_started = time.perf_counter()
     upload_profile: dict[str, Any] = {}
     async with SCAN_SEMAPHORE:
