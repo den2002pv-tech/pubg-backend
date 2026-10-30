@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import base64
+import os
 import time
 from typing import Any
 
@@ -9,6 +10,11 @@ import cv2
 import imagehash
 import numpy as np
 from PIL import Image
+
+CV2_NUM_THREADS = int(os.getenv("CV2_NUM_THREADS", "1"))
+if CV2_NUM_THREADS < 1:
+    raise ValueError("CV2_NUM_THREADS must be a positive integer")
+cv2.setNumThreads(CV2_NUM_THREADS)
 
 NORMALIZED_SIZE = (224, 320)
 
