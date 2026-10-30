@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 from contextlib import asynccontextmanager
 import hashlib
@@ -37,6 +38,9 @@ from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inve
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
+
+SCAN_CONCURRENCY = max(1, int(os.getenv("SCAN_CONCURRENCY", "1")))
+SCAN_SEMAPHORE = asyncio.Semaphore(SCAN_CONCURRENCY)
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -890,6 +894,27 @@ def _enrich_admin_scan(
     return result
 
 
+def _decode_image_data(data: bytes) -> tuple[Image.Image, dict[str, Any]]:
+    decode_started = time.perf_counter()
+    source_image = Image.open(BytesIO(data))
+    source_format = source_image.format or "UNKNOWN"
+    source_width, source_height = source_image.size
+    source_image.load()
+    decode_ms = (time.perf_counter() - decode_started) * 1000
+
+    convert_started = time.perf_counter()
+    image = source_image.convert("RGB")
+    convert_ms = (time.perf_counter() - convert_started) * 1000
+    return image, {
+        "upload_size_bytes": len(data),
+        "upload_format": source_format,
+        "upload_source_width": source_width,
+        "upload_source_height": source_height,
+        "upload_image_decode_ms": round(decode_ms, 1),
+        "upload_rgb_convert_ms": round(convert_ms, 1),
+    }
+
+
 async def _read_image(
     file: UploadFile,
     profile: dict[str, Any] | None = None,
@@ -899,26 +924,10 @@ async def _read_image(
         data = await file.read()
         read_ms = (time.perf_counter() - read_started) * 1000
 
-        decode_started = time.perf_counter()
-        source_image = Image.open(BytesIO(data))
-        source_format = source_image.format or "UNKNOWN"
-        source_width, source_height = source_image.size
-        source_image.load()
-        decode_ms = (time.perf_counter() - decode_started) * 1000
-
-        convert_started = time.perf_counter()
-        image = source_image.convert("RGB")
-        convert_ms = (time.perf_counter() - convert_started) * 1000
+        image, decode_profile = await asyncio.to_thread(_decode_image_data, data)
         if profile is not None:
-            profile.update({
-                "upload_size_bytes": len(data),
-                "upload_format": source_format,
-                "upload_source_width": source_width,
-                "upload_source_height": source_height,
-                "upload_read_ms": round(read_ms, 1),
-                "upload_image_decode_ms": round(decode_ms, 1),
-                "upload_rgb_convert_ms": round(convert_ms, 1),
-            })
+            profile.update(decode_profile)
+            profile["upload_read_ms"] = round(read_ms, 1)
         return image
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Не удалось прочитать изображение") from exc
@@ -1318,9 +1327,10 @@ async def scan_preview(
         "app_commit": get_app_commit(),
     }
     try:
-        image = await _read_image(file)
-        log_entry["image_size"] = [image.width, image.height]
-        result = scan_screenshot(image, save_previews=True)
+        async with SCAN_SEMAPHORE:
+            image = await _read_image(file)
+            log_entry["image_size"] = [image.width, image.height]
+            result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
         for index, card in enumerate(result.get("cards", [])):
             card["counter_fixture"] = _save_counter_fixture(image, card.get("box"), index)
             if card.get("preview"):
@@ -3310,9 +3320,10 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
     auth = _validate_telegram_init_data(init_data) if init_data else None
     decode_started = time.perf_counter()
     upload_profile: dict[str, Any] = {}
-    image = await _read_image(file, upload_profile)
-    upload_decode_ms = (time.perf_counter() - decode_started) * 1000
-    result = scan_screenshot(image, save_previews=True)
+    async with SCAN_SEMAPHORE:
+        image = await _read_image(file, upload_profile)
+        upload_decode_ms = (time.perf_counter() - decode_started) * 1000
+        result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
     matching_started = time.perf_counter()
     catalog_load_started = time.perf_counter()
     db = load_db()

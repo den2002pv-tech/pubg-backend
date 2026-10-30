@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 import time
 
 import pytest
@@ -688,6 +689,34 @@ def test_scan_upload_profile_separates_read_decode_and_conversion():
     assert profile["upload_read_ms"] >= 0
     assert profile["upload_image_decode_ms"] >= 0
     assert profile["upload_rgb_convert_ms"] >= 0
+
+
+def test_health_remains_responsive_while_scan_runs(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+
+    async def read_image(_file, _profile=None):
+        return main.Image.new("RGB", (32, 24), (20, 30, 40))
+
+    def blocking_scan(_image, save_previews=True):
+        started.set()
+        if not release.wait(timeout=2):
+            raise TimeoutError("test scan was not released")
+        return {"cards": [], "count": 0, "profile": {}}
+
+    monkeypatch.setattr(main, "_read_image", read_image)
+    monkeypatch.setattr(main, "scan_screenshot", blocking_scan)
+
+    async def exercise():
+        task = asyncio.create_task(main.scan(file=object(), init_data=""))
+        try:
+            assert await asyncio.to_thread(started.wait, 1)
+            assert await asyncio.wait_for(main.health(), timeout=0.1) == {"status": "ok"}
+        finally:
+            release.set()
+        await task
+
+    asyncio.run(exercise())
 
 
 @pytest.mark.parametrize(("same_hashes", "expected_calls"), [(True, 1), (False, 2)])
