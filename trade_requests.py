@@ -243,9 +243,10 @@ def _keyboard(request: dict[str, Any], viewer_id: int) -> dict[str, Any]:
     elif status == "agreed":
         if viewer_id == sender_id and not request.get("exchange_code_sent_at"):
             rows.append([{"text": "📨 Передать код обмена", "callback_data": f"tr:{request_id}:code"}])
-        completed_field = "sender_completed_at" if viewer_id == sender_id else "recipient_completed_at"
-        if not request.get(completed_field):
-            rows.append([{"text": "✅ Подтвердить завершение", "callback_data": f"tr:{request_id}:complete"}])
+        if request.get("exchange_code_sent_at"):
+            completed_field = "sender_completed_at" if viewer_id == sender_id else "recipient_completed_at"
+            if not request.get(completed_field):
+                rows.append([{"text": "✅ Подтвердить завершение", "callback_data": f"tr:{request_id}:complete"}])
     if status in {"pending", "accepted", "agreed"}:
         rows.append([{"text": "🔎 Посмотреть карты и статус", "callback_data": f"tr:{request_id}:details"}])
         rows.append([{"text": "Отменить обмен", "callback_data": f"tr:{request_id}:cancel"}])
@@ -447,6 +448,8 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
             elif action == "complete":
                 if request["status"] != "agreed":
                     raise HTTPException(status_code=409, detail="Оба игрока должны подтвердить договорённость")
+                if not request.get("exchange_code_sent_at"):
+                    raise HTTPException(status_code=409, detail="Сначала автор предложения должен передать код обмена")
                 field = "sender_completed_at" if actor_id == sender_id else "recipient_completed_at"
                 cur.execute(
                     f"""UPDATE trade_requests SET {field}=COALESCE({field}, NOW()),
@@ -468,7 +471,7 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                         """UPDATE user_cards
                            SET quantity = quantity - 1
                            WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
-                             AND card_id = %s AND quantity > 0""",
+                             AND card_id = %s AND quantity > 1""",
                         (sender_id, str(request["offered_card_id"])),
                     )
                     if cur.rowcount != 1:
@@ -481,7 +484,7 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                         """UPDATE user_cards
                            SET quantity = quantity - 1
                            WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
-                             AND card_id = %s AND quantity > 0""",
+                             AND card_id = %s AND quantity > 1""",
                         (recipient_id, str(request["requested_card_id"])),
                     )
                     if cur.rowcount != 1:
@@ -528,7 +531,10 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
                 )
             else:
                 raise HTTPException(status_code=400, detail="Неизвестное действие")
-            if cur.rowcount != 1:
+            # The completion branch performs additional inventory and wishlist
+            # statements after its guarded status UPDATE, so its final cursor
+            # rowcount no longer describes the trade-request transition.
+            if action != "complete" and cur.rowcount != 1:
                 raise HTTPException(status_code=409, detail="Статус заявки уже изменился")
         conn.commit()
     return get_trade_request(request_id, actor_id)
