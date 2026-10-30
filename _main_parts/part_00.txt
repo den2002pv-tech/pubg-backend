@@ -1,0 +1,217 @@
+from __future__ import annotations
+
+import base64
+from contextlib import asynccontextmanager
+import hashlib
+import hmac
+import json
+import math
+import os
+import platform
+import re
+import threading
+import time
+import uuid
+from collections import deque
+from datetime import datetime, timezone
+from io import BytesIO
+from pathlib import Path
+from typing import Any, AsyncIterator
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
+
+import sentry_sdk
+
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
+from PIL import Image
+from app_config import get_app_commit, get_public_base_url
+from card_state_features import best_feature_splits, extract_card_visual_features
+from scanner import _detect_counter, _has_counter_evidence
+
+from pydantic import BaseModel
+
+from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inventory_cards, scan_screenshot
+import identity_diagnostics
+from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
+from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
+from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
+
+# Sentry is optional in local/test environments. Configure SENTRY_DSN to enable reporting.
+SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+        # Avoid collecting request PII by default.
+        send_default_pii=False,
+    )
+
+def startup_database() -> None:
+    init_db()
+    init_analytics_db()
+    _migrate_frame_color_hashes()
+    sync_cards(load_db())
+    init_trade_request_schema()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    startup_database()
+    yield
+
+
+app = FastAPI(title="PUBG Card Scanner", lifespan=lifespan)
+
+
+STATIC_DIR = Path("static")
+CARDS_DIR = STATIC_DIR / "cards"
+CARDS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Admin workflow previews are temporary runtime files.
+TEMP_DIR = Path("temp_images")
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+# Keep diagnostic storage bounded in memory.
+# Logs contain detector diagnostics only, never credentials or source images.
+SCAN_DIAGNOSTIC_LOGS: deque[dict[str, Any]] = deque(maxlen=100)
+SCREENSHOT_TEST_RUN_LOCK = threading.Lock()
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
+
+DB_FILE = Path("card_hashes.json")
+SESSION_MAX_AGE = 12 * 60 * 60
+ADMIN_TOKEN_PREFIX = "pubg_admin_v1"
+
+HASH_REGEN_PROGRESS: dict[str, Any] = {
+    "running": False,
+    "current": 0,
+    "total": 0,
+    "card_id": "",
+    "status": "idle",
+    "updated": 0,
+    "error": "",
+}
+
+
+
+
+def load_db() -> dict[str, Any]:
+    if not DB_FILE.exists():
+        return {}
+    try:
+        data = json.loads(DB_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_db(data: dict[str, Any]) -> None:
+    tmp = DB_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(DB_FILE)
+
+
+def clean_hashes(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, str] = {}
+    for key, val in value.items():
+        if val is None:
+            continue
+        s = str(val).strip()
+        if not s or s.lower() in {"undefined", "null", "none"}:
+            continue
+        result[str(key)] = s
+    return result
+
+
+def valid_hash(value: Any) -> bool:
+    s = str(value or "").strip().lower()
+    return bool(s) and s not in {"undefined", "null", "none"}
+
+
+def _session_secret() -> str:
+    secret = os.getenv("ADMIN_SESSION_SECRET", "")
+    if not secret:
+        secret = os.getenv("ADMIN_PASSWORD", "")
+    if not secret:
+        # The application will reject admin requests when ADMIN_PASSWORD
+        # is missing, so this value is only a defensive fallback.
+        return "invalid-admin-secret"
+    return secret
+
+
+def _make_session() -> str:
+    """
+    Create a signed bearer token.
+
+    Format:
+        pubg_admin_v1.<timestamp>.<random_nonce>.<hmac>
+
+    The token is self-contained and does not require a session database.
+    """
+    ts_s = str(int(time.time()))
+    nonce = base64.urlsafe_b64encode(os.urandom(24)).decode("ascii").rstrip("=")
+    payload = f"{ADMIN_TOKEN_PREFIX}.{ts_s}.{nonce}"
+    sig = hmac.new(
+        _session_secret().encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def _valid_session(value: str | None) -> bool:
+    if not value:
+        return False
+
+    parts = value.split(".")
+    if len(parts) != 4:
+        return False
+
+    prefix, ts_s, nonce, sig = parts
+    if prefix != ADMIN_TOKEN_PREFIX or not nonce or not sig:
+        return False
+
+    try:
+        ts = int(ts_s)
+    except ValueError:
+        return False
+
+    now = time.time()
+    if now - ts > SESSION_MAX_AGE or ts > now + 60:
+        return False
+
+    payload = f"{prefix}.{ts_s}.{nonce}"
+    expected = hmac.new(
+        _session_secret().encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(sig, expected)
+
+
+def _validate_telegram_init_data(init_data: str) -> dict[str, Any]:
+    """Validate Telegram Mini App initData and return the Telegram user."""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
+
+    from urllib.parse import parse_qsl
+
+    pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+    received_hash = pairs.pop("hash", "")
+    if not received_hash:
+        raise HTTPException(status_code=401, detail="Отсутствует Telegram hash")
+
+    auth_date = pairs.get("auth_date", "")
+    try:
+        if time.time() - int(auth_date) > 86400:
+            raise HTTPException(status_code=401, detail="Telegram initData устарел")
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Некорректный Telegram auth_date") from e
