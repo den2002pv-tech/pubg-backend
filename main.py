@@ -2452,13 +2452,33 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 runner_id = detail.get("runner_up_id")
                 expected_distances = _identity_hash_distances(scan_hashes, catalog.get(expected_id))
                 matched_info = catalog.get(actual_id) if actual_id else None
-                decision = "matched_ok" if actual_id and actual_id == expected_id else "wrong_id" if actual_id else detail.get("reason", "unmatched_other")
-                if decision not in ("matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong", "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash"):
+                # Пустой expected_id = вручную подтверждённая неизвестная карта:
+                # успех, если матчер тоже ничего не выбрал.
+                is_unknown_ok = (not expected_id) and (not actual_id)
+                is_known_ok = bool(actual_id) and actual_id == expected_id
+                if is_unknown_ok or is_known_ok:
+                    decision = "matched_ok"
+                elif actual_id:
+                    decision = "wrong_id"
+                else:
+                    decision = detail.get("reason", "unmatched_other")
+                if decision not in (
+                    "matched_ok",
+                    "wrong_id",
+                    "unmatched_no_candidates",
+                    "unmatched_low_strong",
+                    "unmatched_low_margin",
+                    "unmatched_color_reject",
+                    "unmatched_outlier_hash",
+                ):
                     decision = "unmatched_other"
                 if decision == "matched_ok":
                     identity_matches += 1
                 else:
-                    errors.append(f"{label}: ID карты — ожидалось {expected_id or 'неизвестная карта'}, распознано {actual_id or 'совпадение не найдено'}")
+                    errors.append(
+                        f"{label}: ID карты — ожидалось {expected_id or 'неизвестная карта'}, "
+                        f"распознано {actual_id or 'совпадение не найдено'}"
+                    )
                 score_value = detail.get("score") if actual_id else detail.get("candidate_score")
                 identity_details.append({
                     "expected_card_id": expected_id, "expected_card_name": str(expected.get("card_name") or label),
