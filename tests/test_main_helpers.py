@@ -510,6 +510,61 @@ def test_confirm_collection_does_not_return_success_when_persistence_fails(monke
 
 
 
+def test_admin_status_ignores_malformed_catalog_records(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "load_db", lambda: {
+        "card_1": {"icon": "/static/cards/card_1.webp"},
+        "broken": None,
+        "also_broken": "not-a-card",
+    })
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path)
+    monkeypatch.setenv("ADMIN_PASSWORD", "configured")
+    monkeypatch.setattr(main, "_valid_session", lambda _token: False)
+
+    result = asyncio.run(main.admin_status(authorization=None))
+
+    assert result["cards"] == 3
+    assert result["icons"] == 1
+    assert result["temporary_files"] == 0
+
+
+def test_legacy_collection_endpoint_uses_bounded_atomic_normalization(monkeypatch):
+    calls = []
+    saved_cards = [{"id": "card_1", "quantity": 999}]
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(main, "set_user_card_quantities", lambda telegram_id, updates: calls.append((telegram_id, updates)))
+    monkeypatch.setattr(main, "get_user_cards", lambda _telegram_id: saved_cards)
+
+    result = asyncio.run(main.save_my_collection({
+        "cards": [
+            {"id": "card_1", "quantity": 1500},
+            {"id": "card_1", "quantity": 999},
+            {"id": "card_2", "quantity": -4},
+        ]
+    }, init_data="valid-test-init-data"))
+
+    assert calls == [(12345, [("card_1", 999), ("card_2", 0)])]
+    assert result == {"status": "ok", "saved": 2, "cards": saved_cards}
+
+
+def test_legacy_collection_endpoint_rejects_invalid_quantity_without_partial_writes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(main, "set_user_card_quantities", lambda *args: calls.append(args))
+
+    with pytest.raises(main.HTTPException) as exc:
+        asyncio.run(main.save_my_collection({
+            "cards": [
+                {"id": "card_1", "quantity": 2},
+                {"id": "card_2", "quantity": "not-a-number"},
+            ]
+        }, init_data="valid-test-init-data"))
+
+    assert exc.value.status_code == 400
+    assert calls == []
+
+
 def test_save_duplicate_guard_blocks_confident_existing_card_match():
     hashes = {
         "full_phash": "aaaaaaaaaaaaaaaa",
