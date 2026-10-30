@@ -12,12 +12,17 @@ import main
 def test_lifespan_runs_startup_database(monkeypatch):
     calls = []
     monkeypatch.setattr(main, "startup_database", lambda: calls.append("startup"))
+    monkeypatch.setattr(
+        main,
+        "_scanner_warmup",
+        lambda: calls.append("warmup"),
+    )
 
     async def exercise_lifespan():
         assert calls == []
         async with main.lifespan(main.app):
-            assert calls == ["startup"]
-        assert calls == ["startup"]
+            assert calls == ["startup", "warmup"]
+        assert calls == ["startup", "warmup"]
 
     asyncio.run(exercise_lifespan())
 

@@ -27,7 +27,7 @@ import sentry_sdk
 from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from PIL import Image
+from PIL import Image, ImageDraw
 from app_config import get_app_commit, get_public_base_url
 from card_state_features import best_feature_splits, extract_card_visual_features
 from scanner import _detect_counter, _has_counter_evidence
@@ -63,9 +63,29 @@ def startup_database() -> None:
     init_trade_request_schema()
 
 
+def _scanner_warmup() -> None:
+    image = Image.new("RGB", (1280, 720), (22, 28, 34))
+    draw = ImageDraw.Draw(image)
+    for index, x in enumerate((200, 402, 604, 806)):
+        draw.rectangle(
+            (x, 150, x + 179, 419),
+            fill=(45 + index * 18, 72 + index * 12, 105 + index * 10),
+            outline=(235, 235, 235),
+            width=4,
+        )
+        draw.rectangle(
+            (x + 12, 170, x + 167, 300),
+            fill=(60 + index * 20, 90 + index * 10, 120 + index * 8),
+        )
+        draw.line((x + 15, 340, x + 164, 340), fill=(210, 170, 75), width=3)
+    scan_screenshot(image, save_previews=False)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     startup_database()
+    async with SCAN_SEMAPHORE:
+        await asyncio.to_thread(_scanner_warmup)
     yield
 
 
