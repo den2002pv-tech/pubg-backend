@@ -199,6 +199,70 @@ def test_save_db_and_load_db_round_trip(monkeypatch, tmp_path):
     assert main.load_db() == expected
 
 
+def test_cached_match_index_matches_uncached_result(monkeypatch, tmp_path):
+    db_file = tmp_path / "cards.json"
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    main.save_db({"card_1": {"name": "Карта 1", "hashes": hashes}})
+
+    cached_db = main.load_db()
+    cached_result = main._match_card_detailed(hashes, cached_db)
+    uncached_db = json.loads(db_file.read_text(encoding="utf-8"))
+    uncached_result = main._match_card_detailed(hashes, uncached_db)
+
+    assert cached_result == uncached_result
+    assert main._MATCH_INDEX_DB is cached_db
+    assert all(
+        isinstance(value, int)
+        for value in main._MATCH_INDEX[0]["hash_values"].values()
+    )
+
+
+def test_catalog_cache_invalidates_after_save_and_external_file_replacement(
+    monkeypatch, tmp_path,
+):
+    import os
+
+    db_file = tmp_path / "cards.json"
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+
+    main.save_db({"card_1": {"hashes": hashes}})
+    first_db = main.load_db()
+    assert main._match_card(hashes, first_db)[0] == "card_1"
+
+    main.save_db({"card_2": {"hashes": hashes}})
+    second_db = main.load_db()
+    assert second_db is not first_db
+    assert main._match_card(hashes, second_db)[0] == "card_2"
+
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text(
+        json.dumps({"card_3": {"hashes": hashes}}),
+        encoding="utf-8",
+    )
+    old_mtime_ns = db_file.stat().st_mtime_ns
+    replacement.replace(db_file)
+    os.utime(db_file, ns=(old_mtime_ns + 1_000_000_000, old_mtime_ns + 1_000_000_000))
+
+    third_db = main.load_db()
+    assert third_db is not second_db
+    assert main._match_card(hashes, third_db)[0] == "card_3"
+    assert main._MATCH_INDEX_DB is third_db
+
+
 def test_match_card_returns_exact_hash_match():
     hashes = {
         "full_phash": "aaaaaaaa",

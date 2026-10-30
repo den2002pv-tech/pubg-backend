@@ -89,6 +89,10 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
 
 DB_FILE = Path("card_hashes.json")
+_DB_CACHE_SIGNATURE: tuple[str, int | None, int | None] | None = None
+_DB_CACHE_DATA: dict[str, Any] | None = None
+_MATCH_INDEX_DB: dict[str, Any] | None = None
+_MATCH_INDEX: list[dict[str, Any]] | None = None
 SESSION_MAX_AGE = 12 * 60 * 60
 ADMIN_TOKEN_PREFIX = "pubg_admin_v1"
 
@@ -106,19 +110,41 @@ HASH_REGEN_PROGRESS: dict[str, Any] = {
 
 
 def load_db() -> dict[str, Any]:
-    if not DB_FILE.exists():
-        return {}
+    global _DB_CACHE_SIGNATURE, _DB_CACHE_DATA, _MATCH_INDEX_DB, _MATCH_INDEX
     try:
-        data = json.loads(DB_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+        stat = DB_FILE.stat()
+        signature = (str(DB_FILE), stat.st_mtime_ns, stat.st_size)
+    except FileNotFoundError:
+        signature = (str(DB_FILE), None, None)
+
+    if signature == _DB_CACHE_SIGNATURE and _DB_CACHE_DATA is not None:
+        return _DB_CACHE_DATA
+
+    if signature[1] is None:
+        data: dict[str, Any] = {}
+    else:
+        try:
+            loaded = json.loads(DB_FILE.read_text(encoding="utf-8"))
+            data = loaded if isinstance(loaded, dict) else {}
+        except Exception:
+            data = {}
+
+    _DB_CACHE_SIGNATURE = signature
+    _DB_CACHE_DATA = data
+    _MATCH_INDEX_DB = None
+    _MATCH_INDEX = None
+    return data
 
 
 def save_db(data: dict[str, Any]) -> None:
+    global _DB_CACHE_SIGNATURE, _DB_CACHE_DATA, _MATCH_INDEX_DB, _MATCH_INDEX
     tmp = DB_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(DB_FILE)
+    _DB_CACHE_SIGNATURE = None
+    _DB_CACHE_DATA = None
+    _MATCH_INDEX_DB = None
+    _MATCH_INDEX = None
 
 
 def clean_hashes(value: Any) -> dict[str, str]:
@@ -382,6 +408,38 @@ def _migrate_frame_color_hashes() -> None:
         save_db(db)
 
 
+def _hex_hash_int(value: Any) -> int | None:
+    try:
+        return int(value, 16)
+    except Exception:
+        return None
+
+
+def _build_match_index(db: dict[str, Any]) -> list[dict[str, Any]]:
+    index = []
+    for card_id, info in db.items():
+        info = info if isinstance(info, dict) else {}
+        hashes = clean_hashes(info.get("hashes"))
+        index.append({
+            "id": card_id,
+            "hashes": hashes,
+            "hash_values": {key: _hex_hash_int(value) for key, value in hashes.items()},
+            "legacy_hash": info.get("hash"),
+            "legacy_hash_value": _hex_hash_int(str(info.get("hash"))) if info.get("hash") else None,
+        })
+    return index
+
+
+def _match_index_for(db: dict[str, Any]) -> list[dict[str, Any]]:
+    global _MATCH_INDEX_DB, _MATCH_INDEX
+    if db is not _DB_CACHE_DATA:
+        return _build_match_index(db)
+    if _MATCH_INDEX_DB is not db or _MATCH_INDEX is None:
+        _MATCH_INDEX_DB = db
+        _MATCH_INDEX = _build_match_index(db)
+    return _MATCH_INDEX
+
+
 def _match_card_detailed(card_hashes: dict[str, str], db: dict[str, Any], profile: dict[str, int] | None = None) -> dict[str, Any]:
     """Detailed equivalent of _match_card; thresholds and candidate ranking are unchanged."""
     candidates: list[dict[str, Any]] = []
@@ -390,20 +448,26 @@ def _match_card_detailed(card_hashes: dict[str, str], db: dict[str, Any], profil
     if profile is not None:
         profile["matching_calls"] = profile.get("matching_calls", 0) + 1
     keys = ("full_phash", "full_dhash", "visual_phash", "visual_dhash")
-    for card_id, info in db.items():
-        stored = clean_hashes(info.get("hashes"))
+    scan_values = {key: _hex_hash_int(card_hashes.get(key)) for key in (*keys, "frame_colorhash")}
+    for indexed in _match_index_for(db):
+        card_id = indexed["id"]
+        stored = indexed["hashes"]
+        stored_values = indexed["hash_values"]
         per_hash: dict[str, int | None] = {}
         distances: list[int] = []
         for key in keys:
             value, other = card_hashes.get(key), stored.get(key)
-            d = _hamming(value, other) if value and other else None
+            scan_hash, stored_hash = scan_values[key], stored_values.get(key)
+            d = (scan_hash ^ stored_hash).bit_count() if value and other and scan_hash is not None and stored_hash is not None else None
             per_hash[key] = d
             if d is not None:
                 comparisons += 1
                 distances.append(d)
         if not distances:
-            legacy = info.get("hash")
-            d = _hamming(card_hashes.get("full_dhash", ""), str(legacy)) if legacy else None
+            legacy = indexed["legacy_hash"]
+            legacy_value = indexed["legacy_hash_value"]
+            scan_value = scan_values["full_dhash"]
+            d = (scan_value ^ legacy_value).bit_count() if legacy and scan_value is not None and legacy_value is not None else None
             if d is not None:
                 comparisons += 1
                 distances.append(d)
@@ -426,7 +490,13 @@ def _match_card_detailed(card_hashes: dict[str, str], db: dict[str, Any], profil
             rejected.append("unmatched_color_reject")
             continue
         if scan_color and stored_color:
-            color_bits = _hamming(scan_color, stored_color)
+            scan_color_value = scan_values["frame_colorhash"]
+            stored_color_value = stored_values.get("frame_colorhash")
+            color_bits = (
+                (scan_color_value ^ stored_color_value).bit_count()
+                if scan_color_value is not None and stored_color_value is not None
+                else None
+            )
             if color_bits is None:
                 rejected.append("unmatched_color_reject")
                 continue
@@ -3396,6 +3466,7 @@ async def scan(
     matches = []
     matching_profile: dict[str, int] = {}
     matching_evaluation_started = time.perf_counter()
+    card_match_threshold = float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
     for card in result["cards"]:
         best_id, best_distance = _match_card(card["hashes"], db, matching_profile)
         raw_hashes = card.get("raw_hashes", {})
@@ -3405,7 +3476,7 @@ async def scan(
                 best_id, best_distance = raw_id, raw_distance
         matched = (
             best_id is not None
-            and best_distance <= float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
+            and best_distance <= card_match_threshold
         )
         if matched:
             info = db[best_id]
