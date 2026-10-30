@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import Request as UrlRequest, urlopen
 
 import sentry_sdk
 
@@ -1584,7 +1584,7 @@ def _github_read_text(path: str, branch: str) -> str | None:
         "User-Agent": "pubg-card-admin",
     }
     try:
-        with urlopen(Request(url, headers=headers), timeout=20) as response:
+        with urlopen(UrlRequest(url, headers=headers), timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
         return base64.b64decode(payload.get("content", "")).decode("utf-8")
     except HTTPError as exc:
@@ -1647,7 +1647,7 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
         "User-Agent": "pubg-card-admin",
     }
     try:
-        with urlopen(Request(url, headers=headers), timeout=20) as response:
+        with urlopen(UrlRequest(url, headers=headers), timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
         encoded = payload.get("content", "")
         if encoded:
@@ -1660,7 +1660,7 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
         download_headers = {"User-Agent": "pubg-card-admin"}
         if token:
             download_headers["Authorization"] = f"Bearer {token}"
-        with urlopen(Request(download_url, headers=download_headers), timeout=30) as response:
+        with urlopen(UrlRequest(download_url, headers=download_headers), timeout=30) as response:
             return response.read()
     except HTTPError as exc:
         if exc.code == 404:
@@ -3290,7 +3290,7 @@ def _send_telegram_message(chat_id: int, text: str) -> None:
         raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
 
     payload = json.dumps({"chat_id": chat_id, "text": text}).encode("utf-8")
-    request = Request(
+    request = UrlRequest(
         f"https://api.telegram.org/bot{bot_token}/sendMessage",
         data=payload,
         headers={"Content-Type": "application/json"},
@@ -3335,7 +3335,7 @@ def _send_telegram_media_group(chat_id: int, media: list[dict[str, str]]) -> Non
         return
 
     payload = json.dumps({"chat_id": chat_id, "media": media}, ensure_ascii=False).encode("utf-8")
-    request = Request(
+    request = UrlRequest(
         f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
         data=payload,
         headers={"Content-Type": "application/json"},
@@ -3794,7 +3794,7 @@ def _github_request(method: str, url: str, token: str, payload: dict[str, Any] |
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
 
-    req = Request(url, data=body, headers=headers, method=method)
+    req = UrlRequest(url, data=body, headers=headers, method=method)
     try:
         with urlopen(req, timeout=30) as resp:
             raw = resp.read()
