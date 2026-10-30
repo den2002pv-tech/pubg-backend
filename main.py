@@ -509,6 +509,25 @@ def _identity_percentile(values: list[float], percentile: float) -> float | None
     return round(float(value), 3)
 
 
+def _empty_identity_detail(expected: dict[str, Any]) -> dict[str, Any]:
+    """Represent a verified fixture card for which no detected crop was available."""
+    return {
+        "expected_card_id": str(expected.get("card_id") or ""),
+        "expected_card_name": str(expected.get("card_name") or expected.get("card_id") or "Карта"),
+        "matched_card_id": None, "matched": False, "decision": "unmatched_other",
+        "match_score": None, "runner_up_id": None, "runner_up_score": None, "margin": None,
+        "strong_count": 0, "acceptable_count": 0, "color_ratio": None, "color_penalty": None,
+        "distances_to_expected": {key: None for key in (
+            "full_phash", "full_dhash", "visual_phash", "visual_dhash",
+            "frame_colorhash_bits", "frame_colorhash_ratio"
+        )},
+        "distances_to_matched": None, "distances_to_runner_up": None,
+        "crop": {"box": None, "width": None, "height": None},
+        "quantity": {"expected": int(expected.get("expected_quantity", 1) or 1), "detected": None},
+        "has_counter_evidence": False, "hash_reuse": False,
+    }
+
+
 def _build_identity_stats(cases: list[dict[str, Any]]) -> dict[str, Any]:
     decisions = ("matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong",
                  "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash", "unmatched_other")
@@ -2253,11 +2272,18 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             error = fetch_error or "Файл скриншота отсутствует"
             case_profile.update({"case_total_ms": total_ms, "result": "fixture_load_error"})
             case_timings.update({"case_total_ms": total_ms})
+            identity_details = [
+                _empty_identity_detail(card) for card in raw_cards
+                if isinstance(card, dict) and card.get("state", "owned") == "owned"
+                and card.get("identity_verified") is True
+            ]
             result_entry = {
                 "id": case_id, "passed": False, "errors": [error],
                 "expected_cards": expected_owned_count, "detected_cards": 0,
                 "quantity_matches": 0, "quantity_checked": 0,
-                "identity_matches": 0, "identity_checked": 0,
+                "identity_matches": 0, "identity_checked": len(identity_details),
+                "identity_details": identity_details,
+                "identity_decision_counts": _build_identity_stats([{"identity_details": identity_details}])["by_decision"],
                 "profile": case_profile, "timings": case_timings,
                 "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
                 "measurement_limitations": ["Изображение не загружено; показатели включают время получения эталона."],
@@ -2284,16 +2310,18 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             error = f"Ошибка этапа {stage}: {type(exc).__name__}"
             case_profile.update({"case_total_ms": total_ms, "result": f"{stage}_exception"})
             case_timings.update({"case_total_ms": total_ms})
+            identity_details = [
+                _empty_identity_detail(card) for card in case.get("cards", [])
+                if isinstance(card, dict) and card.get("state", "owned") == "owned"
+                and card.get("identity_verified") is True
+            ]
             result_entry = {
                 "id": case_id, "passed": False, "errors": [error],
                 "expected_cards": expected_owned_count, "detected_cards": 0,
                 "quantity_matches": 0, "quantity_checked": 0,
-                "identity_matches": 0,
-                "identity_checked": sum(
-                    1 for card in case.get("cards", [])
-                    if card.get("state", "owned") == "owned"
-                    and card.get("identity_verified") is True
-                ),
+                "identity_matches": 0, "identity_checked": len(identity_details),
+                "identity_details": identity_details,
+                "identity_decision_counts": _build_identity_stats([{"identity_details": identity_details}])["by_decision"],
                 "profile": case_profile, "timings": case_timings,
                 "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
                 "measurement_limitations": ["Ресурсные пики являются интервальными оценками."],

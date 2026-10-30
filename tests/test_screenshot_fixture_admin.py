@@ -159,7 +159,7 @@ def test_run_screenshot_fixtures_returns_full_report_and_summary_profile(monkeyp
     assert result["profile"]["total_scan_time_ms"] >= 0
     assert result["results"][0]["profile"]["total_ms"] == 120.5
     assert result["results"][0]["timings"]["scanner_total_ms"] == 120.5
-    assert result["report"]["schema_version"] == 1
+    assert result["report"]["schema_version"] == 2
     assert result["report"]["metadata"]["run_id"] == result["run_id"]
     assert result["report"]["metadata"]["case_count"] == 1
     assert result["report"]["cases"][0]["case_id"] == "inventory-test-profile"
