@@ -79,7 +79,16 @@ def _scanner_warmup() -> None:
             fill=(60 + index * 20, 90 + index * 10, 120 + index * 8),
         )
         draw.line((x + 15, 340, x + 164, 340), fill=(210, 170, 75), width=3)
-    scan_screenshot(image, save_previews=False)
+    # Warm the PNG decode path: the first real upload otherwise pays ~300 ms
+    # for PIL's PNG decoder initialization. Round-trip a small PNG through the
+    # same open/convert/load sequence used for uploads.
+    png_buffer = BytesIO()
+    image.save(png_buffer, "PNG")
+    png_buffer.seek(0)
+    decoded = Image.open(png_buffer).convert("RGB")
+    decoded.load()
+    # Warm the JPEG preview encoder used by scan_screenshot(save_previews=True).
+    scan_screenshot(decoded, save_previews=True)
 
 
 @asynccontextmanager
