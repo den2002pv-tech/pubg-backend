@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import json
+import logging
 import math
 import os
 import platform
@@ -28,7 +29,7 @@ import sentry_sdk
 from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from PIL import Image, ImageDraw
+from PIL import Image
 from app_config import get_app_commit, get_public_base_url
 from card_state_features import best_feature_splits, extract_card_visual_features
 from scanner import _detect_counter, _has_counter_evidence
@@ -39,6 +40,10 @@ from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inve
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
+from scanner_diagnostics import ScannerDiagnosticStore
+from scanner_prewarm import ScannerPrewarmController
+
+LOGGER = logging.getLogger(__name__)
 
 SCAN_CONCURRENCY = max(1, int(os.getenv("SCAN_CONCURRENCY", "1")))
 SCAN_SEMAPHORE = asyncio.Semaphore(SCAN_CONCURRENCY)
@@ -65,41 +70,153 @@ def startup_database() -> None:
 
 
 def _scanner_warmup() -> None:
-    image = Image.new("RGB", (1280, 720), (22, 28, 34))
-    draw = ImageDraw.Draw(image)
-    for index, x in enumerate((200, 402, 604, 806)):
-        draw.rectangle(
-            (x, 150, x + 179, 419),
-            fill=(45 + index * 18, 72 + index * 12, 105 + index * 10),
-            outline=(235, 235, 235),
-            width=4,
-        )
-        draw.rectangle(
-            (x + 12, 170, x + 167, 300),
-            fill=(60 + index * 20, 90 + index * 10, 120 + index * 8),
-        )
-        draw.line((x + 15, 340, x + 164, 340), fill=(210, 170, 75), width=3)
-    # Warm the PNG decode path: the first real upload otherwise pays ~300 ms
-    # for PIL's PNG decoder initialization. Round-trip a small PNG through the
-    # same open/convert/load sequence used for uploads.
-    png_buffer = BytesIO()
-    image.save(png_buffer, "PNG")
-    png_buffer.seek(0)
-    decoded = Image.open(png_buffer).convert("RGB")
-    decoded.load()
-    # Warm the JPEG preview encoder used by scan_screenshot(save_previews=True).
-    scan_screenshot(decoded, save_previews=True)
+    image = Image.new("RGB", (32, 32), (22, 28, 34))
+    for image_format in ("PNG", "JPEG"):
+        encoded = BytesIO()
+        image.save(encoded, image_format)
+        encoded.seek(0)
+        with Image.open(encoded) as decoded:
+            decoded.load()
+            decoded.convert("RGB")
+
+
+SCANNER_DIAGNOSTICS = ScannerDiagnosticStore(
+    resource_provider=lambda: _resource_snapshot()
+)
+SCANNER_PREWARM = ScannerPrewarmController(
+    SCANNER_DIAGNOSTICS, lambda: _scanner_warmup()
+)
+ACTIVE_SCAN_REQUESTS = 0
+DIAGNOSTICS_APP_COMMIT = get_app_commit()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     startup_database()
-    async with SCAN_SEMAPHORE:
-        await asyncio.to_thread(_scanner_warmup)
-    yield
+    SCANNER_DIAGNOSTICS.record_event({
+        "event": "application_start",
+        "process_uptime_sec": 0.0,
+        "process_started_at": SCANNER_DIAGNOSTICS.started_at.isoformat(),
+        "worker_run_id": SCANNER_DIAGNOSTICS.run_id,
+        "app_commit": DIAGNOSTICS_APP_COMMIT,
+    })
+    SCANNER_DIAGNOSTICS.record_event({
+        "event": "worker_start",
+        "worker_pid": os.getpid(),
+        "app_commit": DIAGNOSTICS_APP_COMMIT,
+        "python_version": platform.python_version(),
+        "process_started_at": SCANNER_DIAGNOSTICS.started_at.isoformat(),
+        "runtime_resources": SCANNER_DIAGNOSTICS.resource_metrics(0),
+        "prewarm_flags": SCANNER_PREWARM.feature_flags(),
+    })
+    try:
+        async with SCAN_SEMAPHORE:
+            await SCANNER_PREWARM.on_application_start()
+        yield
+    finally:
+        await SCANNER_PREWARM.shutdown()
+        SCANNER_DIAGNOSTICS.record_event({
+            "event": "application_shutdown",
+            "process_uptime_sec": round(
+                time.perf_counter() - SCANNER_DIAGNOSTICS.started_monotonic, 3
+            ),
+            "warmup_status": SCANNER_PREWARM.status,
+        })
 
 
 app = FastAPI(title="PUBG Card Scanner", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def scanner_diagnostics_middleware(request: Request, call_next):
+    global ACTIVE_SCAN_REQUESTS
+    if request.url.path != "/scan":
+        return await call_next(request)
+
+    started = time.perf_counter()
+    session_id = _scanner_session_id(request.headers.get("x-scanner-session-id"))
+    request.state.scanner_session_id = session_id
+    request.state.scanner_request_started = started
+    request.state.scanner_diagnostics = {
+        "request_body_read_ms": None,
+        "image_upload_size_bytes": None,
+        "image_decode_ms": None,
+        "image_width": None,
+        "image_height": None,
+        "image_format": None,
+        "image_preprocess_ms": None,
+        "detection_ms": None,
+        "counter_ms": None,
+        "raw_hash_ms": None,
+        "clean_hash_ms": None,
+        "hashing_total_ms": None,
+        "matching_ms": None,
+        "quality_check_ms": None,
+        "response_build_ms": None,
+    }
+    request.state.scanner_diagnostics["request_received_ms"] = round(
+        (started - SCANNER_DIAGNOSTICS.started_monotonic) * 1000, 3
+    )
+    ACTIVE_SCAN_REQUESTS += 1
+    status_code = 500
+    failure_type = None
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception as exc:
+        failure_type = type(exc).__name__
+        raise
+    finally:
+        try:
+            if SCANNER_DIAGNOSTICS.enabled and SCANNER_DIAGNOSTICS.storage_enabled:
+                warmup = SCANNER_PREWARM.snapshot()
+                event = {
+                    **request.state.scanner_diagnostics,
+                    "event": "scan_completed" if status_code < 400 else "scan_failed",
+                    "session_id": session_id,
+                    "app_commit": DIAGNOSTICS_APP_COMMIT,
+                    "http_status": status_code,
+                    "failure_type": failure_type,
+                    "total_server_ms": round((time.perf_counter() - started) * 1000, 3),
+                    "process_uptime_sec": round(
+                        time.perf_counter() - SCANNER_DIAGNOSTICS.started_monotonic, 3
+                    ),
+                    "warmup_status_at_scan": request.state.scanner_diagnostics.get(
+                        "warmup_status_at_scan", warmup["warmup_status"]
+                    ),
+                    "warmup_trigger": request.state.scanner_diagnostics.get(
+                        "warmup_trigger", warmup["warmup_trigger"]
+                    ),
+                    "warmup_duration_ms": request.state.scanner_diagnostics.get(
+                        "warmup_duration_ms", warmup["warmup_duration_ms"]
+                    ),
+                    "warmup_age_ms": request.state.scanner_diagnostics.get(
+                        "warmup_age_ms", SCANNER_PREWARM.warmup_age_ms(started)
+                    ),
+                    "prewarm_mode": warmup["prewarm_mode"],
+                    "initialization_required": request.state.scanner_diagnostics.get(
+                        "initialization_required",
+                        warmup["warmup_status"] != "completed",
+                    ),
+                    "runtime_resources": SCANNER_DIAGNOSTICS.resource_metrics(
+                        ACTIVE_SCAN_REQUESTS
+                    ),
+                }
+                classified = SCANNER_DIAGNOSTICS.record_scan(session_id, event)
+                SCANNER_DIAGNOSTICS.record_event(classified)
+        except Exception as exc:
+            LOGGER.warning("Scanner diagnostics collection failed (%s)", type(exc).__name__)
+        ACTIVE_SCAN_REQUESTS = max(0, ACTIVE_SCAN_REQUESTS - 1)
+
+
+def _scanner_session_id(value: str | None) -> str:
+    if value:
+        try:
+            return str(uuid.UUID(value))
+        except (ValueError, AttributeError):
+            pass
+    return str(uuid.uuid4())
 
 
 STATIC_DIR = Path("static")
@@ -1426,13 +1543,44 @@ async def admin_user_detail(telegram_id: int, authorization: str | None = Header
 
 
 @app.post("/me/activity")
-async def record_my_activity(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+async def record_my_activity(
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+    session_header: str | None = Header(default=None, alias="X-Scanner-Session-ID"),
+):
     """Authenticated heartbeat for Telegram Mini App online presence."""
     auth = _validate_telegram_init_data(init_data)
     user = auth["user"]
     saved = get_or_create_user(auth["id"], username=str(user.get("username") or ""),
         first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
+    session_id = _scanner_session_id(session_header)
+    if SCANNER_DIAGNOSTICS.note_user_online(auth["id"]):
+        try:
+            await SCANNER_PREWARM.on_trigger(
+                "user_online", session_id, ACTIVE_SCAN_REQUESTS
+            )
+        except Exception as exc:
+            LOGGER.warning("Scanner online prewarm failed (%s)", type(exc).__name__)
     return {"status": "ok", "telegram_id": saved["telegram_id"]}
+
+
+@app.post("/me/scanner-prewarm")
+async def request_scanner_prewarm(
+    trigger: str,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+    session_header: str | None = Header(default=None, alias="X-Scanner-Session-ID"),
+):
+    """Request a non-blocking, authenticated scanner warmup signal."""
+    _validate_telegram_init_data(init_data)
+    if trigger not in {"scanner_open", "image_selected"}:
+        raise HTTPException(status_code=400, detail="Недопустимый сигнал прогрева")
+    session_id = _scanner_session_id(session_header)
+    try:
+        return await SCANNER_PREWARM.on_trigger(
+            trigger, session_id, ACTIVE_SCAN_REQUESTS
+        )
+    except Exception as exc:
+        LOGGER.warning("Scanner prewarm signal failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Не удалось подготовить сканер") from exc
 
 
 @app.post("/admin/login")
@@ -1564,16 +1712,53 @@ async def download_scan_logs(authorization: str | None = Header(default=None)):
     payload = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "app_commit": get_app_commit(),
-        "retention": "Most recent 100 scan-preview requests in this running process; cleared on restart/redeploy.",
+        "retention": "Includes the most recent in-memory admin preview logs; process-local JSONL scan events are listed separately.",
         "count": len(SCAN_DIAGNOSTIC_LOGS),
         "logs": list(SCAN_DIAGNOSTIC_LOGS),
     }
     body = json.dumps(payload, ensure_ascii=False, indent=2)
+    if len(body.encode("utf-8")) > SCANNER_DIAGNOSTICS.max_report_bytes:
+        raise HTTPException(status_code=413, detail="Отчёт превышает допустимый размер")
     filename = f"pubg-scan-logs-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json"
     return Response(
         content=body,
         media_type="application/json; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/admin/scan-logs/files")
+async def list_scanner_diagnostic_files(
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    return {
+        "files": SCANNER_DIAGNOSTICS.list_files(),
+        "summary": SCANNER_DIAGNOSTICS.summary(),
+    }
+
+
+@app.get("/admin/scan-logs/summary")
+async def scanner_diagnostics_summary(
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    return SCANNER_DIAGNOSTICS.summary()
+
+
+@app.get("/admin/scan-logs/files/{filename}")
+async def download_scanner_diagnostic_file(
+    filename: str,
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    path = SCANNER_DIAGNOSTICS.safe_file(filename)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Файл диагностики не найден")
+    return FileResponse(
+        path,
+        media_type="application/x-ndjson",
+        filename=path.name,
     )
 
 
@@ -2765,6 +2950,9 @@ def _run_screenshot_tests(
     aggregate_timing_values["test.catalog_load_ms"] = [catalog_load_ms]
 
     resource_summary = resource_monitor.summary()
+    diagnostics_runtime = SCANNER_DIAGNOSTICS.resource_metrics(ACTIVE_SCAN_REQUESTS)
+    scanner_warmup = SCANNER_PREWARM.snapshot()
+    prewarm_flags = SCANNER_PREWARM.feature_flags()
     scan_times = [
         float(item["timings"]["scan_ms"])
         for item in results
@@ -2810,6 +2998,8 @@ def _run_screenshot_tests(
             "end_time": end_time.isoformat(),
             "duration_ms": test_duration_ms,
             "run_id": report_id,
+            "worker_run_id": SCANNER_DIAGNOSTICS.run_id,
+            "worker_pid": os.getpid(),
             "schema_version": 2,
             "case_count": len(cases),
             "processed_count": processed,
@@ -2818,6 +3008,9 @@ def _run_screenshot_tests(
             "error_count": error_count,
             "profiling_mode": "server-side stdlib process and cgroup sampling",
             "preview_mode": "enabled" if save_previews else "disabled",
+            "scanner_warmup": scanner_warmup,
+            "prewarm_trigger": SCANNER_PREWARM.trigger,
+            "prewarm_feature_flags": prewarm_flags,
             "timings": {
                 "manifest_fetch_ms": manifest_fetch_ms,
                 "catalog_load_ms": catalog_load_ms,
@@ -2831,6 +3024,9 @@ def _run_screenshot_tests(
             "os": platform.platform(),
             "platform": platform.system(),
             "git_sha": get_app_commit(),
+            "worker_pid": os.getpid(),
+            "worker_run_id": SCANNER_DIAGNOSTICS.run_id,
+            "runtime_metrics": diagnostics_runtime,
             "cpu_count": resource_summary["end_state"].get("cpu_count"),
             "available_cpu_count": resource_summary["end_state"].get("available_cpu_count"),
             "cpu_limit": resource_summary["end_state"].get("cpu_limit"),
@@ -3522,6 +3718,32 @@ async def scan(
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
     request_started = time.perf_counter()
+    request_diag = getattr(request.state, "scanner_diagnostics", None)
+    if not isinstance(request_diag, dict):
+        request_diag = {}
+        request.state.scanner_diagnostics = request_diag
+    request_started_at = getattr(request.state, "scanner_request_started", request_started)
+    session_id = getattr(request.state, "scanner_session_id", None)
+    if not session_id:
+        raw_headers = request.scope.get("headers", ())
+        session_header = next(
+            (
+                value.decode("latin-1")
+                for name, value in raw_headers
+                if name.lower() == b"x-scanner-session-id"
+            ),
+            None,
+        )
+        session_id = _scanner_session_id(session_header)
+    request.state.scanner_session_id = session_id
+    request.state.scanner_request_started = request_started_at
+    request_diag.setdefault(
+        "request_received_ms",
+        round((request_started_at - SCANNER_DIAGNOSTICS.started_monotonic) * 1000, 3),
+    )
+    request_diag["request_body_read_ms"] = round(
+        (request_started - request_started_at) * 1000, 3
+    )
     auth = _validate_telegram_init_data(init_data) if init_data else None
     rate_key = (
         f"user:{auth['id']}"
@@ -3529,12 +3751,40 @@ async def scan(
         else f"ip:{request.client.host if request.client else 'unknown'}"
     )
     _enforce_scan_rate_limit(rate_key)
+    try:
+        prewarm = await SCANNER_PREWARM.on_trigger(
+            "before_scan", session_id, max(0, ACTIVE_SCAN_REQUESTS - 1)
+        )
+    except Exception as exc:
+        LOGGER.warning("Scanner before-scan prewarm check failed (%s)", type(exc).__name__)
+        prewarm = SCANNER_PREWARM.snapshot()
+    request_diag.update({
+        "warmup_status_at_scan": prewarm["warmup_status"],
+        "warmup_trigger": prewarm["warmup_trigger"],
+        "warmup_duration_ms": prewarm["warmup_duration_ms"],
+        "warmup_age_ms": SCANNER_PREWARM.warmup_age_ms(request_started),
+        "prewarm_mode": prewarm["prewarm_mode"],
+        "prewarm_check_trigger": "before_scan",
+        "prewarm_check_reason": prewarm.get("reason"),
+        "initialization_required": prewarm["warmup_status"] != "completed",
+    })
     decode_started = time.perf_counter()
     upload_profile: dict[str, Any] = {}
     async with SCAN_SEMAPHORE:
         image = await _read_image(file, upload_profile)
         upload_decode_ms = (time.perf_counter() - decode_started) * 1000
         result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
+    image_size = getattr(image, "size", (None, None))
+    request_diag.update({
+        "image_upload_size_bytes": upload_profile.get("upload_size_bytes"),
+        "image_decode_ms": upload_profile.get("upload_image_decode_ms"),
+        "image_width": upload_profile.get("upload_source_width", image_size[0]),
+        "image_height": upload_profile.get("upload_source_height", image_size[1]),
+        "image_format": upload_profile.get("upload_format"),
+        "upload_rgb_convert_ms": upload_profile.get("upload_rgb_convert_ms"),
+        "upload_file_read_ms": upload_profile.get("upload_read_ms"),
+    })
+    request_diag["image_preprocess_ms"] = result.get("profile", {}).get("rgb_convert_ms")
     matching_started = time.perf_counter()
     catalog_load_started = time.perf_counter()
     db = load_db()
@@ -3595,8 +3845,50 @@ async def scan(
     profile["matching_evaluation_ms"] = round(matching_evaluation_ms, 1)
     profile.update(matching_profile)
     profile["matched_count"] = sum(card.get("id") is not None for card in matches)
+    profile["request_received_ms"] = request_diag["request_received_ms"]
+    profile["request_body_read_ms"] = request_diag["request_body_read_ms"]
+    profile["image_upload_size_bytes"] = request_diag["image_upload_size_bytes"]
+    profile["image_decode_ms"] = request_diag["image_decode_ms"]
+    profile["image_width"] = request_diag["image_width"]
+    profile["image_height"] = request_diag["image_height"]
+    profile["image_format"] = request_diag["image_format"]
+    profile["image_preprocess_ms"] = request_diag["image_preprocess_ms"]
+    profile["upload_rgb_convert_ms"] = request_diag.get("upload_rgb_convert_ms")
+    profile["hashing_total_ms"] = round(
+        float(profile.get("raw_hash_ms", 0.0) or 0.0)
+        + float(profile.get("clean_hash_ms", 0.0) or 0.0),
+        3,
+    )
+    profile["quality_check_ms"] = None
+    profile["warmup_status"] = prewarm["warmup_status"]
+    profile["warmup_trigger"] = prewarm["warmup_trigger"]
+    profile["warmup_duration_ms"] = prewarm["warmup_duration_ms"]
+    profile["warmup_age_ms"] = request_diag["warmup_age_ms"]
+    profile["prewarm_mode"] = prewarm["prewarm_mode"]
+    profile["initialization_required"] = prewarm["warmup_status"] != "completed"
+    response_started = time.perf_counter()
+    response_data = {
+        "cards": matches,
+        "count": len(matches),
+        "authenticated": bool(auth),
+        "profile": profile,
+    }
+    response_build_ms = round((time.perf_counter() - response_started) * 1000, 3)
+    request_diag.update({
+        "detection_ms": profile.get("detection_ms"),
+        "counter_ms": profile.get("counter_ms"),
+        "raw_hash_ms": profile.get("raw_hash_ms"),
+        "clean_hash_ms": profile.get("clean_hash_ms"),
+        "hashing_total_ms": profile.get("hashing_total_ms"),
+        "matching_ms": profile.get("matching_ms"),
+        "quality_check_ms": None,
+        "response_build_ms": response_build_ms,
+    })
+    profile["response_build_ms"] = response_build_ms
+    profile["total_server_ms"] = round((time.perf_counter() - request.state.scanner_request_started) * 1000, 3)
     profile["server_total_ms"] = round((time.perf_counter() - request_started) * 1000, 1)
-    return {"cards": matches, "count": len(matches), "authenticated": bool(auth), "profile": profile}
+    request_diag["total_server_ms"] = profile["total_server_ms"]
+    return response_data
 
 
 @app.post("/admin/save-card")

@@ -256,6 +256,9 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
         <button id="downloadScanLogsBtn" type="button" class="btn-secondary">⬇️ Скачать логи сканирования</button>
       </div>
       <div id="logsStatus" class="muted"></div>
+      <div class="row"><button id="refreshScannerDiagnosticsBtn" type="button" class="btn-secondary">Обновить диагностические JSONL</button></div>
+      <div id="scannerDiagnosticsSummary" class="muted" role="status" aria-live="polite"></div>
+      <div id="scannerDiagnosticsFiles" class="muted"></div>
       <div class="box" style="margin-top:12px">
         <h3>Диагностика границ карт</h3>
         <p class="muted">Проверяет тот же скриншот отдельно от обычного сканирования. Зелёные рамки — принятые контуры, красные — отклонённые, оранжевые — итоговые границы, голубые — достроенные позиции. Диагностика не меняет инвентарь и не сохраняет изображения.</p>
@@ -1478,6 +1481,69 @@ document.getElementById('downloadScanLogsBtn').onclick=async()=>{
   }catch(error){
     info.className='err';
     info.textContent='Не удалось скачать логи: '+error.message;
+  }finally{
+    button.disabled=false;
+  }
+};
+
+document.getElementById('refreshScannerDiagnosticsBtn').onclick=async()=>{
+  const button=document.getElementById('refreshScannerDiagnosticsBtn');
+  const summary=document.getElementById('scannerDiagnosticsSummary');
+  const filesRoot=document.getElementById('scannerDiagnosticsFiles');
+  button.disabled=true;
+  summary.className='muted';
+  summary.textContent='Загружаем сводку...';
+  filesRoot.replaceChildren();
+  try{
+    const response=await api('/admin/scan-logs/files');
+    if(!response.ok)throw new Error(await readError(response));
+    const data=await response.json();
+    const stats=data.summary||{};
+    const first=stats.first_and_subsequent?.first_scans||{};
+    const later=stats.first_and_subsequent?.subsequent_scans||{};
+    summary.textContent=`Запросов: ${stats.scan_count??0}; ошибок: ${stats.error_count??0}; первое: median ${first.median_ms??'—'} мс, p90 ${first.p90_ms??'—'} мс; последующие: median ${later.median_ms??'—'} мс, p90 ${later.p90_ms??'—'} мс. Локальное хранение на хосте может быть временным.`;
+    const files=data.files||[];
+    if(!files.length){
+      filesRoot.textContent='Файлов JSONL пока нет.';
+      return;
+    }
+    files.forEach(file=>{
+      const row=document.createElement('div');
+      row.className='row';
+      row.style.alignItems='center';
+      const label=document.createElement('span');
+      label.className='muted';
+      label.textContent=`${file.name} · ${file.record_count} записей · ${(file.size_bytes/1024).toFixed(1)} КБ · PID ${file.worker_pid??'—'}`;
+      const download=document.createElement('button');
+      download.type='button';
+      download.className='btn-secondary';
+      download.textContent='Скачать JSONL';
+      download.onclick=async()=>{
+        download.disabled=true;
+        try{
+          const result=await api('/admin/scan-logs/files/'+encodeURIComponent(file.name));
+          if(!result.ok)throw new Error(await readError(result));
+          const url=URL.createObjectURL(await result.blob());
+          const link=document.createElement('a');
+          link.href=url;
+          link.download=file.name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }catch(error){
+          summary.className='err';
+          summary.textContent='Не удалось скачать JSONL: '+error.message;
+        }finally{
+          download.disabled=false;
+        }
+      };
+      row.append(label,download);
+      filesRoot.appendChild(row);
+    });
+  }catch(error){
+    summary.className='err';
+    summary.textContent='Не удалось загрузить диагностику: '+error.message;
   }finally{
     button.disabled=false;
   }

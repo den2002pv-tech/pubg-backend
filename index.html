@@ -743,6 +743,26 @@ const API = '';
 const telegramInitData = tg?.initData || '';
 if (telegramInitData) document.getElementById('feedbackPanel')?.style.setProperty('display', 'block');
 const telegramHeaders = () => telegramInitData ? { 'X-Telegram-Init-Data': telegramInitData } : {};
+const scannerSessionId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+    const random = Math.random() * 16 | 0;
+    return (character === 'x' ? random : (random & 3 | 8)).toString(16);
+  });
+const scannerSessionHeaders = () => ({ 'X-Scanner-Session-ID': scannerSessionId });
+const scannerPrewarmSignals = new Map();
+function requestScannerPrewarm(trigger) {
+  if (!telegramInitData) return;
+  const now = Date.now();
+  if (now - (scannerPrewarmSignals.get(trigger) || 0) < 10000) return;
+  scannerPrewarmSignals.set(trigger, now);
+  fetch(API + '/me/scanner-prewarm?trigger=' + encodeURIComponent(trigger), {
+    method: 'POST',
+    headers: { ...telegramHeaders(), ...scannerSessionHeaders() },
+    cache: 'no-store',
+    keepalive: true,
+  }).catch(() => {});
+}
 
 const analyticsQueue = [];
 let analyticsFlushTimer = null;
@@ -784,7 +804,7 @@ trackAnalytics('app_open');
 let activityHeartbeatTimer = null;
 async function sendActivityHeartbeat(){
   if(!telegramInitData || document.visibilityState === 'hidden') return;
-  try{ await fetch(API + '/me/activity', {method:'POST',headers:{...telegramHeaders()},cache:'no-store',keepalive:true}); }
+  try{ await fetch(API + '/me/activity', {method:'POST',headers:{...telegramHeaders(),...scannerSessionHeaders()},cache:'no-store',keepalive:true}); }
   catch(_error){ /* Presence errors must not block inventory usage. */ }
 }
 if(telegramInitData){
@@ -928,6 +948,7 @@ function postScanImage(formData, clientProfile) {
     xhr.open('POST', API + '/scan');
     xhr.timeout = SCAN_TIMEOUT_MS;
     Object.entries(telegramHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
+    Object.entries(scannerSessionHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
 
     xhr.upload.addEventListener('progress', event => {
       if (!event.lengthComputable) return;
@@ -1070,6 +1091,7 @@ document.querySelectorAll('.tab').forEach(btn => {
 });
 
 function switchTab(name) {
+  if (name === 'scanner') requestScannerPrewarm('scanner_open');
   trackAnalytics('tab_open', { tab: name });
   const isScanner = name === 'scanner';
   const isInventory = name === 'inventory';
@@ -1107,6 +1129,7 @@ document.querySelector('[role="tablist"]').addEventListener('keydown', event => 
 
 // Scanner Logic
 fileInput.addEventListener('change', () => {
+  requestScannerPrewarm('image_selected');
   scanSaveStatusEl.textContent = '';
   scanSaveStatusEl.dataset.state = '';
   retryScanFile = fileInput.files[0] || null;
@@ -1150,6 +1173,7 @@ async function uploadImage(file) {
     setScannerStatus('⏳ Отправляем изображение на сервер…', 'Подготовка завершена.', true);
     const requestStartedAt = performance.now();
     let d;
+    requestScannerPrewarm('before_scan');
     try {
       d = await postScanImage(fd, clientProfile);
     } finally {
