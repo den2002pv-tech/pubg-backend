@@ -48,14 +48,18 @@ def _detection_edges(img: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarra
 
 
 def _candidate_rectangles(
-    img: np.ndarray, edges_blurred: np.ndarray
+    img: np.ndarray,
+    edges_blurred: np.ndarray,
+    contours: list[np.ndarray] | None = None,
 ) -> list[tuple[int, int, int, int]]:
     h, w = img.shape[:2]
     edges = edges_blurred
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
-
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if contours is None:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+        contours, _ = cv2.findContours(
+            closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+        )
     out: list[tuple[int, int, int, int]] = []
     for contour in contours:
         x, y, cw, ch = cv2.boundingRect(contour)
@@ -190,7 +194,7 @@ def _complete_single(
     """Extend a lone card to neighbours at the album grid step; unconfirmed lone cards are dropped."""
     if not row:
         return row
-    h, w = img.shape[:2]
+    w = img.shape[1]
     x, y, cw, ch = row[0]
     edges = edges_raw
     step = cw * _CARD_GRID_STEP_RATIO
@@ -429,7 +433,7 @@ def diagnose_inventory_cards(image: Image.Image) -> dict[str, Any]:
             "rejection_reason": reason,
         })
 
-    raw_boxes = _candidate_rectangles(img, edges)
+    raw_boxes = _candidate_rectangles(img, edges, contours)
     clustered = _cluster_rows(raw_boxes, height)
     edges_raw = cv2.Canny(gray, 45, 140)
     completed = [r for r in (_complete_row(row, img, edges_raw) for row in clustered) if r]

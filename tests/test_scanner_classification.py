@@ -28,6 +28,29 @@ def test_counter_contour_processing_is_capped_per_threshold(monkeypatch):
     assert all(run["processed_contours"] == 2 for run in debug["threshold_runs"])
 
 
+def test_inventory_diagnostics_reuse_the_detected_contours(monkeypatch):
+    image = Image.new("RGB", (400, 250), (25, 30, 35))
+    draw = ImageDraw.Draw(image)
+    for x in (60, 132):
+        draw.rectangle((x, 60, x + 59, 159), outline=(240, 240, 240), width=3)
+
+    original_find_contours = scanner.cv2.findContours
+    calls = 0
+
+    def count_find_contours(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_find_contours(*args, **kwargs)
+
+    monkeypatch.setattr(scanner.cv2, "findContours", count_find_contours)
+
+    result = scanner.diagnose_inventory_cards(image)
+
+    assert calls == 1
+    assert result["stages"]["contours_found"] == 2
+    assert result["stages"]["final_cards"] == 2
+
+
 def test_frame_pixel_threshold_matches_rgb_mean_for_random_and_boundary_data():
     rng = np.random.default_rng(20261030)
     random_pixels = rng.integers(0, 256, size=(64, 96, 3), dtype=np.uint8)
