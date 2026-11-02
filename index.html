@@ -320,12 +320,12 @@ button.trade.saving{background:linear-gradient(90deg,#1f6f3f,#2d8748,#1f6f3f);ba
 .scan-card-art{position:relative;aspect-ratio:2/3;background:#0c0f12;border-radius:var(--radius-sm);overflow:hidden}
 .scan-card-image{width:100%;height:100%;display:block;object-fit:cover}
 .scan-detected-badge{position:absolute;top:6px;left:6px;z-index:3;min-width:34px;padding:4px 7px;border:1px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(12,16,22,.9);color:#fff;font-size:12px;font-weight:800;line-height:1.2;text-align:center;backdrop-filter:blur(4px)}
-.scan-inventory-badge{position:absolute;top:6px;right:6px;z-index:3;min-width:34px;padding:4px 7px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(12,16,22,.9);color:#d7e2ea;font-size:11px;font-weight:800;line-height:1.2;text-align:center;backdrop-filter:blur(4px)}
+.scan-inventory-badge{position:absolute;left:6px;bottom:6px;z-index:3;min-width:34px;padding:4px 7px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(12,16,22,.9);color:#d7e2ea;font-size:11px;font-weight:800;line-height:1.2;text-align:center;backdrop-filter:blur(4px)}
 .scan-help-example{display:grid;grid-template-columns:minmax(112px,150px) minmax(0,1fr);gap:12px;align-items:center;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
 .scan-help-art{position:relative;width:100%;aspect-ratio:2/3;overflow:hidden;border-radius:8px;background:#0c0f12}
 .scan-help-art>img:first-child{display:block;width:100%;height:100%;object-fit:cover}
 .scan-help-badge{position:absolute;top:6px;min-width:31px;padding:4px 6px;border:1px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(12,16,22,.94);color:#fff;font-size:11px;font-weight:800;text-align:center;line-height:1.2}
-.scan-help-badge.detected{left:6px}.scan-help-badge.owned{right:6px;background:rgba(16,48,27,.96);border-color:#2d8748;color:#a5f3b5}
+.scan-help-badge.detected{left:6px}.scan-help-badge.owned{left:6px;top:auto;bottom:6px;background:rgba(16,48,27,.96);border-color:#2d8748;color:#a5f3b5}.scan-help-badge.counter{right:6px;left:auto;background:rgba(25,38,58,.96);border-color:#52749b;color:#c5ddff}
 .scan-help-reference{position:absolute;right:5px;bottom:5px;width:31%;aspect-ratio:2/3;padding:2px;border:1px solid rgba(255,255,255,.85);border-radius:6px;background:#090c10;object-fit:contain;box-shadow:0 2px 8px rgba(0,0,0,.6)}
 .scan-help-callouts{display:grid;gap:9px;min-width:0;font-size:12px;line-height:1.35;color:var(--text-muted)}
 .scan-help-callout{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px;align-items:start}
@@ -551,12 +551,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
         <div class="scan-help-art" aria-label="Пример карточки Керамбит с обозначениями">
           <img src="/static/cards/card_53.webp" alt="Карта Керамбит">
           <span class="scan-help-badge detected">×4</span>
+          <span class="scan-help-badge counter">×3</span>
           <span class="scan-help-badge owned">✓ ×2</span>
           <img class="scan-help-reference" src="/static/cards/card_53.webp" alt="Миниатюра эталона карты">
         </div>
         <div class="scan-help-callouts">
           <div class="scan-help-callout"><span class="scan-help-dot"></span><span><b>Слева сверху — ×4</b><br>Сколько копий этой карты распознано на загруженном скриншоте.</span></div>
-          <div class="scan-help-callout"><span class="scan-help-dot green"></span><span><b>Справа сверху — ✓ ×2</b><br>Карта уже есть в вашем инвентаре. Число — сколько копий сохранено у вас.</span></div>
+          <div class="scan-help-callout"><span class="scan-help-dot green"></span><span><b>Слева снизу — ✓ ×2</b><br>Карта уже есть в вашем инвентаре. Число — сколько копий сохранено у вас.</span></div>
+          <div class="scan-help-callout"><span class="scan-help-dot"></span><span><b>Справа сверху — ×3</b><br>Счётчик количества копий карты для сохранения. Его значение можно изменить вручную в поле «Количество» под карточкой.</span></div>
           <div class="scan-help-callout"><span class="scan-help-dot gold"></span><span><b>Справа снизу — миниатюра</b><br>Эталон карты. Нажмите на него, чтобы сравнить с распознанным изображением.</span></div>
         </div>
       </div>
