@@ -297,11 +297,8 @@ input[type=file]{display:none}
 @keyframes upload-pulse{0%,100%{box-shadow:0 0 0 0 rgba(121,192,255,.25)}50%{box-shadow:0 0 0 10px rgba(121,192,255,0)}}
 
 /* Toast notifications */
-/* Keep mobile notifications above Android's system navigation bar. */
-.toast-container{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,420px)}
-@media(max-width:767px){
-  .toast-container{bottom:calc(18px + max(env(safe-area-inset-bottom,0px),var(--tg-safe-area-inset-bottom,0px)) + 48px)}
-}
+/* The top position is synchronized with the visible WebView viewport by JS. */
+.toast-container{position:fixed;left:50%;top:var(--toast-top,auto);bottom:auto;transform:translateX(-50%);z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,420px)}
 .toast{padding:11px 16px;border-radius:10px;font-size:13px;font-weight:700;line-height:1.35;box-shadow:0 10px 30px rgba(0,0,0,.45);border:1px solid var(--border);background:var(--surface-raised);color:var(--text);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;max-width:100%}
 .toast.show{opacity:1;transform:translateY(0)}
 .toast.success{border-color:#2d8748;color:#a5f3b5}
@@ -744,6 +741,27 @@ const tg = window.Telegram?.WebApp;
 tg?.expand();
 
 const API = '';
+
+// Keep notifications inside the actually visible area of mobile WebViews.
+const toastContainer = document.getElementById('toastContainer');
+function updateToastPosition() {
+  if (!toastContainer) return;
+  const viewport = window.visualViewport;
+  const viewportTop = viewport ? viewport.offsetTop : 0;
+  const viewportHeight = viewport ? viewport.height : window.innerHeight;
+  const telegramSafeArea = Math.max(
+    Number(tg?.safeAreaInset?.bottom) || 0,
+    Number(tg?.contentSafeAreaInset?.bottom) || 0
+  );
+  const safeArea = Math.max(telegramSafeArea, 0);
+  const top = Math.max(8, viewportTop + viewportHeight - toastContainer.offsetHeight - safeArea - 16);
+  toastContainer.style.setProperty('--toast-top', top + 'px');
+}
+window.visualViewport?.addEventListener('resize', updateToastPosition);
+window.visualViewport?.addEventListener('scroll', updateToastPosition);
+window.addEventListener('resize', updateToastPosition);
+tg?.onEvent?.('viewportChanged', updateToastPosition);
+
 const telegramInitData = tg?.initData || '';
 if (telegramInitData) document.getElementById('feedbackPanel')?.style.setProperty('display', 'block');
 const telegramHeaders = () => telegramInitData ? { 'X-Telegram-Init-Data': telegramInitData } : {};
@@ -1082,7 +1100,11 @@ function showToast(message, typeOrDuration, maybeDuration) {
   toast.className = 'toast ' + type;
   toast.textContent = message;
   toastContainer.appendChild(toast);
-  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+  updateToastPosition();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    updateToastPosition();
+    toast.classList.add('show');
+  }));
   setTimeout(() => {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 300);
