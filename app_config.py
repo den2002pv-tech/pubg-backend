@@ -24,7 +24,7 @@ def _github_branch() -> str:
 def _github_head_sha(timeout: float = 3.0) -> str:
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend").strip() or "den2002pv-tech/pubg-backend"
     branch = _github_branch()
-    token = [redacted]"GITHUB_TOKEN", "").strip()
+    token = os.getenv("GITHUB_TOKEN", "").strip()
     url = f"https://api.github.com/repos/{repo}/commits/{branch}"
     headers = {
         "Accept": "application/vnd.github+json",
@@ -43,8 +43,7 @@ def _github_head_sha(timeout: float = 3.0) -> str:
 
 
 def get_app_commit() -> str:
-    # NOTE: APP_COMIT (single M) is a known typo used in some setups — accept it as an alias.
-    for variable in ("APP_COMMIT", "APP_COMIT", "GITHUB_SHA", "RENDER_GIT_COMMIT", "SOURCE_VERSION"):
+    for variable in ("APP_COMMIT", "GITHUB_SHA", "RENDER_GIT_COMMIT", "SOURCE_VERSION"):
         commit = os.getenv(variable, "").strip()
         if commit:
             return commit
