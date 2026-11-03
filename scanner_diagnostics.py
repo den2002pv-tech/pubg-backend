@@ -638,7 +638,8 @@ class ScannerDiagnosticStore:
             for seconds in (5, 10, 30, 60)
         }
         stage_names = (
-            "request_body_read_ms", "image_decode_ms", "image_preprocess_ms",
+            "request_body_read_ms", "queue_wait_ms", "upload_file_read_ms",
+            "image_decode_ms", "upload_rgb_convert_ms", "image_preprocess_ms",
             "detection_ms", "counter_ms", "raw_hash_ms", "clean_hash_ms",
             "hashing_total_ms", "matching_ms", "quality_check_ms",
             "response_build_ms", "total_server_ms",

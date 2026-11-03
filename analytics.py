@@ -18,10 +18,11 @@ ALLOWED_FAILURES = {"timeout", "network", "server", "unknown"}
 ALLOWED_TRADE_ACTIONS = {"open", "accept", "decline", "cancel", "confirm", "code_submit", "request"}
 ALLOWED_FEEDBACK_CATEGORIES = {"bug", "slow", "confusing", "feature", "other"}
 PROFILE_TIME_KEYS = {
-    "rgb_convert_ms", "upload_decode_ms", "upload_read_ms", "upload_image_decode_ms",
+    "rgb_convert_ms", "request_body_read_ms", "queue_wait_ms", "upload_read_ms",
+    "upload_image_decode_ms",
     "upload_rgb_convert_ms", "detection_ms", "counter_ms", "counter_image_prepare_ms",
     "counter_threshold_ms", "counter_fallback_ms", "raw_hash_ms", "clean_hash_ms",
-    "hash_normalization_ms", "hash_frame_extract_ms", "hash_compute_ms", "preview_ms",
+    "hash_preparation_ms", "hash_frame_extract_ms", "hash_compute_ms", "preview_ms",
     "catalog_load_ms", "matching_evaluation_ms", "matching_ms", "total_ms",
     "server_total_ms", "client_form_data_ms",
     "client_wake_ms", "client_upload_ms", "client_response_wait_ms",

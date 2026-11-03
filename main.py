@@ -36,7 +36,14 @@ from scanner import _detect_counter, _has_counter_evidence
 
 from pydantic import BaseModel
 
-from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inventory_cards, scan_screenshot
+from scanner import (
+    CARD_HASH_ALGORITHM_VERSION,
+    CARD_HASH_KEYS,
+    calculate_card_hashes,
+    detect_inventory_cards,
+    diagnose_inventory_cards,
+    scan_screenshot,
+)
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
@@ -139,6 +146,7 @@ async def scanner_diagnostics_middleware(request: Request, call_next):
     request.state.scanner_request_started = started
     request.state.scanner_diagnostics = {
         "request_body_read_ms": None,
+        "queue_wait_ms": None,
         "image_upload_size_bytes": None,
         "image_decode_ms": None,
         "image_width": None,
@@ -236,6 +244,11 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
 
 DB_FILE = Path("card_hashes.json")
+CARD_CATALOG_FORMAT_VERSION = 2
+CARD_CATALOG_METADATA = {
+    "format_version": CARD_CATALOG_FORMAT_VERSION,
+    "hash_algorithm": CARD_HASH_ALGORITHM_VERSION,
+}
 _DB_CACHE_SIGNATURE: tuple[str, int | None, int | None] | None = None
 _DB_CACHE_DATA: dict[str, Any] | None = None
 _MATCH_INDEX_DB: dict[str, Any] | None = None
@@ -254,6 +267,39 @@ HASH_REGEN_PROGRESS: dict[str, Any] = {
 }
 
 
+class _DuplicateCatalogKeyError(ValueError):
+    pass
+
+
+def _catalog_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateCatalogKeyError(key)
+        result[key] = value
+    return result
+
+
+def _validate_catalog_cards(cards: dict[str, Any]) -> None:
+    if not cards:
+        raise RuntimeError("Card catalogue must contain at least one card")
+    required_hashes = set(CARD_HASH_KEYS)
+    for card_id, record in cards.items():
+        if not isinstance(card_id, str) or not card_id.strip():
+            raise RuntimeError("Card catalogue contains an empty or invalid card ID")
+        if not isinstance(record, dict):
+            raise RuntimeError(f"Card catalogue record is invalid: {card_id}")
+        hashes = record.get("hashes")
+        if not isinstance(hashes, dict):
+            raise RuntimeError(f"Card catalogue record is missing hashes: {card_id}")
+        missing_hashes = required_hashes.difference(hashes)
+        if missing_hashes:
+            missing = ", ".join(sorted(missing_hashes))
+            raise RuntimeError(f"Card catalogue record is missing hash fields ({missing}): {card_id}")
+        for key in CARD_HASH_KEYS:
+            value = hashes.get(key)
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-fA-F]+", value):
+                raise RuntimeError(f"Card catalogue record has an invalid {key}: {card_id}")
 
 
 def load_db() -> dict[str, Any]:
@@ -271,12 +317,36 @@ def load_db() -> dict[str, Any]:
         data: dict[str, Any] = {}
     else:
         try:
-            loaded = json.loads(DB_FILE.read_text(encoding="utf-8"))
+            loaded = json.loads(
+                DB_FILE.read_text(encoding="utf-8"),
+                object_pairs_hook=_catalog_json_object,
+            )
+        except _DuplicateCatalogKeyError as exc:
+            raise RuntimeError(f"Card catalogue contains duplicate object keys: {DB_FILE}") from exc
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Card catalogue contains invalid JSON: {DB_FILE}") from exc
         if not isinstance(loaded, dict):
             raise RuntimeError(f"Card catalogue must contain a JSON object: {DB_FILE}")
-        data = loaded
+        metadata = loaded.get("metadata")
+        if not isinstance(metadata, dict):
+            raise RuntimeError(f"Card catalogue metadata is missing: {DB_FILE}")
+        if "format_version" not in metadata or "hash_algorithm" not in metadata:
+            raise RuntimeError(f"Card catalogue metadata is missing required fields: {DB_FILE}")
+        if metadata["format_version"] != CARD_CATALOG_FORMAT_VERSION:
+            raise RuntimeError(
+                f"Card catalogue format version {metadata['format_version']} is incompatible; "
+                f"expected {CARD_CATALOG_FORMAT_VERSION}: {DB_FILE}"
+            )
+        if metadata["hash_algorithm"] != CARD_HASH_ALGORITHM_VERSION:
+            raise RuntimeError(
+                f"Card catalogue hash algorithm {metadata['hash_algorithm']!r} is incompatible; "
+                f"expected {CARD_HASH_ALGORITHM_VERSION!r}: {DB_FILE}"
+            )
+        cards = loaded.get("cards")
+        if not isinstance(cards, dict):
+            raise RuntimeError(f"Card catalogue must contain a 'cards' object: {DB_FILE}")
+        _validate_catalog_cards(cards)
+        data = cards
 
     _DB_CACHE_SIGNATURE = signature
     _DB_CACHE_DATA = data
@@ -287,8 +357,10 @@ def load_db() -> dict[str, Any]:
 
 def save_db(data: dict[str, Any]) -> None:
     global _DB_CACHE_SIGNATURE, _DB_CACHE_DATA, _MATCH_INDEX_DB, _MATCH_INDEX
+    _validate_catalog_cards(data)
     tmp = DB_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    payload = {"metadata": CARD_CATALOG_METADATA, "cards": data}
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(DB_FILE)
     _DB_CACHE_SIGNATURE = None
     _DB_CACHE_DATA = None
@@ -3768,11 +3840,13 @@ async def scan(
         "prewarm_check_reason": prewarm.get("reason"),
         "initialization_required": prewarm["warmup_status"] != "completed",
     })
-    decode_started = time.perf_counter()
     upload_profile: dict[str, Any] = {}
+    queue_started = time.perf_counter()
     async with SCAN_SEMAPHORE:
+        request_diag["queue_wait_ms"] = round(
+            (time.perf_counter() - queue_started) * 1000, 3
+        )
         image = await _read_image(file, upload_profile)
-        upload_decode_ms = (time.perf_counter() - decode_started) * 1000
         result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
     image_size = getattr(image, "size", (None, None))
     request_diag.update({
@@ -3839,7 +3913,6 @@ async def scan(
 
     profile = dict(result.get("profile", {}))
     profile.update(upload_profile)
-    profile["upload_decode_ms"] = round(upload_decode_ms, 1)
     profile["catalog_load_ms"] = round(catalog_load_ms, 1)
     profile["matching_ms"] = round(matching_ms, 1)
     profile["matching_evaluation_ms"] = round(matching_evaluation_ms, 1)
@@ -3847,6 +3920,7 @@ async def scan(
     profile["matched_count"] = sum(card.get("id") is not None for card in matches)
     profile["request_received_ms"] = request_diag["request_received_ms"]
     profile["request_body_read_ms"] = request_diag["request_body_read_ms"]
+    profile["queue_wait_ms"] = request_diag["queue_wait_ms"]
     profile["image_upload_size_bytes"] = request_diag["image_upload_size_bytes"]
     profile["image_decode_ms"] = request_diag["image_decode_ms"]
     profile["image_width"] = request_diag["image_width"]
@@ -3910,6 +3984,12 @@ async def save_card(
     # The scan preview is already cropped to the card. Reuse it as the
     # permanent icon so adding a card never requires uploading the same image twice.
     card_image = _load_admin_preview(data.preview)
+    if not set(CARD_HASH_KEYS).issubset(hashes) or any(
+        not re.fullmatch(r"[0-9a-fA-F]+", hashes[key])
+        for key in CARD_HASH_KEYS
+        if key in hashes
+    ):
+        hashes = calculate_card_hashes(card_image)
 
     db = load_db()
     requested_id = data.id.strip() if data.id else ""

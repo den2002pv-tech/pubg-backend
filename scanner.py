@@ -19,7 +19,14 @@ COUNTER_MAX_CONTOURS_PER_PASS = int(os.getenv("COUNTER_MAX_CONTOURS_PER_PASS", "
 if COUNTER_MAX_CONTOURS_PER_PASS < 1:
     raise ValueError("COUNTER_MAX_CONTOURS_PER_PASS must be a positive integer")
 
-NORMALIZED_SIZE = (224, 320)
+CARD_HASH_KEYS = (
+    "full_phash",
+    "full_dhash",
+    "visual_phash",
+    "visual_dhash",
+    "frame_colorhash",
+)
+CARD_HASH_ALGORITHM_VERSION = "card-hash-v2-no-preresize"
 
 
 def _image_from_any(value: Image.Image | bytes) -> Image.Image:
@@ -1258,10 +1265,6 @@ def _detect_counter(card: Image.Image) -> tuple[Image.Image, int, float, dict[st
         },
     )
 
-def normalize_card(card: Image.Image) -> Image.Image:
-    return _image_from_any(card).resize(NORMALIZED_SIZE, Image.Resampling.LANCZOS)
-
-
 def is_card_darkened(card: Image.Image) -> bool:
     """Require a dark frame and badge plus low overall luminance to detect dimming."""
     arr = np.asarray(_image_from_any(card))
@@ -1324,24 +1327,26 @@ def calculate_card_hashes(
     timings: dict[str, float] | None = None,
 ) -> dict[str, str]:
     stage_started = time.perf_counter()
-    full = normalize_card(card)
-    visual = normalize_card(extract_visual_area(card))
-    normalize_ms = (time.perf_counter() - stage_started) * 1000
+    card = _image_from_any(card)
+    visual = extract_visual_area(card)
+    preparation_ms = (time.perf_counter() - stage_started) * 1000
 
     stage_started = time.perf_counter()
     frame = extract_frame_area(card)
     frame_extract_ms = (time.perf_counter() - stage_started) * 1000
 
     stage_started = time.perf_counter()
+    # ImageHash downsamples internally; an extra full-card resize adds work and
+    # another resampling step without improving fixture identity results.
     hashes = {
-        "full_phash": str(imagehash.phash(full)),
-        "full_dhash": str(imagehash.dhash(full)),
+        "full_phash": str(imagehash.phash(card)),
+        "full_dhash": str(imagehash.dhash(card)),
         "visual_phash": str(imagehash.phash(visual)),
         "visual_dhash": str(imagehash.dhash(visual)),
         "frame_colorhash": str(imagehash.colorhash(frame)),
     }
     if timings is not None:
-        timings["hash_normalization_ms"] = normalize_ms
+        timings["hash_preparation_ms"] = preparation_ms
         timings["hash_frame_extract_ms"] = frame_extract_ms
         timings["hash_compute_ms"] = (time.perf_counter() - stage_started) * 1000
     return hashes
@@ -1393,7 +1398,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
     geometric_detected_count = len(detected)
     detection_ms = (time.perf_counter() - stage_started) * 1000
     counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0
-    hash_normalization_ms = hash_frame_extract_ms = hash_compute_ms = 0.0
+    hash_preparation_ms = hash_frame_extract_ms = hash_compute_ms = 0.0
     darkened_filtered_count = 0
     counter_threshold_passes = counter_fallback_passes = counter_contours = 0
     counter_image_prepare_ms = counter_threshold_ms = counter_fallback_ms = 0.0
@@ -1435,7 +1440,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         raw_hashes = calculate_card_hashes(crop, raw_hash_timings)
         hash_calculation_count += 1
         raw_hash_calculation_count += 1
-        hash_normalization_ms += raw_hash_timings.get("hash_normalization_ms", 0.0)
+        hash_preparation_ms += raw_hash_timings.get("hash_preparation_ms", 0.0)
         hash_frame_extract_ms += raw_hash_timings.get("hash_frame_extract_ms", 0.0)
         hash_compute_ms += raw_hash_timings.get("hash_compute_ms", 0.0)
         raw_hash_ms += (time.perf_counter() - stage_started) * 1000
@@ -1449,7 +1454,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
             hashes = calculate_card_hashes(clean_crop, clean_hash_timings)
             hash_calculation_count += 1
             clean_hash_calculation_count += 1
-            hash_normalization_ms += clean_hash_timings.get("hash_normalization_ms", 0.0)
+            hash_preparation_ms += clean_hash_timings.get("hash_preparation_ms", 0.0)
             hash_frame_extract_ms += clean_hash_timings.get("hash_frame_extract_ms", 0.0)
             hash_compute_ms += clean_hash_timings.get("hash_compute_ms", 0.0)
             clean_hash_ms += (time.perf_counter() - stage_started) * 1000
@@ -1501,7 +1506,7 @@ def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str,
         "raw_hash_calculation_count": raw_hash_calculation_count,
         "clean_hash_calculation_count": clean_hash_calculation_count,
         "hash_reuse_count": hash_reuse_count,
-        "hash_normalization_ms": round(hash_normalization_ms, 1),
+        "hash_preparation_ms": round(hash_preparation_ms, 1),
         "hash_frame_extract_ms": round(hash_frame_extract_ms, 1),
         "hash_compute_ms": round(hash_compute_ms, 1),
         "hash_input_dimensions": hash_input_dimensions,

@@ -38,6 +38,8 @@ def test_scan_metrics_are_bounded_and_profile_is_allowlisted():
             "duration_ms": 900000,
             "profile": {
                 "detection_ms": 23.45,
+                "request_body_read_ms": 1.26,
+                "queue_wait_ms": 2.35,
                 "total_ms": 100.06,
                 "image_path": "/private/path",
             },
@@ -49,7 +51,12 @@ def test_scan_metrics_are_bounded_and_profile_is_allowlisted():
             "cards_detected": 10000,
             "matched_count": 0,
             "duration_ms": 600000.0,
-            "profile": {"detection_ms": 23.4, "total_ms": 100.1},
+            "profile": {
+                "detection_ms": 23.4,
+                "request_body_read_ms": 1.3,
+                "queue_wait_ms": 2.4,
+                "total_ms": 100.1,
+            },
         },
     )
 
@@ -66,6 +73,7 @@ def test_scan_profile_accepts_bounded_pipeline_details_only():
                 "hash_reuse_count": 4,
                 "counter_threshold_ms": 12.34,
                 "catalog_load_ms": 3.44,
+                "hash_preparation_ms": 2.66,
                 "hash_input_dimensions": [{"raw": [200, 300]}],
                 "filename": "private.png",
             },
@@ -83,6 +91,7 @@ def test_scan_profile_accepts_bounded_pipeline_details_only():
                 "hash_reuse_count": 4,
                 "counter_threshold_ms": 12.3,
                 "catalog_load_ms": 3.4,
+                "hash_preparation_ms": 2.7,
             },
         },
     )

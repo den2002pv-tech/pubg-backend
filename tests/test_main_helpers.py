@@ -215,17 +215,128 @@ def test_load_db_rejects_non_object_catalogue(monkeypatch, tmp_path):
         main.load_db()
 
 
+def _write_catalog(path, cards, metadata=None):
+    path.write_text(
+        json.dumps({
+            "metadata": metadata or main.CARD_CATALOG_METADATA,
+            "cards": cards,
+        }),
+        encoding="utf-8",
+    )
+
+
+def _complete_catalog_hashes():
+    return {key: "abcd" for key in main.CARD_HASH_KEYS}
+
+
+def test_load_db_rejects_unversioned_catalogue(monkeypatch, tmp_path):
+    db_file = tmp_path / "legacy.json"
+    db_file.write_text(json.dumps({"card_1": {"hashes": _complete_catalog_hashes()}}))
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match="metadata is missing"):
+        main.load_db()
+
+
+def test_load_db_rejects_incompatible_catalogue_version(monkeypatch, tmp_path):
+    db_file = tmp_path / "old-version.json"
+    metadata = {**main.CARD_CATALOG_METADATA, "format_version": 1}
+    _write_catalog(db_file, {"card_1": {"hashes": _complete_catalog_hashes()}}, metadata)
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match="format version 1 is incompatible"):
+        main.load_db()
+
+
+def test_load_db_rejects_missing_catalogue_metadata_fields(monkeypatch, tmp_path):
+    db_file = tmp_path / "missing-metadata-field.json"
+    _write_catalog(
+        db_file,
+        {"card_1": {"hashes": _complete_catalog_hashes()}},
+        {"format_version": main.CARD_CATALOG_FORMAT_VERSION},
+    )
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match="metadata is missing required fields"):
+        main.load_db()
+
+
+def test_load_db_rejects_empty_catalogue(monkeypatch, tmp_path):
+    db_file = tmp_path / "empty-catalogue.json"
+    _write_catalog(db_file, {})
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match="at least one card"):
+        main.load_db()
+
+
+def test_load_db_rejects_duplicate_catalogue_ids(monkeypatch, tmp_path):
+    db_file = tmp_path / "duplicate-id.json"
+    card = json.dumps({"hashes": _complete_catalog_hashes()})
+    db_file.write_text(
+        '{"metadata":'
+        + json.dumps(main.CARD_CATALOG_METADATA)
+        + ',"cards":{"card_1":'
+        + card
+        + ',"card_1":'
+        + card
+        + "}}",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match="duplicate object keys"):
+        main.load_db()
+
+
+@pytest.mark.parametrize(
+    ("cards", "message"),
+    [
+        ({"card_1": []}, "record is invalid"),
+        ({"card_1": {"name": "missing hashes"}}, "missing hashes"),
+        ({"card_1": {"hashes": {"full_phash": "abcd"}}}, "missing hash fields"),
+        (
+            {"card_1": {"hashes": {**_complete_catalog_hashes(), "full_dhash": "nope!"}}},
+            "invalid full_dhash",
+        ),
+    ],
+)
+def test_load_db_rejects_damaged_catalogue_records(
+    monkeypatch, tmp_path, cards, message,
+):
+    db_file = tmp_path / "damaged-catalogue.json"
+    _write_catalog(db_file, cards)
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match=message):
+        main.load_db()
+
+
+def test_checked_in_catalogue_uses_current_version_and_complete_hashes():
+    catalog = main.load_db()
+    payload = json.loads(main.DB_FILE.read_text(encoding="utf-8"))
+
+    assert payload["metadata"] == main.CARD_CATALOG_METADATA
+    assert len(catalog) == 102
+    assert len(set(catalog)) == len(catalog)
+    assert all(set(main.CARD_HASH_KEYS).issubset(record["hashes"].keys()) for record in catalog.values())
+
+
 def test_save_db_and_load_db_round_trip(monkeypatch, tmp_path):
     db_file = tmp_path / "cards.json"
     monkeypatch.setattr(main, "DB_FILE", db_file)
+    hashes = _complete_catalog_hashes()
     expected = {
-        "card_1": {"name": "Карта 1", "hashes": {"full_dhash": "abcd"}},
-        "card_2": {"name": "Карта 2", "rarity": 3},
+        "card_1": {"name": "Карта 1", "hashes": hashes},
+        "card_2": {"name": "Карта 2", "rarity": 3, "hashes": hashes},
     }
 
     main.save_db(expected)
 
-    assert json.loads(db_file.read_text(encoding="utf-8")) == expected
+    assert json.loads(db_file.read_text(encoding="utf-8")) == {
+        "metadata": main.CARD_CATALOG_METADATA,
+        "cards": expected,
+    }
     assert main.load_db() == expected
 
 
@@ -243,7 +354,7 @@ def test_cached_match_index_matches_uncached_result(monkeypatch, tmp_path):
 
     cached_db = main.load_db()
     cached_result = main._match_card_detailed(hashes, cached_db)
-    uncached_db = json.loads(db_file.read_text(encoding="utf-8"))
+    uncached_db = json.loads(db_file.read_text(encoding="utf-8"))["cards"]
     uncached_result = main._match_card_detailed(hashes, uncached_db)
 
     assert cached_result == uncached_result
@@ -280,7 +391,10 @@ def test_catalog_cache_invalidates_after_save_and_external_file_replacement(
 
     replacement = tmp_path / "replacement.json"
     replacement.write_text(
-        json.dumps({"card_3": {"hashes": hashes}}),
+        json.dumps({
+            "metadata": main.CARD_CATALOG_METADATA,
+            "cards": {"card_3": {"hashes": hashes}},
+        }),
         encoding="utf-8",
     )
     old_mtime_ns = db_file.stat().st_mtime_ns
@@ -693,6 +807,7 @@ def test_save_card_reuses_scanned_preview_as_permanent_icon(monkeypatch, tmp_pat
 
     assert result["card_id"] == "card_1"
     assert result["card"]["icon"] == "/static/cards/card_1.webp"
+    assert set(result["card"]["hashes"]) == set(main.CARD_HASH_KEYS)
     assert (main.CARDS_DIR / "card_1.webp").is_file()
     assert main.load_db()["card_1"]["icon"] == "/static/cards/card_1.webp"
 
@@ -922,6 +1037,55 @@ def test_health_remains_responsive_while_scan_runs(monkeypatch):
         await task
 
     asyncio.run(exercise())
+
+
+def test_scan_reports_semaphore_queue_wait(monkeypatch):
+    class Prewarm:
+        async def on_trigger(self, *_args):
+            return {
+                "warmup_status": "completed",
+                "warmup_trigger": None,
+                "warmup_duration_ms": 0.0,
+                "prewarm_mode": "lightweight",
+                "reason": None,
+            }
+
+        def warmup_age_ms(self, _started):
+            return 0.0
+
+    async def read_image(_file, profile):
+        profile.update({
+            "upload_size_bytes": 100,
+            "upload_image_decode_ms": 1.0,
+            "upload_rgb_convert_ms": 0.2,
+            "upload_read_ms": 0.1,
+            "upload_source_width": 10,
+            "upload_source_height": 10,
+            "upload_format": "PNG",
+        })
+        return main.Image.new("RGB", (10, 10))
+
+    monkeypatch.setattr(main, "SCAN_SEMAPHORE", asyncio.Semaphore(0))
+    monkeypatch.setattr(main, "SCANNER_PREWARM", Prewarm())
+    monkeypatch.setattr(main, "_read_image", read_image)
+    monkeypatch.setattr(
+        main,
+        "scan_screenshot",
+        lambda *_args, **_kwargs: {"cards": [], "count": 0, "profile": {}},
+    )
+    monkeypatch.setattr(main, "load_db", lambda: {})
+
+    async def exercise():
+        request = Request({"type": "http", "client": ("192.0.2.11", 12345)})
+        task = asyncio.create_task(main.scan(request=request, file=object(), init_data=""))
+        await asyncio.sleep(0.02)
+        main.SCAN_SEMAPHORE.release()
+        return await task
+
+    profile = asyncio.run(exercise())["profile"]
+
+    assert profile["queue_wait_ms"] >= 10
+    assert "upload_decode_ms" not in profile
 
 
 @pytest.mark.parametrize(("same_hashes", "expected_calls"), [(True, 1), (False, 2)])

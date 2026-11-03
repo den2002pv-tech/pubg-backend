@@ -225,6 +225,7 @@ def test_scan_middleware_records_status_pid_and_first_scan(tmp_path, monkeypatch
 
         async def call_next(current):
             current.state.scanner_diagnostics["request_body_read_ms"] = 1.25
+            current.state.scanner_diagnostics["queue_wait_ms"] = 2.5
             current.state.scanner_diagnostics["detection_ms"] = 4.0
             return Response(status_code=200)
 
@@ -236,6 +237,7 @@ def test_scan_middleware_records_status_pid_and_first_scan(tmp_path, monkeypatch
     assert scan["worker_pid"] == os.getpid()
     assert scan["first_scan_classifications"] == ["first_after_process_start"]
     assert scan["request_body_read_ms"] == 1.25
+    assert scan["queue_wait_ms"] == 2.5
     assert scan["detection_ms"] == 4.0
     assert scan["http_status"] == 200
 
