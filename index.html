@@ -998,3 +998,1455 @@ function postScanImage(formData, clientProfile) {
         return;
       }
       if (xhr.status < 200 || xhr.status >= 300) {
+        const error = new Error(data.detail || 'Ошибка сервера при сканировании.');
+        error.httpStatus = xhr.status;
+        reject(error);
+        return;
+      }
+      if (!Array.isArray(data.cards)) {
+        reject(new Error('Сервер вернул некорректный результат распознавания.'));
+        return;
+      }
+      resolve(data);
+    };
+    xhr.onerror = () => {
+      clearTimeout(responseTimer);
+      recordResponseWait();
+      reject(new TypeError('Network request failed'));
+    };
+    xhr.ontimeout = () => {
+      clearTimeout(responseTimer);
+      recordResponseWait();
+      const error = new Error('Scan request timed out');
+      error.name = 'AbortError';
+      reject(error);
+    };
+    xhr.onabort = () => {
+      clearTimeout(responseTimer);
+      recordResponseWait();
+      const error = new Error('Scan request aborted');
+      error.name = 'AbortError';
+      reject(error);
+    };
+    xhr.send(formData);
+  });
+}
+
+function assetUrl(path) {
+  if (!path) return '';
+  return path.startsWith('http') || path.startsWith('data:') ? path : API + path;
+}
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function num(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function cardOrder(c) {
+  const m = String(c.id || '').match(/^card_(\d+)$/);
+  return m ? Number(m[1]) : 999999999;
+}
+
+function inventoryQuantity(id) {
+  const c = inventoryCards.find(x => x.id === id);
+  return c ? num(c.quantity) : 0;
+}
+
+function triggerHaptic(type = 'light') {
+  try {
+    if (tg?.HapticFeedback) {
+      if (type === 'light' || type === 'medium' || type === 'heavy') {
+        tg.HapticFeedback.impactOccurred(type);
+      } else if (type === 'success' || type === 'error' || type === 'warning') {
+        tg.HapticFeedback.notificationOccurred(type);
+      }
+    }
+  } catch (e) {}
+}
+
+function flashSavedCards(quantities) {
+  if (!quantities || !quantities.size) return;
+  const root = document.getElementById('inventoryList');
+  if (!root) return;
+  quantities.forEach((_qty, id) => {
+    const el = root.querySelector('.card[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    if (!el) return;
+    el.classList.remove('just-saved');
+    void el.offsetWidth;
+    el.classList.add('just-saved');
+    setTimeout(() => el.classList.remove('just-saved'), 1400);
+  });
+  root.classList.remove('save-pulse');
+  void root.offsetWidth;
+  root.classList.add('save-pulse');
+  setTimeout(() => root.classList.remove('save-pulse'), 900);
+}
+
+function showToast(message, typeOrDuration, maybeDuration) {
+  const type = typeOrDuration === 'success' || typeOrDuration === 'error' || typeOrDuration === 'info'
+    ? typeOrDuration
+    : 'info';
+  const duration = typeof typeOrDuration === 'number'
+    ? typeOrDuration
+    : (typeof maybeDuration === 'number' ? maybeDuration : 3400);
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+  updateToastPosition();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    updateToastPosition();
+    toast.classList.add('show');
+  }));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// Tab Switching
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(name) {
+  if (name === 'scanner') requestScannerPrewarm('scanner_open');
+  trackAnalytics('tab_open', { tab: name });
+  const isScanner = name === 'scanner';
+  const isInventory = name === 'inventory';
+  const isTrades = name === 'trades';
+  document.querySelectorAll('.tab[role="tab"]').forEach(tab => {
+    const selected = tab.dataset.tab === name;
+    tab.classList.toggle('active', selected);
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  document.getElementById('scannerTab').hidden = !isScanner;
+  document.getElementById('inventoryTab').hidden = !isInventory;
+  document.getElementById('tradesTab').hidden = !isTrades;
+  if (isInventory) {
+    renderInventory();
+    checkDesiredChanges();
+  } else if (isTrades) {
+    trackAnalytics('trade_viewed');
+    loadTradeMatches();
+    loadTradeRequests();
+  }
+}
+
+document.querySelector('[role="tablist"]').addEventListener('keydown', event => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  const tabs = [...document.querySelectorAll('.tab[role="tab"]')];
+  const current = tabs.indexOf(document.activeElement);
+  if (current < 0) return;
+  event.preventDefault();
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
+    (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[next].focus();
+  switchTab(tabs[next].dataset.tab);
+});
+
+// Scanner Logic
+fileInput.addEventListener('change', () => {
+  requestScannerPrewarm('image_selected');
+  scanSaveStatusEl.textContent = '';
+  scanSaveStatusEl.dataset.state = '';
+  retryScanFile = fileInput.files[0] || null;
+  uploadImage(retryScanFile);
+});
+retryScanBtn.addEventListener('click', () => uploadImage(retryScanFile));
+confirmBtn.addEventListener('click', confirmCollection);
+
+async function uploadImage(file) {
+  if (!file || scanInProgress || collectionSaveInProgress) return;
+
+  scanInProgress = true;
+  fileInput.disabled = true;
+  retryScanBtn.hidden = true;
+  confirmBtn.disabled = true;
+  pendingCards = [];
+  document.getElementById('results').style.display = 'none';
+  setScannerStatus('⏳ Подготовка изображения…', 'Готовим выбранный скриншот к отправке.', true);
+  const formStartedAt = performance.now();
+  const fd = new FormData();
+  fd.append('file', file);
+  const clientProfile = {
+    client_form_data_ms: performance.now() - formStartedAt,
+    client_file_size_bytes: file.size
+  };
+
+  const scanStartedAt = performance.now();
+  currentScanId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : 'scan-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  trackAnalytics('scan_started', { scan_id: currentScanId });
+  try {
+    statusText.textContent = '⏳ Подключаемся к серверу…';
+    statusEl.textContent = 'Проверяем доступность. После простоя сервер может запускаться дольше обычного.';
+    const wakeStartedAt = performance.now();
+    try {
+      await wakeBackend();
+    } finally {
+      clientProfile.client_wake_ms = performance.now() - wakeStartedAt;
+    }
+    setScannerStatus('⏳ Отправляем изображение на сервер…', 'Подготовка завершена.', true);
+    const requestStartedAt = performance.now();
+    let d;
+    requestScannerPrewarm('before_scan');
+    try {
+      d = await postScanImage(fd, clientProfile);
+    } finally {
+      clientProfile.client_request_ms = performance.now() - requestStartedAt;
+    }
+    trackAnalytics('scan_completed', {
+      scan_id: currentScanId,
+      cards_detected: Number(d.count || 0),
+      matched_count: (d.cards || []).filter(card => !!card.id).length,
+      duration_ms: performance.now() - scanStartedAt,
+      profile: { ...(d.profile || {}), ...clientProfile }
+    });
+    pendingCards = (d.cards || []).filter(c => c.id).map(c => ({
+      ...c,
+      selected: true,
+      editQuantity: Math.max(1, num(c.quantity, 1))
+    }));
+    showResults(d.cards || []);
+    retryScanFile = null;
+    statusText.textContent = '📷 Загрузить другой скриншот';
+    if (!d.cards.length) {
+      statusEl.textContent = 'Карты на скриншоте не найдены. Попробуйте изображение лучшего качества.';
+      showToast('Карты не найдены. Попробуйте скриншот лучшего качества.', 'error');
+      triggerHaptic('warning');
+    } else {
+      statusEl.textContent = 'Распознавание завершено. Найдено областей: ' + d.cards.length + '; совпадений с каталогом: ' + pendingCards.length + '. Проверьте результат перед сохранением.';
+      showToast('Распознано карт: ' + d.cards.length + '. Проверьте результат.', 'success');
+      triggerHaptic('success');
+    }
+  } catch (e) {
+    trackAnalytics('scan_failed', {
+      scan_id: currentScanId,
+      duration_ms: performance.now() - scanStartedAt,
+      reason: e?.name === 'AbortError' ? 'timeout' : (e instanceof TypeError ? 'network' : 'server'),
+      profile: clientProfile
+    });
+    retryScanFile = file;
+    statusText.textContent = '📷 Сканирование не завершено';
+    statusEl.textContent = '❌ ' + scannerErrorMessage(e);
+    retryScanBtn.hidden = false;
+    showToast(scannerErrorMessage(e), 'error');
+    triggerHaptic('error');
+  } finally {
+    scanInProgress = false;
+    fileInput.disabled = false;
+    fileInput.value = '';
+    scanSpinner.hidden = true;
+    statusEl.setAttribute('aria-busy', 'false');
+    setUploadProgress(100);
+    updateConfirmState();
+  }
+}
+
+function showResults(cards) {
+  const root = document.getElementById('cardsList');
+  root.innerHTML = '';
+  if (!cards.length) {
+    root.innerHTML = '<div class="empty">Карты на скриншоте не распознаны. Попробуйте скриншот лучшего качества.</div>';
+    document.getElementById('results').style.display = 'block';
+    confirmBtn.style.display = 'none';
+    return;
+  }
+  cards.forEach((c, index) => {
+    const recognized = !!c.id;
+    const pending = recognized ? pendingCards.find(x => x.id === c.id && x.row === c.row && x.col === c.col) : null;
+    const detected = pending && pending.editQuantity != null ? pending.editQuantity : Math.max(1, num(c.quantity, 1));
+    const owned = recognized ? inventoryQuantity(c.id) : 0;
+    const duplicates = detected == null ? 0 : Math.max(0, detected - 1);
+    const inventoryBadge = recognized
+      ? (owned > 0
+          ? '<span class="scan-inventory-badge owned" title="Уже есть в инвентаре: ×' + owned + '" aria-label="Уже есть в инвентаре: ' + owned + '">✓ ×' + owned + '</span>'
+          : '<span class="scan-inventory-badge not-owned" title="В инвентаре пока нет" aria-label="В инвентаре пока нет">×0</span>')
+      : '<span class="scan-inventory-badge not-owned" title="Карта не распознана" aria-label="Карта не распознана">?</span>';
+    const scanImage = c.preview
+      ? '<img class="scan-card-image" src="' + esc(assetUrl(c.preview)) + '" alt="Кроп сканированной карты">'
+      : '<div class="art-empty">Нет кропа скана</div>';
+    const referenceImage = c.icon
+      ? '<img class="scan-reference" src="' + esc(assetUrl(c.icon)) + '" alt="Эталон карты">'
+      : '<div class="scan-reference-placeholder">Нет эталона</div>';
+
+    const el = document.createElement('div');
+    el.className = 'card enter' + (pending?.selected ? ' desired-active' : '');
+    el.style.animationDelay = Math.min(index * 45, 400) + 'ms';
+    el.innerHTML =
+      '<div class="scan-card-art">' + scanImage +
+        '<span class="scan-detected-badge" title="Количество на скриншоте" aria-label="Распознано: ' + (detected == null ? 'неизвестно' : detected) + '">×' + (detected == null ? '—' : detected) + '</span>' +
+        inventoryBadge + referenceImage +
+      '</div>' +
+      '<div class="card-info">' +
+        '<div class="card-name">' + esc(c.name || 'Неизвестная карта') + '</div>' +
+        (recognized
+          ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '" aria-label="Количество для сохранения" title="Количество для сохранения"></div><div class="tech scan-after">После: ×' + (detected == null ? '—' : detected) + ' · дубл.: ' + duplicates + '</div>'
+          : '<div class="tech">Эта карта не изменит инвентарь.</div>'
+        ) +
+        '<div class="tech">' + (c.distance != null ? 'Различие: d=' + esc(c.distance) : '') + '</div>' +
+      '</div>';
+
+    const referenceEl = el.querySelector('.scan-reference');
+    if (referenceEl && c.preview) {
+      referenceEl.title = 'Нажмите, чтобы сравнить полный кроп и эталон';
+      referenceEl.setAttribute('role', 'button');
+      referenceEl.setAttribute('tabindex', '0');
+      referenceEl.setAttribute('aria-label', 'Открыть сравнение кропа и эталона: ' + (c.name || 'карта'));
+      const openComparison = () => openScanComparison(c.preview, c.icon, c.name || 'Карта');
+      referenceEl.addEventListener('click', openComparison);
+      referenceEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openComparison();
+        }
+      });
+    }
+
+    if (recognized) {
+      const cb = el.querySelector('.scan-select');
+      const q = el.querySelector('.scan-qty');
+      cb.addEventListener('change', () => {
+        if (pending) pending.selected = cb.checked;
+        el.classList.toggle('desired-active', cb.checked);
+        updateConfirmState();
+      });
+      q.addEventListener('input', () => {
+        if (q.value === '') {
+          if (pending) pending.editQuantity = null;
+          renderScanCardQuantity(el, null);
+          return;
+        }
+        const n = Number(q.value);
+        if (Number.isFinite(n) && pending) {
+          pending.editQuantity = Math.max(1, Math.min(999, Math.trunc(n)));
+        }
+        renderScanCardQuantity(el, pending?.editQuantity);
+      });
+      q.addEventListener('blur', () => {
+        if (pending?.editQuantity == null) q.value = '';
+        else q.value = pending.editQuantity;
+      });
+    }
+    root.appendChild(el);
+  });
+
+  document.getElementById('results').style.display = 'block';
+  updateConfirmState();
+}
+
+const scanCompareModal = document.getElementById('scanCompareModal');
+const scanCompareCrop = document.getElementById('scanCompareCrop');
+const scanCompareReference = document.getElementById('scanCompareReference');
+let scanComparePreviousFocus = null;
+let scanComparePreviousBodyOverflow = '';
+
+function openScanComparison(cropPath, referencePath, cardName) {
+  if (!cropPath || !referencePath) return;
+  scanComparePreviousFocus = document.activeElement;
+  scanComparePreviousBodyOverflow = document.body.style.overflow;
+  scanCompareCrop.src = assetUrl(cropPath);
+  scanCompareReference.src = assetUrl(referencePath);
+  document.getElementById('scanCompareTitle').textContent = 'Сравнение: ' + cardName;
+  scanCompareModal.classList.add('open');
+  scanCompareModal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('scanCompareClose').focus();
+}
+
+function closeScanComparison() {
+  if (!scanCompareModal.classList.contains('open')) return;
+  scanCompareModal.classList.remove('open');
+  scanCompareModal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = scanComparePreviousBodyOverflow;
+  scanCompareCrop.removeAttribute('src');
+  scanCompareReference.removeAttribute('src');
+  if (scanComparePreviousFocus && typeof scanComparePreviousFocus.focus === 'function') {
+    scanComparePreviousFocus.focus();
+  }
+}
+
+document.getElementById('scanCompareClose').addEventListener('click', closeScanComparison);
+scanCompareModal.addEventListener('click', (event) => {
+  if (event.target === scanCompareModal) closeScanComparison();
+});
+document.addEventListener('keydown', (event) => {
+  if (!scanCompareModal.classList.contains('open')) return;
+  if (event.key === 'Escape') {
+    closeScanComparison();
+    return;
+  }
+  if (event.key === 'Tab') {
+    const focusable = scanCompareModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) {
+      event.preventDefault();
+      scanCompareModal.querySelector('.scan-compare-dialog').focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+});
+
+function renderScanCardQuantity(el, q) {
+  const badge = el.querySelector('.scan-detected-badge');
+  if (badge) {
+    badge.textContent = '×' + (q == null ? '—' : q);
+    badge.setAttribute('aria-label', 'Распознано: ' + (q == null ? 'неизвестно' : q));
+    badge.title = 'Количество на скриншоте';
+  }
+  const tech = el.querySelector('.scan-after');
+  if (tech) {
+    tech.textContent = q == null ? 'Введите число' : 'После сохранения: ×' + q + ' · дуб: ' + Math.max(0, q - 1);
+  }
+}
+
+function updateConfirmState() {
+  const selected = pendingCards.filter(c => c.selected && c.editQuantity != null);
+  confirmBtn.style.display = pendingCards.length ? 'block' : 'none';
+  confirmBtn.disabled = !selected.length;
+  confirmBtn.textContent = selected.length ? 'Подтвердить и сохранить (' + selected.length + ')' : 'Отметьте карты для сохранения';
+  document.getElementById('scanSummary').textContent = 'Выбрано к сохранению: ' + selected.length + ' из ' + pendingCards.length + '. Проверьте количество перед сохранением.';
+}
+
+async function confirmCollection() {
+  if (collectionSaveInProgress || scanInProgress) return;
+  const correctedCount = pendingCards.filter(c => c.selected && c.editQuantity != null && Number(c.editQuantity) !== Number(c.quantity)).length;
+  const selected = pendingCards.filter(c => c.selected && c.editQuantity != null).map(c => ({
+    ...c,
+    quantity: c.editQuantity,
+    duplicates: Math.max(0, c.editQuantity - 1)
+  }));
+  if (!selected.length) return;
+  collectionSaveInProgress = true;
+  fileInput.disabled = true;
+  document.getElementById('cardsList').inert = true;
+  confirmBtn.disabled = true;
+  confirmBtn.classList.add('saving');
+  confirmBtn.textContent = 'Сохраняем коллекцию…';
+  triggerHaptic('medium');
+  scanSaveStatusEl.dataset.state = 'saving';
+  scanSaveStatusEl.setAttribute('aria-busy', 'true');
+  scanSaveStatusEl.textContent = 'Записываем выбранные количества в коллекцию…';
+  const saveWaitTimer = setTimeout(() => {
+    scanSaveStatusEl.textContent = 'Сервер ещё не подтвердил запись. Продолжаем ожидание…';
+  }, 15000);
+  try {
+    const r = await fetchWithTimeout(API + '/me/collection/confirm', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cards: selected })
+    }, BACKEND_WAKE_TIMEOUT_MS);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const error = new Error(d.detail || 'Ошибка сохранения');
+      error.httpStatus = r.status;
+      throw error;
+    }
+    const expectedQuantities = new Map();
+    selected.forEach(card => expectedQuantities.set(card.id, Math.max(expectedQuantities.get(card.id) || 0, Number(card.quantity))));
+    const savedById = new Map((Array.isArray(d.cards) ? d.cards : []).map(card => [card.id, Number(card.quantity)]));
+    const savedCount = expectedQuantities.size;
+    if (d.status !== 'ok' || Number(d.saved) !== savedCount ||
+        [...expectedQuantities].some(([id, quantity]) => savedById.get(id) !== quantity)) {
+      const error = new Error('Сервер не подтвердил сохранение всех выбранных количеств.');
+      error.uncertain = true;
+      throw error;
+    }
+    trackAnalytics('collection_saved', { scan_id: currentScanId, card_count: savedCount });
+    if (correctedCount > 0) trackAnalytics('counter_corrected', { corrected_count: correctedCount, card_count: selected.length });
+    let desiredRemovedForMetrics = 0;
+    expectedQuantities.forEach((quantity, id) => { if (quantity > 0 && desiredIds.has(id)) desiredRemovedForMetrics++; });
+    if (desiredRemovedForMetrics) trackAnalytics('wishlist_updated', { removed_count: desiredRemovedForMetrics });
+    pendingCards = [];
+    confirmBtn.style.display = 'none';
+    inventoryCards = d.cards;
+    let removedDesired = 0;
+    expectedQuantities.forEach((quantity, id) => {
+      if (quantity > 0 && desiredIds.has(id)) {
+        desiredIds.delete(id);
+        removedDesired++;
+      }
+    });
+    if (removedDesired > 0) {
+      savedDesiredIds = new Set(desiredIds);
+      checkDesiredChanges();
+    }
+    renderInventory();
+    scanSaveStatusEl.dataset.state = 'saved';
+    scanSaveStatusEl.textContent = 'Сканирование завершено. Сохранено карт: ' + savedCount + '.' + (removedDesired > 0 ? ' Убрано из «Ищу»: ' + removedDesired + '.' : '');
+    showToast('✅ Коллекция сохранена — можно сканировать следующий скриншот' + (removedDesired > 0 ? ' (убрано из «Ищу»: ' + removedDesired + ')' : ''), 'success', 3000);
+    triggerHaptic('success');
+    flashSavedCards(expectedQuantities);
+  } catch (e) {
+    const uncertain = e?.uncertain === true || e?.httpStatus >= 500 ||
+      e?.name === 'AbortError' || e instanceof TypeError || navigator.onLine === false;
+    const reason = navigator.onLine === false
+      ? 'Нет подключения к интернету. Проверьте соединение и попробуйте снова.'
+      : e?.name === 'AbortError'
+        ? 'Сервер не ответил вовремя.'
+        : e instanceof TypeError
+          ? 'Не удалось подключиться к серверу.'
+          : (e.message || 'ошибка сервера.');
+    scanSaveStatusEl.dataset.state = 'error';
+    scanSaveStatusEl.textContent = uncertain
+      ? 'Карты распознаны, но подтвердить сохранение не удалось: ' + reason + ' Результат мог сохраниться; повтор тех же количеств безопасен.'
+      : 'Карты распознаны, но сохранить коллекцию не удалось: ' + reason;
+    showToast('❌ ' + reason, 'error', 5000);
+    triggerHaptic('error');
+    updateConfirmState();
+    confirmBtn.textContent = 'Повторить сохранение (' + selected.length + ')';
+  } finally {
+    clearTimeout(saveWaitTimer);
+    collectionSaveInProgress = false;
+    confirmBtn.classList.remove('saving');
+    fileInput.disabled = false;
+    document.getElementById('cardsList').inert = false;
+    scanSaveStatusEl.setAttribute('aria-busy', 'false');
+  }
+}
+
+// User & Collection Loading
+async function loadMyCollection() {
+  if (!telegramInitData) {
+    accountEl.innerHTML = '<div class="account-user">🔒 Чтобы загрузить личную коллекцию, откройте это приложение из чата с ботом в Telegram.</div>';
+    return;
+  }
+  try {
+    const r = await fetch(API + '/me/cards', { headers: telegramHeaders() });
+    if (!r.ok) throw new Error('Не удалось получить данные Telegram');
+    const d = await r.json();
+    const u = d.user || {};
+    const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ');
+    const username = u.username ? ' @' + u.username : '';
+
+    accountEl.innerHTML =
+      '<div class="account-user">👤 ' + esc(fullName || u.username || 'Игрок') + esc(username) + '</div>' +
+      '<div class="account-status">Подключён</div>';
+
+    inventoryCards = d.cards || [];
+    desiredIds = new Set((d.desired_cards || []).map(c => c.id).filter(id => inventoryQuantity(id) === 0));
+    savedDesiredIds = new Set(desiredIds);
+
+    renderInventory();
+    checkDesiredChanges();
+  } catch (e) {
+    accountEl.innerHTML = '<div class="account-user">❌ Не удалось загрузить коллекцию. Проверьте соединение и повторите попытку.</div><button type="button" id="retryLoadCollectionBtn" class="retry-save-btn">Повторить подключение</button>';
+    document.getElementById('retryLoadCollectionBtn').addEventListener('click', loadMyCollection, { once: true });
+    console.warn('Не удалось загрузить коллекцию:', e);
+  }
+}
+
+// Inventory Filtering & Sorting
+function getFilteredAndSortedInventory() {
+  const query = document.getElementById('inventorySearch').value.trim().toLowerCase();
+  const sortMode = document.getElementById('inventorySort').value;
+
+  let list = inventoryCards.filter(c => {
+    // Search query filter
+    if (query && !String(c.name || '').toLowerCase().includes(query) && !String(c.id || '').toLowerCase().includes(query)) {
+      return false;
+    }
+    const q = num(c.quantity);
+    const isDesired = desiredIds.has(c.id);
+
+    // Filter Chips
+    if (currentFilter === 'not_desired') return q === 0 && !isDesired;
+    if (currentFilter === 'desired') return q === 0 && isDesired;
+    if (currentFilter === 'duplicates') return q > 1;
+    if (currentFilter === 'owned') return q > 0;
+    if (currentFilter === 'missing') return q === 0;
+    return true; // 'all'
+  });
+
+  list.sort((a, b) => {
+    const aq = num(a.quantity), bq = num(b.quantity);
+    const aDes = (aq === 0 && desiredIds.has(a.id)) ? 1 : 0;
+    const bDes = (bq === 0 && desiredIds.has(b.id)) ? 1 : 0;
+    const aNotDes = (aq === 0 && !desiredIds.has(a.id)) ? 1 : 0;
+    const bNotDes = (bq === 0 && !desiredIds.has(b.id)) ? 1 : 0;
+    if (sortMode === 'not_desired') return (bNotDes - aNotDes) || cardOrder(a) - cardOrder(b);
+    if (sortMode === 'desired') return (bDes - aDes) || cardOrder(a) - cardOrder(b);
+    if (sortMode === 'quantity') return (bq - aq) || cardOrder(a) - cardOrder(b);
+    if (sortMode === 'quantityAsc') return (aq - bq) || cardOrder(a) - cardOrder(b);
+    if (sortMode === 'rarity') return (num(b.rarity) - num(a.rarity)) || cardOrder(a) - cardOrder(b);
+    if (sortMode === 'name') return String(a.name).localeCompare(String(b.name), 'ru');
+    return cardOrder(a) - cardOrder(b);
+  });
+
+  return list;
+}
+
+function updateStatsAndCounts() {
+  desiredIds.forEach(id => { if (inventoryQuantity(id) > 0) desiredIds.delete(id); });
+  const total = inventoryCards.length;
+  const owned = inventoryCards.filter(c => num(c.quantity) > 0).length;
+  const duplicates = inventoryCards.reduce((s, c) => s + Math.max(0, num(c.quantity) - 1), 0);
+  const desiredCount = desiredIds.size;
+  const missingCount = Math.max(0, total - owned);
+  const notDesiredCount = inventoryCards.filter(c => num(c.quantity) === 0 && !desiredIds.has(c.id)).length;
+
+  document.getElementById('ownedSummary').textContent = owned;
+  document.getElementById('duplicateSummary').textContent = duplicates;
+  document.getElementById('desiredSummary').textContent = desiredCount;
+  document.getElementById('inventoryBadge').textContent = desiredCount;
+
+  // Progress Bar
+  const pct = total > 0 ? Math.round((owned / total) * 100) : 0;
+  document.getElementById('progressPercent').textContent = pct + '%';
+  document.getElementById('progressFraction').textContent = owned + ' / ' + total;
+  document.getElementById('progressBarFill').style.width = pct + '%';
+
+  // Filter Chip counts
+  document.getElementById('chipAllCount').textContent = total;
+  document.getElementById('chipNotDesiredCount').textContent = notDesiredCount;
+  document.getElementById('chipDesiredCount').textContent = desiredCount;
+  document.getElementById('chipDupCount').textContent = inventoryCards.filter(c => num(c.quantity) > 1).length;
+  document.getElementById('chipOwnedCount').textContent = owned;
+  document.getElementById('chipMissingCount').textContent = missingCount;
+
+  // Stat Card active highlights
+  const statFilters = [['statOwnedCard', 'owned'], ['statDupCard', 'duplicates'], ['statDesiredCard', 'desired']];
+  statFilters.forEach(([id, filter]) => {
+    const button = document.getElementById(id);
+    const active = currentFilter === filter;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
+// Render Inventory Cards
+function renderInventory() {
+  updateStatsAndCounts();
+  const root = document.getElementById('inventoryList');
+  root.innerHTML = '';
+
+  const list = getFilteredAndSortedInventory();
+  const query = document.getElementById('inventorySearch').value.trim();
+  const resultCount = document.getElementById('inventoryResultCount');
+  resultCount.textContent = list.length ? 'Показано ' + list.length + ' из ' + inventoryCards.length + ' карт' : 'Нет карт для отображения';
+  if (!list.length) {
+    let emptyMsg;
+    let action = '';
+    if (!inventoryCards.length) {
+      emptyMsg = 'Коллекция пока пуста. Откройте «Сканер», выберите скриншот альбома и проверьте результат распознавания.';
+      action = '<button type="button" class="empty-action" data-empty-action="scanner">Открыть сканер</button>';
+    } else if (query) {
+      emptyMsg = 'По запросу «' + esc(query) + '» ничего не найдено.';
+      action = '<button type="button" class="empty-action" data-empty-action="clear-search">Очистить поиск</button>';
+    } else if (currentFilter === 'desired') {
+      emptyMsg = 'В списке «Ищу» пока нет карт. Отметьте нужные карты звёздочкой или выберите недостающие.';
+      action = '<button type="button" class="empty-action" data-empty-action="missing">Показать недостающие карты</button>';
+    } else if (currentFilter === 'not_desired') {
+      emptyMsg = 'Все недостающие карты уже добавлены в список «Ищу».';
+      action = '<button type="button" class="empty-action" data-empty-action="all">Показать все карты</button>';
+    } else {
+      emptyMsg = 'По выбранному фильтру карт нет. Попробуйте другой фильтр или покажите всю коллекцию.';
+      action = '<button type="button" class="empty-action" data-empty-action="all">Сбросить фильтр</button>';
+    }
+    root.innerHTML = '<div class="empty-state"><p>' + emptyMsg + '</p>' + action + '</div>';
+    return;
+  }
+
+  list.forEach(c => {
+    const cardEl = createCardElement(c);
+    root.appendChild(cardEl);
+  });
+}
+
+function createCardElement(c) {
+  const qty = num(c.quantity);
+  const dup = Math.max(0, qty - 1);
+  const desired = (qty === 0) && desiredIds.has(c.id);
+
+  const el = document.createElement('div');
+  el.className = 'card' + (qty === 0 ? ' missing' : '') + (desired ? ' desired-active' : '');
+  el.dataset.id = c.id;
+
+  const artHtml = c.icon
+    ? '<img class="art-img" src="' + esc(assetUrl(c.icon)) + '" alt="' + esc(c.name) + '" loading="lazy">'
+    : '<div class="art-empty">Нет арта</div>';
+
+  let qtyBadgeClass = 'badge-qty';
+  if (qty === 0) qtyBadgeClass += ' zero';
+  else if (qty > 1) qtyBadgeClass += ' dup';
+
+  const starsHtml = '⭐'.repeat(Math.max(1, Math.min(5, num(c.rarity, 3))));
+  const starBtnHtml = qty === 0 ? '<button type="button" class="star-btn ' + (desired ? 'active' : '') + '" title="' + (desired ? 'В списке «Ищу»' : 'Добавить в «Ищу»') + '" aria-label="' + (desired ? 'Убрать карту ' + esc(c.name) + ' из списка «Ищу»' : 'Добавить карту ' + esc(c.name) + ' в список «Ищу»') + '" aria-pressed="' + String(desired) + '">' + (desired ? '★' : '☆') + '</button>' : '';
+  el.innerHTML =
+    '<div class="art-box">' +
+      starBtnHtml +
+      artHtml +
+      '<span class="' + qtyBadgeClass + '">×' + qty + '</span>' +
+    '</div>' +
+    '<div class="card-info">' +
+      '<div class="card-name" title="' + esc(c.name) + '">' + esc(c.name) + '</div>' +
+      '<div class="card-tags">' +
+        '<span class="rarity-stars">' + starsHtml + '</span>' +
+        (dup > 0 ? '<span class="tag-dup">+' + dup + ' на обмен</span>' : (desired ? '<span class="tag-desired">Ищу ⭐</span>' : '')) +
+      '</div>' +
+      '<div class="stepper-wrap">' +
+        '<div class="stepper">' +
+          '<button type="button" class="step-btn minus ' + (qty === 1 ? 'btn-trash' : '') + '" ' + (qty === 0 ? 'disabled' : '') + ' aria-label="' + (qty === 1 ? 'Удалить ' + esc(c.name) + ' из инвентаря' : 'Уменьшить количество карты ' + esc(c.name)) + '" title="' + (qty === 1 ? 'Удалить из инвентаря' : 'Уменьшить количество') + '">' +
+            (qty === 1 ? '🗑️' : '−') +
+          '</button>' +
+          '<button type="button" class="step-display" aria-label="Изменить количество карты ' + esc(c.name) + ', сейчас ' + qty + '" title="Нажмите для точного ввода">×' + qty + '</button>' +
+          '<button type="button" class="step-btn plus" aria-label="Увеличить количество карты ' + esc(c.name) + '" title="Увеличить количество">+</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  // Event Listeners
+  const starBtn = el.querySelector('.star-btn');
+  if (starBtn) starBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleDesiredCard(c.id, el); });
+
+  const minusBtn = el.querySelector('.step-btn.minus');
+  const plusBtn = el.querySelector('.step-btn.plus');
+  const displayBtn = el.querySelector('.step-display');
+
+  minusBtn.addEventListener('click', () => {
+    const cur = num(c.quantity);
+    if (cur > 0) {
+      triggerHaptic('light');
+      updateCardQuantityOptimistic(c.id, cur - 1, el);
+    }
+  });
+
+  plusBtn.addEventListener('click', () => {
+    const cur = num(c.quantity);
+    triggerHaptic('light');
+    updateCardQuantityOptimistic(c.id, cur + 1, el);
+  });
+
+  displayBtn.addEventListener('click', () => {
+    openQuantityModal(c.id);
+  });
+
+  return el;
+}
+
+// Optimistic Quantity Updates with Debounced Auto-Save
+function updateCardQuantityOptimistic(cardId, newQuantity, cardEl) {
+  newQuantity = Math.max(0, Math.min(999, Math.trunc(newQuantity)));
+  const cardObj = inventoryCards.find(x => x.id === cardId);
+  if (!cardObj) return;
+  const wasDesired = desiredIds.has(cardId);
+  cardObj.quantity = newQuantity;
+  if (newQuantity > 0 && wasDesired) {
+    desiredIds.delete(cardId);
+    checkDesiredChanges();
+    showToast('Карта добавлена в инвентарь (×' + newQuantity + ') и удалена из «Ищу»');
+  }
+
+  // Update specific Card DOM in place without flickering
+  if (cardEl) {
+    const qty = newQuantity;
+    const dup = Math.max(0, qty - 1);
+    const desired = (qty === 0) && desiredIds.has(cardId);
+    cardEl.classList.toggle('missing', qty === 0);
+    cardEl.classList.toggle('desired-active', desired);
+    const starBtn = cardEl.querySelector('.star-btn');
+    if (starBtn) {
+      starBtn.style.display = qty > 0 ? 'none' : 'flex';
+      starBtn.classList.toggle('active', desired);
+      starBtn.textContent = desired ? '★' : '☆';
+      starBtn.title = desired ? 'В списке «Ищу»' : 'Добавить в «Ищу»';
+      starBtn.setAttribute('aria-label', desired ? 'Убрать карту ' + cardObj.name + ' из списка «Ищу»' : 'Добавить карту ' + cardObj.name + ' в список «Ищу»');
+      starBtn.setAttribute('aria-pressed', String(desired));
+    }
+
+    const badge = cardEl.querySelector('.badge-qty');
+    if (badge) {
+      badge.textContent = '×' + qty;
+      badge.className = 'badge-qty' + (qty === 0 ? ' zero' : (qty > 1 ? ' dup' : ''));
+    }
+
+    const minusBtn = cardEl.querySelector('.step-btn.minus');
+    if (minusBtn) {
+      minusBtn.disabled = (qty === 0);
+      minusBtn.classList.toggle('btn-trash', qty === 1);
+      minusBtn.textContent = (qty === 1 ? '🗑️' : '−');
+      minusBtn.title = (qty === 1 ? 'Удалить из инвентаря' : 'Уменьшить количество');
+      minusBtn.setAttribute('aria-label', qty === 1 ? 'Удалить ' + cardObj.name + ' из инвентаря' : 'Уменьшить количество карты ' + cardObj.name);
+    }
+
+    const displayBtn = cardEl.querySelector('.step-display');
+    if (displayBtn) {
+      displayBtn.textContent = '×' + qty;
+      displayBtn.setAttribute('aria-label', 'Изменить количество карты ' + cardObj.name + ', сейчас ' + qty);
+    }
+    const plusBtn = cardEl.querySelector('.step-btn.plus');
+    if (plusBtn) plusBtn.setAttribute('aria-label', 'Увеличить количество карты ' + cardObj.name);
+
+    const tagsContainer = cardEl.querySelector('.card-tags');
+    if (tagsContainer) {
+      const starsHtml = '⭐'.repeat(Math.max(1, Math.min(5, num(cardObj.rarity, 3))));
+      tagsContainer.innerHTML =
+        '<span class="rarity-stars">' + starsHtml + '</span>' +
+        (dup > 0 ? '<span class="tag-dup">+' + dup + ' на обмен</span>' : (desired ? '<span class="tag-desired">Ищу ⭐</span>' : ''));
+    }
+  }
+
+  // Update Dashboard
+  updateStatsAndCounts();
+
+  if ((currentFilter === 'desired' || currentFilter === 'not_desired') && newQuantity > 0) renderInventory();
+  pendingQuantityUpdates.set(cardId, newQuantity);
+  setQuantitySaveStatus('pending', 'Есть несохранённые изменения количества.');
+  clearTimeout(quantitySaveTimeout);
+  quantitySaveTimeout = setTimeout(flushPendingQuantities, 600);
+}
+
+function setQuantitySaveStatus(state, message) {
+  const status = document.getElementById('quantitySaveStatus');
+  const retry = document.getElementById('retryQuantitySaveBtn');
+  status.dataset.state = state;
+  status.textContent = message;
+  retry.hidden = state !== 'error';
+}
+
+async function flushPendingQuantities() {
+  if (quantitySaveInFlight || !pendingQuantityUpdates.size) return;
+  quantitySaveInFlight = true;
+  const updates = Array.from(pendingQuantityUpdates.entries());
+  const payload = updates.map(([id, quantity]) => ({ id, quantity, duplicates: Math.max(0, quantity - 1) }));
+  setQuantitySaveStatus('saving', 'Сохраняем количество…');
+  try {
+    const r = await fetchWithTimeout(API + '/me/collection/confirm', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cards: payload })
+    }, BACKEND_WAKE_TIMEOUT_MS);
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || 'Ошибка синхронизации количества');
+    const latestPending = new Map(pendingQuantityUpdates);
+    inventoryCards = (d.cards || inventoryCards).map(card => latestPending.has(card.id) ? { ...card, quantity: latestPending.get(card.id) } : card);
+    updates.forEach(([id, quantity]) => {
+      if (pendingQuantityUpdates.get(id) === quantity) pendingQuantityUpdates.delete(id);
+    });
+    updateStatsAndCounts();
+    setQuantitySaveStatus(pendingQuantityUpdates.size ? 'pending' : 'saved', pendingQuantityUpdates.size ? 'Есть новые изменения — сохраняем…' : 'Количество сохранено');
+  } catch (e) {
+    setQuantitySaveStatus('error', 'Не удалось сохранить количество. Нажмите «Повторить сохранение».');
+    showToast('Ошибка сохранения: ' + (e.message || 'проверьте соединение'), 5000);
+  } finally {
+    quantitySaveInFlight = false;
+    if (pendingQuantityUpdates.size && document.getElementById('quantitySaveStatus').dataset.state !== 'error') {
+      clearTimeout(quantitySaveTimeout);
+      quantitySaveTimeout = setTimeout(flushPendingQuantities, 250);
+    }
+  }
+}
+
+document.getElementById('retryQuantitySaveBtn').addEventListener('click', () => {
+  clearTimeout(quantitySaveTimeout);
+  flushPendingQuantities();
+});
+window.addEventListener('online', () => {
+  if (pendingQuantityUpdates.size) flushPendingQuantities();
+});
+
+// Desired Cards (Wishlist) Operations
+function toggleDesiredCard(cardId, cardEl) {
+  const cardObj = inventoryCards.find(x => x.id === cardId);
+  if (cardObj && num(cardObj.quantity) > 0) {
+    showToast('Эта карта уже есть в инвентаре (×' + cardObj.quantity + ')');
+    triggerHaptic('warning');
+    return;
+  }
+  triggerHaptic('medium');
+  if (desiredIds.has(cardId)) {
+    desiredIds.delete(cardId);
+  } else {
+    desiredIds.add(cardId);
+  }
+
+  const isDesired = desiredIds.has(cardId);
+  if (cardEl) {
+    cardEl.classList.toggle('desired-active', isDesired);
+    const starBtn = cardEl.querySelector('.star-btn');
+    if (starBtn) {
+      starBtn.classList.toggle('active', isDesired);
+      starBtn.textContent = isDesired ? '★' : '☆';
+      starBtn.title = isDesired ? 'В списке «Ищу»' : 'Добавить в «Ищу»';
+      starBtn.setAttribute('aria-label', isDesired ? 'Убрать карту ' + (cardObj?.name || '') + ' из списка «Ищу»' : 'Добавить карту ' + (cardObj?.name || '') + ' в список «Ищу»');
+      starBtn.setAttribute('aria-pressed', String(isDesired));
+    }
+    const tagsContainer = cardEl.querySelector('.card-tags');
+    if (tagsContainer) {
+      const starsHtml = '⭐'.repeat(Math.max(1, Math.min(5, num(cardObj?.rarity, 3))));
+      tagsContainer.innerHTML = '<span class="rarity-stars">' + starsHtml + '</span>' + (isDesired ? '<span class="tag-desired">Ищу ⭐</span>' : '');
+    }
+  }
+
+  updateStatsAndCounts();
+  checkDesiredChanges();
+
+  // If in 'desired' filter tab, we might want to re-render if unstarred
+  if (currentFilter === 'desired' && !isDesired) {
+    // Keep it until filter re-selected or smoothly update
+  }
+}
+
+function checkDesiredChanges() {
+  const isDifferent = desiredIds.size !== savedDesiredIds.size || [...desiredIds].some(id => !savedDesiredIds.has(id));
+  const floatingBar = document.getElementById('floatingBar');
+  const floatingCount = document.getElementById('floatingCount');
+  if (floatingCount) floatingCount.textContent = desiredIds.size;
+  if (isDifferent) {
+    if (tg?.MainButton && telegramInitData) {
+      tg.MainButton.setText('💾 Сохранить список «Ищу» (' + desiredIds.size + ')');
+      tg.MainButton.show();
+      tg.MainButton.offClick(saveDesired);
+      tg.MainButton.onClick(saveDesired);
+      if (floatingBar) floatingBar.classList.remove('visible');
+    } else if (floatingBar) floatingBar.classList.add('visible');
+  } else {
+    if (floatingBar) floatingBar.classList.remove('visible');
+    if (tg?.MainButton && tg.MainButton.isVisible) {
+      tg.MainButton.hide();
+      tg.MainButton.offClick(saveDesired);
+    }
+  }
+}
+
+async function saveDesired() {
+  const floatingBtn = document.getElementById('floatingSaveBtn');
+  if (floatingBtn) { floatingBtn.disabled = true; floatingBtn.textContent = '⏳...'; }
+  if (tg?.MainButton) tg.MainButton.showProgress();
+
+  try {
+    const r = await fetch(API + '/me/desired-cards', {
+      method: 'PUT',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card_ids: [...desiredIds] })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Ошибка сохранения');
+    trackAnalytics('wishlist_updated', { added_count: Math.max(0, desiredIds.size - savedDesiredIds.size), removed_count: Math.max(0, savedDesiredIds.size - desiredIds.size) });
+    desiredIds = new Set((d.desired_cards || []).filter(c => inventoryQuantity(c.id) === 0).map(c => c.id));
+    savedDesiredIds = new Set(desiredIds);
+    checkDesiredChanges();
+    showToast('✅ Список «Ищу» сохранён (' + desiredIds.size + ' карт)');
+    triggerHaptic('success');
+    if (currentFilter === 'desired' || currentFilter === 'not_desired') renderInventory();
+  } catch (e) {
+    showToast('❌ ' + e.message);
+    triggerHaptic('error');
+  } finally {
+    if (floatingBtn) { floatingBtn.disabled = false; floatingBtn.textContent = '💾 Сохранить'; }
+    if (tg?.MainButton) tg.MainButton.hideProgress();
+  }
+}
+
+document.getElementById('floatingSaveBtn').addEventListener('click', saveDesired);
+
+// Quick Wishlist Bulk Actions with Confirmation
+document.getElementById('addMissingToDesiredBtn').addEventListener('click', async () => {
+  const missingCards = inventoryCards.filter(c => num(c.quantity) === 0 && !desiredIds.has(c.id));
+  if (!missingCards.length) {
+    showToast('Все недостающие карты уже добавлены в «Ищу»!');
+    return;
+  }
+  const confirmMsg = 'Добавить все недостающие карты (' + missingCards.length + ' шт.) в список «Ищу»?';
+  const ok = tg?.showConfirm ? await new Promise(resolve => tg.showConfirm(confirmMsg, resolve)) : window.confirm(confirmMsg);
+  if (!ok) return;
+  let added = 0;
+  missingCards.forEach(c => {
+    if (!desiredIds.has(c.id)) {
+      desiredIds.add(c.id);
+      added++;
+    }
+  });
+  triggerHaptic('medium');
+  renderInventory();
+  checkDesiredChanges();
+  showToast('⭐ Добавлено ' + added + ' недостающих карт в «Ищу»');
+});
+
+document.getElementById('clearDesiredBtn').addEventListener('click', async () => {
+  if (desiredIds.size === 0) { showToast('Список «Ищу» уже пуст'); return; }
+  const confirmMsg = 'Сбросить выбор всех карт в «Ищу» (' + desiredIds.size + ' шт.)?';
+  const ok = tg?.showConfirm ? await new Promise(resolve => tg.showConfirm(confirmMsg, resolve)) : window.confirm(confirmMsg);
+  if (!ok) return;
+  desiredIds.clear();
+  triggerHaptic('light');
+  renderInventory();
+  checkDesiredChanges();
+  showToast('Сброшен выбор всех карт в «Ищу»');
+});
+
+// Clear Entire Inventory
+document.getElementById('clearInventoryBtn').addEventListener('click', async () => {
+  if (!telegramInitData) return;
+  const ok = tg?.showConfirm
+    ? await new Promise(resolve => tg.showConfirm('Обнулить количество всех карт в инвентаре? Список «Ищу» останется нетронутым.', resolve))
+    : window.confirm('Обнулить количество всех карт в инвентаре? Список «Ищу» останется нетронутым.');
+  if (!ok) return;
+
+  const btn = document.getElementById('clearInventoryBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Обнуление...';
+  try {
+    const r = await fetch(API + '/me/collection', { method: 'DELETE', headers: telegramHeaders() });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Ошибка обнуления');
+    inventoryCards = d.cards || inventoryCards;
+    renderInventory();
+    showToast('✅ Количество всех карт обнулено (×0)');
+    triggerHaptic('success');
+  } catch (e) {
+    showToast('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑️ Обнулить количество всех карт';
+  }
+});
+
+// Quick Quantity Modal Logic
+const qtyModal = document.getElementById('qtyModal');
+const modalQtyInput = document.getElementById('modalQtyInput');
+
+function openQuantityModal(cardId) {
+  activeModalCardId = cardId;
+  quantityModalReturnFocus = document.activeElement;
+  const cardObj = inventoryCards.find(x => x.id === cardId);
+  if (!cardObj) return;
+
+  document.getElementById('modalCardTitle').textContent = cardObj.name || 'Карта';
+  document.getElementById('modalCardSubtitle').textContent = 'Текущее количество в инвентаре: ×' + num(cardObj.quantity);
+  modalQtyInput.value = num(cardObj.quantity);
+
+  qtyModal.inert = false;
+  qtyModal.setAttribute('aria-hidden', 'false');
+  qtyModal.classList.add('open');
+  modalQtyInput.focus();
+  modalQtyInput.select();
+}
+
+function closeQuantityModal() {
+  qtyModal.classList.remove('open');
+  qtyModal.setAttribute('aria-hidden', 'true');
+  qtyModal.inert = true;
+  activeModalCardId = null;
+  if (quantityModalReturnFocus?.isConnected) quantityModalReturnFocus.focus();
+  quantityModalReturnFocus = null;
+}
+
+qtyModal.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeQuantityModal();
+    return;
+  }
+  if (event.key !== 'Tab' || !qtyModal.classList.contains('open')) return;
+  const focusable = [...qtyModal.querySelectorAll('button:not([disabled]), input:not([disabled])')];
+  if (!focusable.length) return;
+  if (event.shiftKey && document.activeElement === focusable[0]) {
+    event.preventDefault(); focusable[focusable.length - 1].focus();
+  } else if (!event.shiftKey && document.activeElement === focusable[focusable.length - 1]) {
+    event.preventDefault(); focusable[0].focus();
+  }
+});
+
+document.querySelectorAll('.preset-btn[data-val]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    modalQtyInput.value = btn.dataset.val;
+  });
+});
+
+document.getElementById('modalMinusBtn').addEventListener('click', () => {
+  const v = Math.max(0, num(modalQtyInput.value) - 1);
+  modalQtyInput.value = v;
+});
+
+document.getElementById('modalPlusBtn').addEventListener('click', () => {
+  const v = Math.min(999, num(modalQtyInput.value) + 1);  modalQtyInput.value = v;
+});
+
+document.getElementById('modalCancelBtn').addEventListener('click', closeQuantityModal);
+qtyModal.addEventListener('click', (e) => {
+  if (e.target === qtyModal) closeQuantityModal();
+});
+
+document.getElementById('modalApplyBtn').addEventListener('click', () => {
+  if (!activeModalCardId) return;
+  const val = Math.max(0, Math.min(999, Math.trunc(num(modalQtyInput.value, 0))));
+  const cardEl = document.querySelector('.card[data-id="' + activeModalCardId + '"]');
+  updateCardQuantityOptimistic(activeModalCardId, val, cardEl);
+  closeQuantityModal();
+});
+
+// Empty-state recovery actions
+document.getElementById('inventoryList').addEventListener('click', event => {
+  const button = event.target.closest('[data-empty-action]');
+  if (!button) return;
+  if (button.dataset.emptyAction === 'scanner') {
+    switchTab('scanner');
+  } else if (button.dataset.emptyAction === 'clear-search') {
+    searchInput.value = '';
+    searchClearBtn.hidden = true;
+    renderInventory();
+    searchInput.focus();
+  } else {
+    setFilter(button.dataset.emptyAction === 'missing' ? 'missing' : 'all');
+  }
+});
+
+// Filter Chips and Search Listeners
+document.getElementById('filterChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('#filterChips .chip').forEach(c => {
+    const selected = c === chip;
+    c.classList.toggle('active', selected);
+    c.setAttribute('aria-pressed', String(selected));
+  });
+  currentFilter = chip.dataset.filter;
+  triggerHaptic('light');
+  renderInventory();
+});
+
+// Stat Cards as Shortcuts
+document.getElementById('statOwnedCard').addEventListener('click', () => {
+  setFilter('owned');
+});
+document.getElementById('statDupCard').addEventListener('click', () => {
+  setFilter('duplicates');
+});
+document.getElementById('statDesiredCard').addEventListener('click', () => {
+  setFilter('desired');
+});
+
+function setFilter(filterName) {
+  currentFilter = filterName;
+  trackAnalytics('filter_changed', { filter: filterName });
+  document.querySelectorAll('#filterChips .chip').forEach(c => {
+    const selected = c.dataset.filter === filterName;
+    c.classList.toggle('active', selected);
+    c.setAttribute('aria-pressed', String(selected));
+  });
+  triggerHaptic('light');
+  renderInventory();
+}
+
+const searchInput = document.getElementById('inventorySearch');
+const searchClearBtn = document.getElementById('searchClearBtn');
+
+let searchAnalyticsTracked = false;
+searchInput.addEventListener('focus', () => { searchAnalyticsTracked = false; });
+searchInput.addEventListener('input', () => {
+  if (searchInput.value.trim() && !searchAnalyticsTracked) { trackAnalytics('search_used'); searchAnalyticsTracked = true; }
+  searchClearBtn.hidden = !searchInput.value;
+  renderInventory();
+});
+
+searchClearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  searchClearBtn.hidden = true;
+  searchInput.focus();
+  renderInventory();
+});
+
+document.getElementById('inventorySort').addEventListener('change', renderInventory);
+
+// Reciprocal trade matching
+const tradeMatchesEl = document.getElementById('tradeMatches');
+const tradeStatusEl = document.getElementById('tradeStatus');
+function tradeEsc(value) { return esc(String(value ?? '')); }
+function renderTradeMatches(matches) {
+  if (!matches.length) {
+    tradeMatchesEl.innerHTML = '<div class="trade-empty">Пока нет взаимовыгодных обменов. Добавьте нужные карты в список «Ищу» и сохраните его. Поиск учитывает только дубликаты карт у других игроков.</div>';
+    return;
+  }
+  tradeMatchesEl.innerHTML = matches.map(match => {
+    const displayName = [match.first_name, match.last_name].filter(Boolean).join(' ') || (match.username ? '@' + match.username : 'Игрок');
+    const username = match.username ? '@' + match.username : '';
+    const directContact = match.username ? '<a class="trade trade-contact" href="https://t.me/' + encodeURIComponent(match.username) + '" target="_blank" rel="noopener noreferrer">Написать напрямую</a>' : '';
+    const trades = match.trades.map(trade => {
+      const giveIcon = trade.you_give.icon ? '<img loading="lazy" src="' + tradeEsc(trade.you_give.icon) + '" alt="">' : '';
+      const getIcon = trade.you_get.icon ? '<img loading="lazy" src="' + tradeEsc(trade.you_get.icon) + '" alt="">' : '';
+      const pair = '<div class="trade-pair"><div class="trade-card">' + giveIcon + '<div class="trade-card-name"><b>Вы отдаёте</b><br>' + tradeEsc(trade.you_give.name) + '</div><div class="trade-count">Дубликатов: ' + tradeEsc(trade.you_give.available) + '</div></div><div class="trade-arrow" aria-hidden="true">⇄</div><div class="trade-card">' + getIcon + '<div class="trade-card-name"><b>Вы получаете</b><br>' + tradeEsc(trade.you_get.name) + '</div><div class="trade-count">У игрока: ' + tradeEsc(trade.you_get.available) + '</div></div></div>';
+      const offer = '<button type="button" class="trade trade-contact" data-trade-target="' + tradeEsc(match.telegram_id) + '" data-offered-card-id="' + tradeEsc(trade.you_give.id) + '" data-requested-card-id="' + tradeEsc(trade.you_get.id) + '">Предложить этот обмен</button>';
+      return pair + offer;
+    }).join('<div style="height:8px"></div>');
+    return '<article class="trade-match"><div class="trade-player">' + tradeEsc(displayName) + (username ? ' <span class="trade-count">' + tradeEsc(username) + '</span>' : '') + '</div>' + trades + directContact + '</article>';
+  }).join('');
+}
+
+tradeMatchesEl.addEventListener('click', async event => {
+  const button = event.target.closest('button[data-trade-target]');
+  if (!button || !tradeMatchesEl.contains(button)) return;
+
+  const targetId = button.dataset.tradeTarget;
+  if (!/^\d+$/.test(targetId || '')) {
+    tradeStatusEl.textContent = 'Не удалось определить игрока для обмена.';
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Отправляем предложение…';
+  try {
+    const offeredCardId = button.dataset.offeredCardId;
+    const requestedCardId = button.dataset.requestedCardId;
+    if (!offeredCardId || !requestedCardId) throw new Error('Не удалось определить карты для обмена');
+    const response = await fetch(API + '/me/trade-requests', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_telegram_id: Number(targetId),
+        offered_card_id: offeredCardId,
+        requested_card_id: requestedCardId,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось отправить предложение');
+    trackAnalytics('trade_action', { action: 'request' });
+    button.textContent = '✓ Предложение отправлено';
+    button.setAttribute('aria-label', 'Предложение обмена отправлено');
+    tradeStatusEl.textContent = data.message || 'Заявка сохранена.';
+    await loadTradeRequests();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Предложить этот обмен';
+    tradeStatusEl.textContent = 'Не удалось отправить предложение: ' + (error.message || 'проверьте соединение');
+  }
+});
+
+async function loadTradeMatches() {
+  if (!telegramInitData) {
+    tradeStatusEl.textContent = 'Откройте приложение через Telegram, чтобы найти обмены.';
+    tradeMatchesEl.innerHTML = '';
+    return;
+  }
+  tradeStatusEl.textContent = 'Ищем взаимовыгодные обмены…';
+  document.getElementById('refreshTradesBtn').disabled = true;
+  try {
+    const response = await fetch(API + '/me/trade-matches', { headers: telegramHeaders() });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось найти обмены');
+    const matches = Array.isArray(data.matches) ? data.matches : [];
+    renderTradeMatches(matches);
+    tradeStatusEl.textContent = matches.length ? 'Найдено подходящих игроков: ' + matches.length : 'Подходящих обменов пока нет.';
+  } catch (error) {
+    tradeStatusEl.textContent = 'Ошибка поиска: ' + (error.message || 'проверьте соединение');
+  } finally {
+    document.getElementById('refreshTradesBtn').disabled = false;
+  }
+}
+document.getElementById('refreshTradesBtn').addEventListener('click', loadTradeMatches);
+
+const tradeRequestsEl = document.getElementById('tradeRequestsList');
+const tradeRequestsStatusEl = document.getElementById('tradeRequestsStatus');
+let currentRequestScope = 'all';
+const requestStatusLabels = {
+  pending: '🟡 Ожидает ответа',
+  accepted: '🟢 Предложение принято',
+  agreed: '🤝 Обмен подтверждён обоими игроками',
+  completed: '✅ Обмен завершён',
+  declined: '❌ Предложение отклонено',
+  cancelled: '❌ Обмен отменён',
+};
+function renderTradeRequests(requests) {
+  if (!requests.length) {
+    tradeRequestsEl.innerHTML = '<div class="trade-empty">Заявок пока нет. Создайте предложение в списке подходящих обменов.</div>';
+    return;
+  }
+  const currentId = Number(tg?.initDataUnsafe?.user?.id || 0);
+  tradeRequestsEl.innerHTML = requests.map(request => {
+    const isSender = Number(request.sender_telegram_id) === currentId;
+    const otherName = isSender
+      ? [request.recipient_first_name, request.recipient_last_name].filter(Boolean).join(' ') || 'Игрок'
+      : [request.sender_first_name, request.sender_last_name].filter(Boolean).join(' ') || 'Игрок';
+    const gives = isSender ? request.offered_card_name : request.requested_card_name;
+    const gets = isSender ? request.requested_card_name : request.offered_card_name;
+    const actions = [];
+    if (request.status === 'pending' && !isSender) {
+      actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="accept">✅ Принять</button>');
+      actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="decline">❌ Отклонить</button>');
+    }
+    if (request.status === 'accepted') {
+      const alreadyAgreed = isSender ? request.sender_agreed_at : request.recipient_agreed_at;
+      if (!alreadyAgreed) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="agree">🤝 Подтвердить обмен</button>');
+    }
+    if (request.status === 'agreed' && request.exchange_code_sent_at) {
+      const alreadyCompleted = isSender ? request.sender_completed_at : request.recipient_completed_at;
+      if (!alreadyCompleted) actions.push('<button type="button" class="trade" data-request-id="' + tradeEsc(request.id) + '" data-request-action="complete">✅ Подтвердить завершение</button>');
+    }
+    const requestId = tradeEsc(request.id);
+    const codeTransfer = request.status === 'agreed' && isSender && !request.exchange_code_sent_at
+      ? '<form class="exchange-code-form" data-exchange-code-form data-request-id="' + requestId + '">' +
+        '<label for="exchangeCode-' + requestId + '">Код из PUBG Mobile</label>' +
+        '<input id="exchangeCode-' + requestId + '" name="code" type="text" maxlength="128" autocomplete="off" autocapitalize="characters" spellcheck="false" required aria-describedby="exchangeCodeHelp-' + requestId + '">' +
+        '<small id="exchangeCodeHelp-' + requestId + '">Сначала создайте код в игре. Код не сохраняется в приложении и будет отправлен участнику в Telegram.</small>' +
+        '<button type="submit" class="trade">📨 Передать код игроку</button></form>'
+      : request.status === 'agreed' && request.exchange_code_sent_at
+        ? '<p class="exchange-code-status" role="status">📨 Код передан автором предложения в Telegram.</p>'
+        : '';
+    if (['pending', 'accepted', 'agreed'].includes(request.status)) {
+      actions.push('<button type="button" class="trade danger" data-request-id="' + tradeEsc(request.id) + '" data-request-action="cancel">Отменить</button>');
+    }
+    return '<article class="trade-match"><div class="trade-player">Заявка #' + tradeEsc(request.id) + ' · ' + tradeEsc(otherName) + '</div>' +
+      '<div class="trade-card-name">📤 Вы отдаёте: <b>' + tradeEsc(gives) + '</b></div>' +
+      '<div class="trade-card-name" style="margin-top:6px">📥 Вы получаете: <b>' + tradeEsc(gets) + '</b></div>' +
+      '<div class="trade-count" style="margin:8px 0">' + tradeEsc(requestStatusLabels[request.status] || request.status) + '</div>' +
+      codeTransfer +
+      '<div class="quick-actions-bar">' + actions.join('') + '</div></article>';
+  }).join('');
+}
+async function loadTradeRequests() {
+  if (!telegramInitData) {
+    tradeRequestsStatusEl.textContent = 'Откройте приложение через Telegram, чтобы посмотреть заявки.';
+    tradeRequestsEl.innerHTML = '';
+    return;
+  }
+  tradeRequestsStatusEl.textContent = 'Загружаем заявки…';
+  try {
+    const response = await fetch(API + '/me/trade-requests?scope=' + encodeURIComponent(currentRequestScope), {
+      headers: telegramHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось загрузить заявки');
+    const requests = Array.isArray(data.requests) ? data.requests : [];
+    renderTradeRequests(requests);
+    tradeRequestsStatusEl.textContent = 'Заявок: ' + requests.length;
+  } catch (error) {
+    tradeRequestsStatusEl.textContent = 'Ошибка загрузки заявок: ' + (error.message || 'проверьте соединение');
+  }
+}
+tradeRequestsEl.addEventListener('click', async event => {
+  const button = event.target.closest('button[data-request-action]');
+  if (!button || !tradeRequestsEl.contains(button)) return;
+  const action = button.dataset.requestAction;
+  const requestId = button.dataset.requestId;
+  const confirmations = {
+    accept: 'Вы согласны на этот обмен? Убедитесь, что готовы передать указанную карту.',
+    complete: 'Подтвердить, что обмен фактически завершён? Это действие нельзя отменить.',
+    cancel: 'Отменить эту заявку на обмен?',
+    decline: 'Отклонить предложение обмена?',
+  };
+  if (confirmations[action] && !window.confirm(confirmations[action])) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(API + '/me/trade-requests/' + encodeURIComponent(requestId) + '/' + action, {
+      method: 'POST',
+      headers: telegramHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось изменить заявку');
+    await loadTradeRequests();
+  } catch (error) {
+    tradeRequestsStatusEl.textContent = 'Ошибка: ' + (error.message || 'проверьте соединение');
+    button.disabled = false;
+  }
+});
+
+tradeRequestsEl.addEventListener('submit', async event => {
+  const form = event.target.closest('form[data-exchange-code-form]');
+  if (!form || !tradeRequestsEl.contains(form)) return;
+  event.preventDefault();
+
+  const input = form.elements.code;
+  const code = String(input.value || '').trim();
+  if (!code) {
+    input.focus();
+    return;
+  }
+
+  const requestId = form.dataset.requestId;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  button.textContent = 'Передаём код…';
+  try {
+    const response = await fetch(API + '/me/trade-requests/' + encodeURIComponent(requestId) + '/exchange-code', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Не удалось передать код');
+    input.value = '';
+    await loadTradeRequests();
+    tradeRequestsStatusEl.textContent = '✅ Код передан игроку в Telegram.';
+  } catch (error) {
+    tradeRequestsStatusEl.textContent = 'Не удалось передать код: ' + (error.message || 'проверьте соединение');
+    button.disabled = false;
+    button.textContent = '📨 Передать код игроку';
+  }
+});
+
+document.querySelectorAll('[data-request-scope]').forEach(button => {
+  button.addEventListener('click', () => {
+    currentRequestScope = button.dataset.requestScope;
+    document.querySelectorAll('[data-request-scope]').forEach(item => {
+      const selected = item === button;
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-pressed', String(selected));
+    });
+    loadTradeRequests();
+  });
+});
+document.getElementById('refreshRequestsBtn').addEventListener('click', loadTradeRequests);
+
+// Initialize
+loadMyCollection();
+let selectedFeedbackRating = 0;
+document.querySelectorAll('#feedbackRatings [data-rating]').forEach(button => {
+  button.addEventListener('click', () => {
+    selectedFeedbackRating = Number(button.dataset.rating);
+    document.querySelectorAll('#feedbackRatings [data-rating]').forEach(item => {
+      const selected = item === button;
+      item.setAttribute('aria-pressed', String(selected));
+      item.classList.toggle('active', selected);
+    });
+    document.getElementById('feedbackSubmit').disabled = !selectedFeedbackRating;
+  });
+});
+document.getElementById('feedbackSubmit').addEventListener('click', async () => {
+  const status = document.getElementById('feedbackStatus');
+  if (!telegramInitData || !selectedFeedbackRating) {
+    status.textContent = 'Откройте приложение из Telegram и выберите оценку.';
+    return;
+  }
+  const button = document.getElementById('feedbackSubmit');
+  button.disabled = true;
+  status.textContent = 'Отправляем…';
+  try {
+    const response = await fetch(API + '/me/analytics/events', {
+      method: 'POST',
+      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: [{
+        name: 'feedback_submitted',
+        properties: { rating: selectedFeedbackRating, category: document.getElementById('feedbackCategory').value }
+      }] })
+    });
+    if (!response.ok) throw new Error('Не удалось сохранить оценку');
+    status.textContent = 'Спасибо! Оценка сохранена.';
+    document.getElementById('feedbackPanel').open = false;
+    selectedFeedbackRating = 0;
+    document.querySelectorAll('#feedbackRatings [data-rating]').forEach(item => {
+      item.setAttribute('aria-pressed', 'false');
+      item.classList.remove('active');
+    });
+  } catch (_) {
+    status.textContent = 'Не удалось отправить оценку. Попробуйте ещё раз.';
+    button.disabled = false;
+  }
+});
+
+</script>
+</body>
+</html>
