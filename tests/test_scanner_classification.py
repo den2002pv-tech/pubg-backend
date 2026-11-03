@@ -2,6 +2,7 @@
 import numpy as np
 from PIL import Image, ImageDraw
 
+import scanner
 from scanner import (
     _counter_digit_aligned,
     _refine_digit_prediction,
@@ -9,6 +10,65 @@ from scanner import (
     _has_counter_evidence,
     is_card_darkened,
 )
+
+
+def test_counter_contour_processing_is_capped_per_threshold(monkeypatch):
+    contour = np.array([[[0, 0]], [[1, 0]], [[1, 1]], [[0, 1]]], dtype=np.int32)
+    monkeypatch.setattr(scanner, "COUNTER_MAX_CONTOURS_PER_PASS", 2)
+    monkeypatch.setattr(
+        scanner.cv2,
+        "findContours",
+        lambda *_args, **_kwargs: ([contour] * 4, None),
+    )
+
+    _, _, _, debug = scanner._detect_counter(Image.new("RGB", (120, 200), "black"))
+
+    assert debug["threshold_runs"]
+    assert all(run["contours"] == 4 for run in debug["threshold_runs"])
+    assert all(run["processed_contours"] == 2 for run in debug["threshold_runs"])
+
+
+def test_inventory_diagnostics_reuse_the_detected_contours(monkeypatch):
+    image = Image.new("RGB", (400, 250), (25, 30, 35))
+    draw = ImageDraw.Draw(image)
+    for x in (60, 132):
+        draw.rectangle((x, 60, x + 59, 159), outline=(240, 240, 240), width=3)
+
+    original_find_contours = scanner.cv2.findContours
+    calls = 0
+
+    def count_find_contours(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_find_contours(*args, **kwargs)
+
+    monkeypatch.setattr(scanner.cv2, "findContours", count_find_contours)
+
+    result = scanner.diagnose_inventory_cards(image)
+
+    assert calls == 1
+    assert result["stages"]["contours_found"] == 2
+    assert result["stages"]["final_cards"] == 2
+
+
+def test_frame_pixel_threshold_matches_rgb_mean_for_random_and_boundary_data():
+    rng = np.random.default_rng(20261030)
+    random_pixels = rng.integers(0, 256, size=(64, 96, 3), dtype=np.uint8)
+    boundary_pixels = np.array(
+        [[[0, 0, 24], [0, 0, 25], [8, 8, 8], [9, 8, 7],
+          [255, 255, 255], [0, 0, 0], [24, 0, 0]]],
+        dtype=np.uint8,
+    )
+    pixels = np.concatenate((random_pixels.reshape(-1, 3), boundary_pixels.reshape(-1, 3)))
+
+    mean_threshold = pixels.mean(axis=1) > 8.0
+    integer_threshold = pixels.sum(axis=1, dtype=np.uint16) > 24
+
+    np.testing.assert_array_equal(integer_threshold, mean_threshold)
+    np.testing.assert_array_equal(
+        integer_threshold[-7:],
+        np.array([False, True, False, False, True, False, False]),
+    )
 
 
 def test_counter_digit_rejects_noise_far_below_multiply_sign():

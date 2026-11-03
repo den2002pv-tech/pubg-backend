@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from scanner import _detect_counter
+from scanner import COUNTER_MAX_CONTOURS_PER_PASS, _detect_counter
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "tests" / "fixtures" / "counter" / "cases.json"
@@ -43,6 +43,10 @@ class CounterFixtureTests(unittest.TestCase):
                 self.assertGreaterEqual(debug["timing_ms"]["total_ms"], 0)
                 for threshold_run in debug.get("threshold_runs", []):
                     self.assertGreaterEqual(threshold_run["duration_ms"], 0)
+                    self.assertLessEqual(
+                        threshold_run["processed_contours"],
+                        COUNTER_MAX_CONTOURS_PER_PASS,
+                    )
                 self.assertEqual(
                     case["expected_quantity"],
                     actual,

@@ -1,8 +1,10 @@
 import asyncio
 import json
+import threading
 import time
 
 import pytest
+from starlette.requests import Request
 
 import main
 
@@ -10,12 +12,17 @@ import main
 def test_lifespan_runs_startup_database(monkeypatch):
     calls = []
     monkeypatch.setattr(main, "startup_database", lambda: calls.append("startup"))
+    monkeypatch.setattr(
+        main,
+        "_scanner_warmup",
+        lambda: calls.append("warmup"),
+    )
 
     async def exercise_lifespan():
         assert calls == []
         async with main.lifespan(main.app):
-            assert calls == ["startup"]
-        assert calls == ["startup"]
+            assert calls == ["startup", "warmup"]
+        assert calls == ["startup", "warmup"]
 
     asyncio.run(exercise_lifespan())
 
@@ -71,6 +78,21 @@ def test_app_commit_uses_generic_environment_variable(monkeypatch):
     monkeypatch.setenv("APP_COMMIT", "test-commit")
     monkeypatch.setenv("RENDER_GIT_COMMIT", "stale-render-commit")
     assert main.get_app_commit() == "test-commit"
+
+
+def test_app_commit_falls_back_to_git_when_environment_is_unset(monkeypatch):
+    import app_config
+    from types import SimpleNamespace
+
+    for variable in ("APP_COMMIT", "GITHUB_SHA", "RENDER_GIT_COMMIT", "SOURCE_VERSION"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(
+        app_config.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(stdout="deadbeef1234\n"),
+    )
+
+    assert main.get_app_commit() == "deadbeef1234"
 
 
 def test_catalog_audit_reports_missing_and_duplicate_icons_and_possible_counter(tmp_path, monkeypatch):
@@ -175,12 +197,22 @@ def test_load_db_returns_empty_dict_when_file_is_missing(monkeypatch, tmp_path):
     assert main.load_db() == {}
 
 
-def test_load_db_returns_empty_dict_for_invalid_json(monkeypatch, tmp_path):
+def test_load_db_fails_fast_for_invalid_json(monkeypatch, tmp_path):
     db_file = tmp_path / "broken.json"
     db_file.write_text("{invalid json", encoding="utf-8")
     monkeypatch.setattr(main, "DB_FILE", db_file)
 
-    assert main.load_db() == {}
+    with pytest.raises(RuntimeError, match="invalid JSON"):
+        main.load_db()
+
+
+def test_load_db_rejects_non_object_catalogue(monkeypatch, tmp_path):
+    db_file = tmp_path / "not-an-object.json"
+    db_file.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+
+    with pytest.raises(RuntimeError, match="JSON object"):
+        main.load_db()
 
 
 def test_save_db_and_load_db_round_trip(monkeypatch, tmp_path):
@@ -195,6 +227,70 @@ def test_save_db_and_load_db_round_trip(monkeypatch, tmp_path):
 
     assert json.loads(db_file.read_text(encoding="utf-8")) == expected
     assert main.load_db() == expected
+
+
+def test_cached_match_index_matches_uncached_result(monkeypatch, tmp_path):
+    db_file = tmp_path / "cards.json"
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+    main.save_db({"card_1": {"name": "Карта 1", "hashes": hashes}})
+
+    cached_db = main.load_db()
+    cached_result = main._match_card_detailed(hashes, cached_db)
+    uncached_db = json.loads(db_file.read_text(encoding="utf-8"))
+    uncached_result = main._match_card_detailed(hashes, uncached_db)
+
+    assert cached_result == uncached_result
+    assert main._MATCH_INDEX_DB is cached_db
+    assert all(
+        isinstance(value, int)
+        for value in main._MATCH_INDEX[0]["hash_values"].values()
+    )
+
+
+def test_catalog_cache_invalidates_after_save_and_external_file_replacement(
+    monkeypatch, tmp_path,
+):
+    import os
+
+    db_file = tmp_path / "cards.json"
+    monkeypatch.setattr(main, "DB_FILE", db_file)
+    hashes = {
+        "full_phash": "aaaaaaaa",
+        "full_dhash": "bbbbbbbb",
+        "visual_phash": "cccccccc",
+        "visual_dhash": "dddddddd",
+        "frame_colorhash": "eeeeeeee",
+    }
+
+    main.save_db({"card_1": {"hashes": hashes}})
+    first_db = main.load_db()
+    assert main._match_card(hashes, first_db)[0] == "card_1"
+
+    main.save_db({"card_2": {"hashes": hashes}})
+    second_db = main.load_db()
+    assert second_db is not first_db
+    assert main._match_card(hashes, second_db)[0] == "card_2"
+
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text(
+        json.dumps({"card_3": {"hashes": hashes}}),
+        encoding="utf-8",
+    )
+    old_mtime_ns = db_file.stat().st_mtime_ns
+    replacement.replace(db_file)
+    os.utime(db_file, ns=(old_mtime_ns + 1_000_000_000, old_mtime_ns + 1_000_000_000))
+
+    third_db = main.load_db()
+    assert third_db is not second_db
+    assert main._match_card(hashes, third_db)[0] == "card_3"
+    assert main._MATCH_INDEX_DB is third_db
 
 
 def test_match_card_returns_exact_hash_match():
@@ -422,6 +518,61 @@ def test_confirm_collection_does_not_return_success_when_persistence_fails(monke
         ))
 
 
+
+
+def test_admin_status_ignores_malformed_catalog_records(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "load_db", lambda: {
+        "card_1": {"icon": "/static/cards/card_1.webp"},
+        "broken": None,
+        "also_broken": "not-a-card",
+    })
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path)
+    monkeypatch.setenv("ADMIN_PASSWORD", "configured")
+    monkeypatch.setattr(main, "_valid_session", lambda _token: False)
+
+    result = asyncio.run(main.admin_status(authorization=None))
+
+    assert result["cards"] == 3
+    assert result["icons"] == 1
+    assert result["temporary_files"] == 0
+
+
+def test_legacy_collection_endpoint_uses_bounded_atomic_normalization(monkeypatch):
+    calls = []
+    saved_cards = [{"id": "card_1", "quantity": 999}]
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(main, "set_user_card_quantities", lambda telegram_id, updates: calls.append((telegram_id, updates)))
+    monkeypatch.setattr(main, "get_user_cards", lambda _telegram_id: saved_cards)
+
+    result = asyncio.run(main.save_my_collection({
+        "cards": [
+            {"id": "card_1", "quantity": 1500},
+            {"id": "card_1", "quantity": 999},
+            {"id": "card_2", "quantity": -4},
+        ]
+    }, init_data="valid-test-init-data"))
+
+    assert calls == [(12345, [("card_1", 999), ("card_2", 0)])]
+    assert result == {"status": "ok", "saved": 2, "cards": saved_cards}
+
+
+def test_legacy_collection_endpoint_rejects_invalid_quantity_without_partial_writes(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main, "_validate_telegram_init_data", lambda _data: {"id": 12345, "user": {}})
+    monkeypatch.setattr(main, "get_or_create_user", lambda _telegram_id: None)
+    monkeypatch.setattr(main, "set_user_card_quantities", lambda *args: calls.append(args))
+
+    with pytest.raises(main.HTTPException) as exc:
+        asyncio.run(main.save_my_collection({
+            "cards": [
+                {"id": "card_1", "quantity": 2},
+                {"id": "card_2", "quantity": "not-a-number"},
+            ]
+        }, init_data="valid-test-init-data"))
+
+    assert exc.value.status_code == 400
+    assert calls == []
 
 
 def test_save_duplicate_guard_blocks_confident_existing_card_match():
@@ -690,6 +841,89 @@ def test_scan_upload_profile_separates_read_decode_and_conversion():
     assert profile["upload_rgb_convert_ms"] >= 0
 
 
+def test_scan_upload_rejects_file_over_15_mib():
+    from io import BytesIO
+
+    upload = main.UploadFile(
+        filename="too-large.png",
+        file=BytesIO(b"x" * (main.MAX_SCAN_UPLOAD_BYTES + 1)),
+    )
+
+    with pytest.raises(main.HTTPException) as error:
+        asyncio.run(main._read_image(upload))
+
+    assert error.value.status_code == 413
+    assert "15 МБ" in error.value.detail
+
+
+def test_scan_upload_rejects_more_than_30_megapixels_before_decode(monkeypatch):
+    from io import BytesIO
+
+    class ImageHeader:
+        format = "PNG"
+        size = (6000, 6000)
+
+        def __init__(self):
+            self.loaded = False
+
+        def load(self):
+            self.loaded = True
+
+    header = ImageHeader()
+    monkeypatch.setattr(main.Image, "open", lambda _data: header)
+    upload = main.UploadFile(filename="too-large.png", file=BytesIO(b"header"))
+
+    with pytest.raises(main.HTTPException) as error:
+        asyncio.run(main._read_image(upload))
+
+    assert error.value.status_code == 413
+    assert "30 мегапикселей" in error.value.detail
+    assert not header.loaded
+
+
+def test_scan_rate_limit_applies_per_key(monkeypatch):
+    monkeypatch.setenv("SCAN_RATE_LIMIT", "1")
+    monkeypatch.setenv("SCAN_RATE_WINDOW_SECONDS", "60")
+    main.SCAN_RATE_LIMIT_EVENTS.clear()
+
+    main._enforce_scan_rate_limit("ip:192.0.2.1")
+    with pytest.raises(main.HTTPException) as error:
+        main._enforce_scan_rate_limit("ip:192.0.2.1")
+
+    assert error.value.status_code == 429
+    assert error.value.headers["Retry-After"]
+    main._enforce_scan_rate_limit("ip:192.0.2.2")
+
+
+def test_health_remains_responsive_while_scan_runs(monkeypatch):
+    started = threading.Event()
+    release = threading.Event()
+
+    async def read_image(_file, _profile=None):
+        return main.Image.new("RGB", (32, 24), (20, 30, 40))
+
+    def blocking_scan(_image, save_previews=True):
+        started.set()
+        if not release.wait(timeout=2):
+            raise TimeoutError("test scan was not released")
+        return {"cards": [], "count": 0, "profile": {}}
+
+    monkeypatch.setattr(main, "_read_image", read_image)
+    monkeypatch.setattr(main, "scan_screenshot", blocking_scan)
+
+    async def exercise():
+        request = Request({"type": "http", "client": ("192.0.2.10", 12345)})
+        task = asyncio.create_task(main.scan(request=request, file=object(), init_data=""))
+        try:
+            assert await asyncio.to_thread(started.wait, 1)
+            assert await asyncio.wait_for(main.health(), timeout=0.1) == {"status": "ok"}
+        finally:
+            release.set()
+        await task
+
+    asyncio.run(exercise())
+
+
 @pytest.mark.parametrize(("same_hashes", "expected_calls"), [(True, 1), (False, 2)])
 def test_scan_skips_matching_second_pass_only_for_equal_hashes(
     monkeypatch, same_hashes, expected_calls,
@@ -739,7 +973,8 @@ def test_scan_skips_matching_second_pass_only_for_equal_hashes(
 
     monkeypatch.setattr(main, "_match_card", match)
 
-    result = asyncio.run(main.scan(file=object(), init_data=""))
+    request = Request({"type": "http", "client": ("192.0.2.11", 12345)})
+    result = asyncio.run(main.scan(request=request, file=object(), init_data=""))
 
     assert len(calls) == expected_calls
     assert result["profile"]["matched_count"] == 1

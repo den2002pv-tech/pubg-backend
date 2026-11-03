@@ -1,5 +1,6 @@
 import asyncio
 import builtins
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -15,6 +16,49 @@ def _png_bytes(size=(100, 120)):
     buffer = io.BytesIO()
     Image.new("RGB", size, "white").save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def test_screenshot_fixture_bytes_are_cached_by_sha(tmp_path, monkeypatch):
+    data = _png_bytes()
+    expected_sha = hashlib.sha256(data).hexdigest()
+    fetches = []
+    monkeypatch.setattr(main, "SCREENSHOT_FIXTURE_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(
+        main,
+        "_github_read_bytes",
+        lambda path, branch: fetches.append((path, branch)) or data,
+    )
+
+    first = main._screenshot_fixture_bytes(
+        "tests/fixtures/screenshots/images/cache-test.png",
+        "feature/card-counter",
+        expected_sha,
+    )
+    second = main._screenshot_fixture_bytes(
+        "tests/fixtures/screenshots/images/cache-test.png",
+        "feature/card-counter",
+        expected_sha,
+    )
+
+    assert first == data
+    assert second == data
+    assert fetches == [(
+        "tests/fixtures/screenshots/images/cache-test.png",
+        "feature/card-counter",
+    )]
+    assert (tmp_path / expected_sha).read_bytes() == data
+
+
+def test_screenshot_fixture_bytes_reject_sha_mismatch(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "SCREENSHOT_FIXTURE_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(main, "_github_read_bytes", lambda path, branch: _png_bytes())
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        main._screenshot_fixture_bytes(
+            "tests/fixtures/screenshots/images/cache-test.png",
+            "feature/card-counter",
+            "0" * 64,
+        )
 
 
 def test_screenshot_fixture_preview_keeps_original_png_and_returns_detected_boxes(tmp_path, monkeypatch):
@@ -159,7 +203,14 @@ def test_run_screenshot_fixtures_returns_full_report_and_summary_profile(monkeyp
     assert result["profile"]["total_scan_time_ms"] >= 0
     assert result["results"][0]["profile"]["total_ms"] == 120.5
     assert result["results"][0]["timings"]["scanner_total_ms"] == 120.5
-    assert result["report"]["schema_version"] == 1
+    assert result["report"]["schema_version"] == 2
+    assert "identity_stats" in result["report"]["summary"]
+    assert result["report"]["summary"]["identity_stats"]["checked"] == 0
+    assert result["report"]["cases"][0]["identity_details"] == []
+    assert set(result["report"]["cases"][0]["identity_decision_counts"]) == {
+        "matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong",
+        "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash", "unmatched_other",
+    }
     assert result["report"]["metadata"]["run_id"] == result["run_id"]
     assert result["report"]["metadata"]["case_count"] == 1
     assert result["report"]["cases"][0]["case_id"] == "inventory-test-profile"
@@ -257,10 +308,11 @@ def test_quality_report_download_uses_authorized_run_response():
     admin_html = Path(main.__file__).with_name("admin.html").read_text(encoding="utf-8")
 
     assert "api('/admin/screenshot-tests/run'" in admin_html
-    assert "JSON.stringify(d.report,null,2)" in admin_html
+    assert "const report=d.report&&typeof d.report==='object'?d.report:d" in admin_html
+    assert "JSON.stringify(report,null,2)" in admin_html
+    assert "application/json;charset=utf-8" in admin_html
     assert "report_download_url" not in admin_html
     assert "link.download=d.report_filename" in admin_html
-
 
 def test_screenshot_run_keeps_processing_after_a_case_scan_error(monkeypatch):
     monkeypatch.setattr(main, "require_admin", lambda authorization: None)
@@ -287,23 +339,31 @@ def test_screenshot_run_keeps_processing_after_a_case_scan_error(monkeypatch):
     )
     monkeypatch.setattr(main, "_github_read_bytes", lambda path, branch: _png_bytes())
     scan_calls = 0
+    preview_modes = []
 
     def fail_first_scan(image, save_previews=False):
         nonlocal scan_calls
         scan_calls += 1
+        preview_modes.append(save_previews)
         if scan_calls == 1:
             raise ValueError("private details are not returned")
-        return {"cards": [{"box": [10, 12, 40, 60], "quantity": 2}], "profile": {}}
+        return {
+            "cards": [{"box": [10, 12, 40, 60], "quantity": 2}],
+            "profile": {"preview_ms": 3.2},
+        }
 
     monkeypatch.setattr(main, "scan_screenshot", fail_first_scan)
     monkeypatch.setattr(main, "_enrich_admin_scan", lambda cards, catalog: cards)
 
-    result = main.run_screenshot_tests(authorization=None)
+    result = main.run_screenshot_tests(authorization=None, save_previews=True)
 
     assert result["count"] == 2
     assert result["errors"] == 1
+    assert preview_modes == [True, True]
     assert [case["status"] for case in result["report"]["cases"]] == ["error", "passed"]
     assert result["report"]["cases"][0]["error_stage"] == "scan"
+    assert result["report"]["metadata"]["preview_mode"] == "enabled"
+    assert result["report"]["aggregate_timings"]["scanner.preview_ms"]["avg"] == 3.2
     assert "private details" not in result["report"]["cases"][0]["error"]
 
 
@@ -387,6 +447,17 @@ def test_run_screenshot_fixtures_reports_wrong_catalog_identity(monkeypatch):
     assert result["failed"] == 1
     assert result["results"][0]["identity_checked"] == 1
     assert result["results"][0]["identity_matches"] == 0
+    detail = result["results"][0]["identity_details"][0]
+    assert detail["decision"] == "wrong_id"
+    assert detail["expected_card_id"] == "card_7"
+    assert detail["matched_card_id"] == "card_9"
+    assert detail["distances_to_expected"] == {
+        "full_phash": None, "full_dhash": None, "visual_phash": None,
+        "visual_dhash": None, "frame_colorhash_bits": None, "frame_colorhash_ratio": None,
+    }
+    assert result["report"]["summary"]["identity_stats"]["wrong"] == 1
+    assert result["report"]["cases"][0]["identity_details"][0]["decision"] == "wrong_id"
+    assert result["report"]["cases"][0]["identity_decision_counts"]["wrong_id"] == 1
     assert any("ID карты" in error and "card_7" in error and "card_9" in error for error in result["results"][0]["errors"])
 
 

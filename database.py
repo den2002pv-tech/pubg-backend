@@ -370,6 +370,10 @@ def sync_cards(cards: dict) -> int:
     ]
     if not valid_cards:
         return 0
+    # A partially malformed catalogue is not authoritative for deletions:
+    # removing even one invalid entry here would cascade-delete that card's
+    # user inventory and wishlist rows from PostgreSQL during startup.
+    catalogue_is_complete = len(valid_cards) == len(cards)
 
     count = 0
     active_ids = [card_id for card_id, _info in valid_cards]
@@ -396,10 +400,11 @@ def sync_cards(cards: dict) -> int:
                 )
                 count += 1
 
-            cur.execute(
-                "DELETE FROM cards WHERE NOT (id = ANY(%s))",
-                (active_ids,),
-            )
+            if catalogue_is_complete:
+                cur.execute(
+                    "DELETE FROM cards WHERE NOT (id = ANY(%s))",
+                    (active_ids,),
+                )
         conn.commit()
     return count
 

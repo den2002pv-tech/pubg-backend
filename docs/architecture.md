@@ -9,7 +9,7 @@
 ### HTTP-приложение — `main.py`
 
 - Создаёт приложение FastAPI с названием `PUBG Card Scanner`.
-- При запуске выполняет `startup_database()`: `init_db()`, миграцию хэшей рамок, синхронизацию каталога SQL-карточек из `load_db()` и `init_trade_request_schema()`.
+- При запуске выполняет `startup_database()`: `init_db()`, миграцию хэшей рамок, синхронизацию каталога SQL-карточек из `load_db()` и `init_trade_request_schema()`. Затем один раз прогревает сканер синтетическим изображением в worker thread до приёма запросов.
 - Регистрирует маршруты обменов из `trade_requests.py` через `register_trade_request_routes(...)`.
 - Проверяет Telegram Mini App `initData` в пользовательских обработчиках, использующих эту проверку. Не предполагайте, что каждый маршрут требует Telegram-аутентификацию: проверяйте конкретный обработчик.
 - Подключает Sentry только при наличии непустого `SENTRY_DSN`; `send_default_pii=False`.

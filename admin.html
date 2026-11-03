@@ -91,6 +91,35 @@ button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
   box-shadow:0 8px 18px rgba(56,211,159,.24);
 }
 .muted{color:var(--muted)}.ok{color:var(--success)}.err{color:var(--danger)}
+.admin-sticky{
+  position:sticky;
+  top:0;
+  z-index:100;
+  margin:0 -16px 18px;
+  padding:8px 16px 0;
+  background:rgba(11,16,32,.94);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);
+}
+.admin-stats{margin:0 0 8px;padding:8px 12px}
+.admin-group-tabs{display:flex;gap:6px;margin-bottom:6px}
+.admin-group-tab{
+  width:auto;
+  min-width:0;
+  flex:1;
+  margin:0;
+  padding:8px 10px;
+  background:rgba(26,35,54,.9);
+  color:var(--text);
+  border:1px solid var(--border);
+  box-shadow:none;
+}
+.admin-group-tab.active{
+  background:linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color:#111827;
+  border-color:transparent;
+}
+.subtabs{display:flex;gap:8px;overflow-x:auto;margin:0;padding:0 0 8px}
 .tabs{display:flex;gap:10px;overflow:auto;margin:0 0 18px;padding-bottom:4px}.tab{
   white-space:nowrap;
   background:rgba(26,35,54,.9);
@@ -101,6 +130,7 @@ button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
   min-width:170px;
   box-shadow:none;
 }
+.subtabs .tab{width:auto;min-width:max-content;margin:0;padding:8px 12px}
 .tab.active{
   background:linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
   color:#111827;
@@ -138,7 +168,47 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
 .progress-bar{height:100%;width:0;background:linear-gradient(135deg, #69e2a8, var(--success));transition:width .2s}
 .progress-text{margin-top:8px}
 .users-table th,.users-table td{vertical-align:top}.users-table tbody tr:hover{background:rgba(148,163,184,.06)}
+.users-table-scroll{overflow-x:auto;margin-top:12px;border-radius:10px}
+.users-table{width:100%;min-width:780px;border-collapse:collapse}
 .presence-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:#7c8798}.presence-dot.online{background:var(--success)}
+.toast{
+  position:fixed;
+  right:16px;
+  bottom:16px;
+  z-index:13000;
+  width:min(440px,calc(100vw - 32px));
+  padding:14px 16px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--bg-elevated);
+  color:var(--text);
+  box-shadow:var(--shadow);
+}
+.toast[hidden],.confirm-overlay[hidden]{display:none}
+.toast.success{border-color:rgba(56,211,159,.6)}
+.toast.error{border-color:rgba(255,107,107,.7)}
+.toast.busy{border-color:rgba(90,176,255,.7)}
+.confirm-overlay{
+  position:fixed;
+  inset:0;
+  z-index:12000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  background:rgba(2,6,23,.78);
+}
+.confirm-panel{
+  width:min(440px,100%);
+  padding:20px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--bg-elevated);
+  box-shadow:var(--shadow);
+}
+.confirm-panel h2{margin:0 0 8px}
+.confirm-actions{display:flex;gap:10px;margin-top:18px}
+.confirm-actions button{margin:0}
 /* Counter fixture workspace: compact, touch-friendly and responsive. */
 #counterTests .counter-intro{max-width:760px;line-height:1.5}
 #counterTests .counter-toolbar{align-items:center}
@@ -182,6 +252,14 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
 @media(max-width:520px){
  body{padding:8px}
  .box{padding:12px}
+ .admin-sticky{margin:0 -8px 14px;padding:6px 8px 0}
+ .admin-stats{padding:6px 8px}
+ .admin-stats .row>*{min-width:0}
+ .admin-stats .stat{font-size:14px}
+ .admin-stats .stat small{font-size:10px}
+ .admin-group-tab{padding:7px 5px;font-size:13px}
+ .subtabs{gap:6px;padding-bottom:6px}
+ .subtabs .tab{padding:7px 10px;font-size:13px}
  #counterTests .counter-toolbar{gap:8px}
  #counterTests .counter-toolbar button{flex:1;min-width:0}
  .counter-fixture{grid-template-columns:78px minmax(0,1fr);gap:9px;padding:8px}
@@ -189,6 +267,7 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
  .counter-fixture-title{font-size:13px}
  .counter-fixture-menu-items{width:165px}
 }
+@media(max-width:380px){.admin-stats{display:none}}
 
 .user-link{background:transparent;color:#ffb84d;padding:2px;margin:0;text-align:left;width:auto}
 #screenshotTests .shot-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,1fr);gap:14px}#screenshotTests .shot-canvas-wrap{background:#111;border:1px solid #444;border-radius:10px;overflow:hidden;min-height:180px;display:flex;align-items:center;justify-content:center}#screenshotTests canvas{display:block;max-width:100%;height:auto;touch-action:pan-y;cursor:crosshair}#screenshotTests .shot-card,#screenshotTests .shot-result{background:#242424;border:1px solid #444;border-radius:10px;padding:12px;margin-top:10px}#screenshotTests .shot-match{display:flex;align-items:center;gap:10px;margin:8px 0 12px;padding:8px;background:#191919;border-radius:8px;min-width:0}#screenshotTests .shot-match img{width:54px;height:78px;object-fit:contain;flex:0 0 auto;background:#111;border-radius:4px}#screenshotTests .shot-match img.shot-icon-open{cursor:zoom-in}#shotIconModal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}#shotIconModal[hidden]{display:none}#shotIconModal .shot-icon-close{position:absolute;top:12px;right:12px;width:44px;height:44px;border:0;border-radius:50%;font-size:28px;line-height:1;background:#333;color:#fff;cursor:pointer}#shotIconModal .shot-icon-title{color:#fff;text-align:center;font-size:20px;font-weight:700;overflow-wrap:anywhere;max-width:95vw;margin:12px 48px 18px}#shotIconModal img{display:block;max-width:94vw;max-height:78vh;width:auto;height:auto;object-fit:contain}#shotIconModal .shot-icon-hint{color:#bbb;font-size:13px;margin-top:14px}@media(max-width:600px){#shotIconModal{padding:10px}#shotIconModal img{max-width:96vw;max-height:76vh}#shotIconModal .shot-icon-title{font-size:18px}}#screenshotTests .shot-match>div{min-width:0;overflow-wrap:anywhere}#screenshotTests .shot-match b{display:block;margin-bottom:4px}#screenshotTests .shot-card-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}#screenshotTests .shot-card-fields label{font-size:12px;color:#bbb;min-width:0}#screenshotTests .shot-card-fields input,#screenshotTests .shot-card-fields select{min-width:0;padding:8px}#screenshotTests .shot-card-fields .wide{grid-column:span 2}#screenshotTests .shot-muted{font-size:13px;color:#aaa;line-height:1.5}#screenshotTests .shot-result img{width:100%;max-height:240px;object-fit:contain;background:#111;border-radius:8px}#screenshotTests .pass{border-color:#367e4b!important}#screenshotTests .fail{border-color:#a34a4a!important}@media(max-width:760px){#screenshotTests .shot-layout{grid-template-columns:1fr}#screenshotTests .shot-card-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -205,24 +284,22 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
 </div>
 
 <div id="app" style="display:none">
-  <div class="box">
-    <div class="row">
-      <div class="stat"><span id="statCards">0</span><small>Карт</small></div>
-      <div class="stat"><span id="statIcons">0</span><small>Сохранённых иконок</small></div>
-      <div class="stat"><span id="statMissing">0</span><small>Без иконки</small></div>
-      <div class="stat"><span id="statTemp">0</span><small>Временных файлов</small></div>
+  <div class="admin-sticky">
+    <div id="adminStats" class="box admin-stats">
+      <div class="row">
+        <div class="stat"><span id="statCards">0</span><small>Карт</small></div>
+        <div class="stat"><span id="statIcons">0</span><small>Сохранённых иконок</small></div>
+        <div class="stat"><span id="statMissing">0</span><small>Без иконки</small></div>
+        <div class="stat"><span id="statTemp">0</span><small>Временных файлов</small></div>
+      </div>
     </div>
-  </div>
 
-  <div class="tabs">
-    <button class="tab active" data-tab="scan">🧪 Хеши</button>
-    <button class="tab" data-tab="icons">🖼️ Иконки</button>
-    <button class="tab" data-tab="cards">🃏 Карты</button>
-    <button class="tab" data-tab="temp">🗑️ Временные</button>
-    <button class="tab" data-tab="counterTests">🧪 Тесты счётчика</button>
-    <button class="tab" data-tab="screenshotTests">🖼️ Качество скриншотов</button>
-    <button class="tab" data-tab="users">👥 Пользователи</button>
-    <button class="tab" data-tab="analytics">📊 Метрики</button>
+    <div class="admin-group-tabs" role="group" aria-label="Группы разделов админки">
+      <button class="admin-group-tab active" type="button" data-nav-group="catalog" aria-pressed="true">Каталог</button>
+      <button class="admin-group-tab" type="button" data-nav-group="quality" aria-pressed="false">Качество</button>
+      <button class="admin-group-tab" type="button" data-nav-group="analytics" aria-pressed="false">Аналитика</button>
+    </div>
+    <nav id="adminSubtabs" class="subtabs" aria-label="Подразделы админки"></nav>
   </div>
 
   <section id="analytics" class="panel"><div class="box">
@@ -241,7 +318,7 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
     <h2>Пользователи и активность</h2><p class="muted">Онлайн означает активность Telegram Mini App за последние 90 секунд. Список обновляется автоматически.</p>
     <div class="row"><div class="stat"><span id="usersTotal">—</span><small>Всего пользователей</small></div><div class="stat"><span id="usersOnline">—</span><small>Сейчас онлайн</small></div><div class="stat"><span id="usersShown">—</span><small>В выборке</small></div></div>
     <div class="row"><input id="usersSearch" type="search" placeholder="Поиск по Telegram ID, имени или username" autocomplete="off"><select id="usersPresence"><option value="all">Все пользователи</option><option value="online">Только онлайн</option><option value="offline">Только не в сети</option></select><button id="refreshUsersBtn" class="btn-secondary" type="button">Обновить</button></div>
-    <div id="usersStatus" class="muted" role="status" aria-live="polite"></div><div style="overflow-x:auto"><table class="users-table" style="width:100%;border-collapse:collapse;margin-top:12px;min-width:780px"><thead><tr>
+    <div id="usersStatus" class="muted" role="status" aria-live="polite"></div><div class="users-table-scroll"><table class="users-table"><thead><tr>
     <th style="text-align:left;padding:10px;border-bottom:1px solid #444">Статус</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Пользователь</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Telegram ID</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Регистрация</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Последний визит</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Карты</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Дубликаты</th><th style="text-align:left;padding:10px;border-bottom:1px solid #444">Ищу</th>
     </tr></thead><tbody id="usersTableBody"><tr><td colspan="8" class="muted" style="padding:16px">Загрузка…</td></tr></tbody></table></div>
     <div class="row" style="margin-top:12px"><button id="usersPrevBtn" class="btn-secondary" type="button">← Назад</button><div id="usersPageInfo" class="muted" style="text-align:center;padding:12px">Страница 1</div><button id="usersNextBtn" class="btn-secondary" type="button">Вперёд →</button></div><div id="userDetail" class="item" style="display:none;margin-top:12px"></div>
@@ -256,6 +333,9 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
         <button id="downloadScanLogsBtn" type="button" class="btn-secondary">⬇️ Скачать логи сканирования</button>
       </div>
       <div id="logsStatus" class="muted"></div>
+      <div class="row"><button id="refreshScannerDiagnosticsBtn" type="button" class="btn-secondary">Обновить диагностические JSONL</button></div>
+      <div id="scannerDiagnosticsSummary" class="muted" role="status" aria-live="polite"></div>
+      <div id="scannerDiagnosticsFiles" class="muted"></div>
       <div class="box" style="margin-top:12px">
         <h3>Диагностика границ карт</h3>
         <p class="muted">Проверяет тот же скриншот отдельно от обычного сканирования. Зелёные рамки — принятые контуры, красные — отклонённые, оранжевые — итоговые границы, голубые — достроенные позиции. Диагностика не меняет инвентарь и не сохраняет изображения.</p>
@@ -413,6 +493,7 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
       <h2>Временные изображения</h2>
       <p class="muted">Это файлы, которые создаются при создании хешей. Они не используются как постоянные иконки.</p>
       <button id="deleteTempBtn" class="btn-danger">Удалить все временные файлы</button>
+      <div id="tempStatus" class="muted" role="status" aria-live="polite"></div>
       <div id="tempList" class="temp-grid" style="margin-top:15px"></div>
     </div>
   </section>
@@ -421,6 +502,18 @@ hr{border:0;border-top:1px solid var(--border);margin:16px 0}
     <button id="logoutBtn" class="btn-secondary">Выйти из админки</button>
   </div>
 </div>
+
+<div id="confirmOverlay" class="confirm-overlay" hidden>
+  <section class="confirm-panel" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmBody" class="muted"></p>
+    <div class="confirm-actions">
+      <button id="confirmCancelBtn" class="btn-secondary" type="button">Отмена</button>
+      <button id="confirmOkBtn" class="btn-danger" type="button">Подтвердить</button>
+    </div>
+  </section>
+</div>
+<div id="adminToast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
 const statusEl=document.getElementById('status');
@@ -431,6 +524,45 @@ let iconFilterMode='all';
 function status(t,c='muted'){statusEl.className=c;statusEl.textContent=t}
 function iconStatus(t,c='muted'){document.getElementById('iconStatus').className=c;document.getElementById('iconStatus').textContent=t}
 function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+
+let confirmResolver=null,confirmPreviousFocus=null,toastTimer=null;
+function showConfirm(title,body,okText='Подтвердить'){
+  if(confirmResolver)throw new Error('Уже открыто другое подтверждение.');
+  const overlay=document.getElementById('confirmOverlay');
+  document.getElementById('confirmTitle').textContent=title;
+  document.getElementById('confirmBody').textContent=body;
+  document.getElementById('confirmOkBtn').textContent=okText;
+  confirmPreviousFocus=document.activeElement;
+  overlay.hidden=false;
+  document.getElementById('confirmOkBtn').focus();
+  return new Promise(resolve=>{confirmResolver=resolve});
+}
+function finishConfirm(accepted){
+  if(!confirmResolver)return;
+  const resolve=confirmResolver;
+  confirmResolver=null;
+  document.getElementById('confirmOverlay').hidden=true;
+  resolve(accepted);
+  if(confirmPreviousFocus?.isConnected)confirmPreviousFocus.focus();
+  confirmPreviousFocus=null;
+}
+document.getElementById('confirmOkBtn').addEventListener('click',()=>finishConfirm(true));
+document.getElementById('confirmCancelBtn').addEventListener('click',()=>finishConfirm(false));
+document.getElementById('confirmOverlay').addEventListener('click',event=>{
+  if(event.target===event.currentTarget)finishConfirm(false);
+});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&!document.getElementById('confirmOverlay').hidden)finishConfirm(false);
+});
+function showToast(message,type='success',duration=5000){
+  const toast=document.getElementById('adminToast');
+  clearTimeout(toastTimer);
+  toast.className='toast '+type;
+  toast.textContent=message;
+  toast.hidden=false;
+  if(duration>0)toastTimer=setTimeout(()=>{toast.hidden=true},duration);
+}
+
 const API_BASE = '';
 function assetUrl(url){
   if(!url)return '';
@@ -588,7 +720,7 @@ document.getElementById('password').addEventListener('keydown',(e)=>{
   if(e.key==='Enter') document.getElementById('loginBtn').click();
 });
 
-async function loadAll(){await loadCards();await loadStatus();await loadTemp()}
+async function loadAll(){await loadCards();await loadStatus();await loadTemp();await loadActiveAdminPanel()}
 let usersPageOffset=0,usersSearchTimer=null;const USERS_PAGE_SIZE=50;
 function formatUserDate(value){if(!value)return 'Никогда';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleString()}
 async function loadUsers(){
@@ -696,7 +828,8 @@ function renderCardList(){
   const q=document.getElementById('search').value.trim().toLowerCase();
   const filter=document.getElementById('filter').value;
   const list=document.getElementById('cardList');list.innerHTML='';
-  for(const [id,info] of Object.entries(db)){
+  for(const [id,rawInfo] of Object.entries(db)){
+    const info=rawInfo&&typeof rawInfo==='object'&&!Array.isArray(rawInfo)?rawInfo:{};
     const has=!!info.icon;
     if(filter==='icon'&&!has)continue;
     if(filter==='missing'&&has)continue;
@@ -705,7 +838,7 @@ function renderCardList(){
     const img=has?`<img class="icon" src="${esc(assetUrl(info.icon))}" alt="Иконка ${esc(info.name||id)}" data-icon-title="${esc(info.name||id)}" role="button" tabindex="0" title="Открыть иконку крупно" onerror="this.style.display='none'">`:`<div style="height:180px;display:grid;place-items:center;background:#111;border-radius:7px;color:#777">Нет иконки</div>`;
     el.innerHTML=`${img}
       <h3>${esc(info.name||id)}</h3>
-      <div class="muted">${esc(id)} · редкость ${info.rarity||1}</div>
+      <div class="muted">${esc(id)} · редкость ${esc(info.rarity||1)}</div>
       <span class="badge ${has?'has':'missing'}">${has?'Иконка сохранена':'Иконки нет'}</span>
       <details style="margin-top:8px"><summary>Hashes</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(JSON.stringify(info.hashes||{},null,2))}</pre></details>
       <div class="row" style="margin-top:8px">
@@ -729,23 +862,29 @@ function chooseIconFor(id){
 function replaceIcon(id){ chooseIconFor(id); }
 async function deleteIcon(id){
   id=decodeURIComponent(id);
-  if(!confirm('Удалить постоянную иконку карты?'))return;
+  if(!await showConfirm('Удалить иконку?', 'Постоянная иконка этой карты будет удалена.', 'Удалить'))return;
+  let deleted=false;
   try{
     const r=await api('/admin/delete-icon/'+encodeURIComponent(id),{method:'DELETE'});
     const d=await r.json();
     if(!r.ok)throw new Error(d.detail||'Ошибка удаления иконки');
-    await loadAll();
-  }catch(e){alert('Ошибка: '+e.message)}
+    deleted=true;
+    showToast('Постоянная иконка удалена.');
+    try{await loadAll()}catch(e){showToast('Иконка удалена, но список не удалось обновить: '+e.message,'error',0)}
+  }catch(e){showToast(deleted?'Иконка удалена, но список не удалось обновить: '+e.message:'Не удалось удалить иконку: '+e.message,'error',0)}
 }
 async function deleteCard(id){
   id=decodeURIComponent(id);
-  if(!confirm('Удалить карту и её постоянную иконку?'))return;
+  if(!await showConfirm('Удалить карту?', 'Запись карты и её постоянная иконка будут удалены.', 'Удалить'))return;
+  let deleted=false;
   try{
     const r=await api('/admin/delete-card/'+encodeURIComponent(id),{method:'DELETE'});
     const d=await r.json();
     if(!r.ok)throw new Error(d.detail||'Ошибка удаления карты');
-    await loadAll();
-  }catch(e){alert('Ошибка: '+e.message)}
+    deleted=true;
+    showToast('Карта и её иконка удалены.');
+    try{await loadAll()}catch(e){showToast('Карта удалена, но список не удалось обновить: '+e.message,'error',0)}
+  }catch(e){showToast(deleted?'Карта удалена, но список не удалось обновить: '+e.message:'Не удалось удалить карту: '+e.message,'error',0)}
 }
 
 
@@ -769,10 +908,10 @@ function renderCounterQueueStatus(){
   const clearButton=document.getElementById("clearCounterQueueBtn");
   if(clearButton)clearButton.disabled=queue.length===0;
 }
-function clearCounterTestQueue(){
+async function clearCounterTestQueue(){
   const queue=getCounterTestQueue();
   if(!queue.length)return;
-  if(!confirm("Удалить из очереди все "+queue.length+" тест(ов)? Эталоны в GitHub не изменятся."))return;
+  if(!await showConfirm('Очистить очередь тестов?', 'Из очереди будут удалены '+queue.length+' несохранённых тест(ов). Эталоны в GitHub не изменятся.', 'Очистить'))return;
   setCounterTestQueue([]);
   const status=document.getElementById("saveCounterTestsStatus");
   if(status){status.className="muted";status.textContent="Очередь очищена. Сохранённые эталоны в GitHub не затронуты.";}
@@ -810,7 +949,7 @@ async function saveCounterTestsBatch(){
   const button=document.getElementById("saveCounterTestsBtn");
   const queue=getCounterTestQueue();
   if(!queue.length){status.className="err";status.textContent="Очередь пуста. Сначала добавь результаты сканирования.";return}
-  if(!confirm("Отправить "+queue.length+" эталонных тест(ов) в GitHub одним commit? После этого проверьте деплой приложения в Enzonic."))return;
+  if(!await showConfirm('Отправить эталоны в GitHub?', queue.length+' эталонных тест(ов) будут добавлены в рабочую ветку одним commit.', 'Создать commit'))return;
   button.disabled=true;button.textContent="Сохраняем одним commit...";
   status.className="muted";status.textContent="Отправляем "+queue.length+" тест(ов), изображения и диагностику одним commit...";
   try{
@@ -1022,7 +1161,7 @@ async function loadShotFixtures(){
       const save=document.createElement('button');save.type='button';save.className='btn-green';save.textContent='Сохранить проверенные ID';
       save.onclick=async()=>{save.disabled=true;try{const rr=await api('/admin/screenshot-tests/'+encodeURIComponent(c.id)+'/identity',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cards:labels})});if(!rr.ok)throw new Error(await readError(rr));const saved=await rr.json();shotMsg('ID сохранены. Проверено вручную: '+saved.verified_cards+'. Commit '+saved.git_commit.slice(0,10),'ok');await loadShotFixtures()}catch(e){shotMsg('Не удалось сохранить ID: '+e.message,'err')}finally{save.disabled=false}};
       const del=document.createElement('button');del.className='btn-danger';del.textContent='Удалить эталон';
-      del.onclick=async()=>{if(!confirm('Удалить эталон '+c.id+' и PNG из GitHub?'))return;const rr=await api('/admin/screenshot-tests/'+encodeURIComponent(c.id),{method:'DELETE'});if(!rr.ok){shotMsg(await readError(rr),'err');return}shotMsg('Эталон удалён. Commit '+(await rr.json()).git_commit,'ok');loadShotFixtures()};
+      del.onclick=async()=>{if(!await showConfirm('Удалить эталон скриншота?', 'Эталон '+c.id+' и PNG будут удалены из рабочей ветки GitHub.', 'Удалить'))return;try{const rr=await api('/admin/screenshot-tests/'+encodeURIComponent(c.id),{method:'DELETE'});if(!rr.ok)throw new Error(await readError(rr));shotMsg('Эталон удалён. Commit '+(await rr.json()).git_commit,'ok');showToast('Эталон скриншота удалён.');await loadShotFixtures()}catch(e){shotMsg('Не удалось удалить эталон: '+e.message,'err');showToast('Не удалось удалить эталон: '+e.message,'error',0)}};
       actions.append(save,del);el.append(actions);root.append(el);
     }
   }catch(e){root.innerHTML='';shotMsg('Не удалось загрузить эталоны: '+e.message,'err')}
@@ -1119,7 +1258,7 @@ document.getElementById('counterFixtureEditForm').addEventListener('submit',asyn
   finally{button.disabled=false}
 });
 async function deleteCounterFixture(item){
-  if(!confirm('Удалить тест «'+(item.card_name||item.card_id||item.id)+'»? Эталон и изображение будут удалены из рабочей ветки GitHub.'))return;
+  if(!await showConfirm('Удалить эталон счётчика?', 'Тест «'+(item.card_name||item.card_id||item.id)+'» и его изображение будут удалены из рабочей ветки GitHub.', 'Удалить'))return;
   const status=document.getElementById('counterTestsStatus');
   status.className='muted';status.textContent='Удаляем тест и кроп, создаём commit…';
   try{
@@ -1127,7 +1266,7 @@ async function deleteCounterFixture(item){
     const d=await r.json();if(!r.ok)throw new Error(d.detail||'Не удалось удалить тест');
     status.className='ok';status.textContent='Тест удалён. Commit '+String(d.git_commit||'').slice(0,10)+' · '+d.branch;
     await loadCounterTests();
-  }catch(e){status.className='err';status.textContent='Тест не удалён: '+e.message}
+  }catch(e){status.className='err';status.textContent='Тест не удалён: '+e.message;showToast('Не удалось удалить эталон счётчика: '+e.message,'error',0)}
 }
 document.addEventListener('click',event=>{
   if(!event.target.closest('.counter-fixture-menu'))closeCounterFixtureMenus();
@@ -1482,6 +1621,69 @@ document.getElementById('downloadScanLogsBtn').onclick=async()=>{
   }
 };
 
+document.getElementById('refreshScannerDiagnosticsBtn').onclick=async()=>{
+  const button=document.getElementById('refreshScannerDiagnosticsBtn');
+  const summary=document.getElementById('scannerDiagnosticsSummary');
+  const filesRoot=document.getElementById('scannerDiagnosticsFiles');
+  button.disabled=true;
+  summary.className='muted';
+  summary.textContent='Загружаем сводку...';
+  filesRoot.replaceChildren();
+  try{
+    const response=await api('/admin/scan-logs/files');
+    if(!response.ok)throw new Error(await readError(response));
+    const data=await response.json();
+    const stats=data.summary||{};
+    const first=stats.first_and_subsequent?.first_scans||{};
+    const later=stats.first_and_subsequent?.subsequent_scans||{};
+    summary.textContent=`Запросов: ${stats.scan_count??0}; ошибок: ${stats.error_count??0}; первое: median ${first.median_ms??'—'} мс, p90 ${first.p90_ms??'—'} мс; последующие: median ${later.median_ms??'—'} мс, p90 ${later.p90_ms??'—'} мс. Локальное хранение на хосте может быть временным.`;
+    const files=data.files||[];
+    if(!files.length){
+      filesRoot.textContent='Файлов JSONL пока нет.';
+      return;
+    }
+    files.forEach(file=>{
+      const row=document.createElement('div');
+      row.className='row';
+      row.style.alignItems='center';
+      const label=document.createElement('span');
+      label.className='muted';
+      label.textContent=`${file.name} · ${file.record_count} записей · ${(file.size_bytes/1024).toFixed(1)} КБ · PID ${file.worker_pid??'—'}`;
+      const download=document.createElement('button');
+      download.type='button';
+      download.className='btn-secondary';
+      download.textContent='Скачать JSONL';
+      download.onclick=async()=>{
+        download.disabled=true;
+        try{
+          const result=await api('/admin/scan-logs/files/'+encodeURIComponent(file.name));
+          if(!result.ok)throw new Error(await readError(result));
+          const url=URL.createObjectURL(await result.blob());
+          const link=document.createElement('a');
+          link.href=url;
+          link.download=file.name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }catch(error){
+          summary.className='err';
+          summary.textContent='Не удалось скачать JSONL: '+error.message;
+        }finally{
+          download.disabled=false;
+        }
+      };
+      row.append(label,download);
+      filesRoot.appendChild(row);
+    });
+  }catch(error){
+    summary.className='err';
+    summary.textContent='Не удалось загрузить диагностику: '+error.message;
+  }finally{
+    button.disabled=false;
+  }
+};
+
 async function saveCard(i, forceNew=false){
   const el=document.querySelectorAll('#scanResults .item')[i];
   const card=window.lastScan[i];
@@ -1497,8 +1699,10 @@ async function saveCard(i, forceNew=false){
       `Эта карта уже существует в базе:\n${card.id} · ${card.name||''}`
     );
   }
-  if(card.matched && forceNew && !confirm(
-    `Сканер считает эту карту похожей на существующую:\n${card.id} · ${card.name||''}\n\nДобавить её как отдельную карту? Существующая запись останется без изменений.`
+  if(card.matched && forceNew && !await showConfirm(
+    'Добавить как отдельную карту?',
+    `Сканер считает карту похожей на ${card.id} · ${card.name||''}. Новая карта будет добавлена отдельно, существующая запись останется без изменений.`,
+    'Добавить'
   )){
     return;
   }
@@ -1564,7 +1768,7 @@ async function saveScannedIcon(i){
   if(!card||!card.matched||!card.id||card.icon)return;
 
   const label=card.name||card.id;
-  if(!confirm(`Сохранить постоянную иконку для "${label}" из этого же скриншота?`))return;
+  if(!await showConfirm('Сохранить постоянную иконку?', `Иконка карты «${label}», созданная из этого скриншота, будет сохранена на сервере.`, 'Сохранить'))return;
 
   try{
     const r=await api('/admin/save-icon-from-preview/'+encodeURIComponent(card.id),{
@@ -1587,12 +1791,14 @@ async function saveScannedIcon(i){
 function filteredIconCards(){
   const q=(document.getElementById('iconSearch').value||'').trim().toLowerCase();
   const mode=document.getElementById('iconFilter').value;
-  return Object.entries(db).filter(([id,info])=>{
-    const has=!!info.icon;
-    if(mode==='missing'&&has)return false;
-    if(mode==='icon'&&!has)return false;
-    return !q || `${id} ${info.name||''}`.toLowerCase().includes(q);
-  });
+  return Object.entries(db)
+    .map(([id,rawInfo])=>[id,rawInfo&&typeof rawInfo==='object'&&!Array.isArray(rawInfo)?rawInfo:{}])
+    .filter(([id,info])=>{
+      const has=!!info.icon;
+      if(mode==='missing'&&has)return false;
+      if(mode==='icon'&&!has)return false;
+      return !q || `${id} ${info.name||''}`.toLowerCase().includes(q);
+    });
 }
 
 function renderIconQueue(){
@@ -1732,7 +1938,7 @@ async function confirmIcon(index){
     ? `Заменить постоянную иконку карты "${info.name||cardId}"?`
     : `Добавить иконку для карты "${info.name||cardId}"?`;
 
-  if(!confirm(message))return;
+  if(!await showConfirm(replacing?'Заменить постоянную иконку?':'Добавить постоянную иконку?', message, replacing?'Заменить':'Добавить'))return;
 
   item.status='processing';
   renderIconQueue();
@@ -1824,31 +2030,58 @@ document.getElementById('iconSearch').oninput=()=>{
 };
 
 async function loadTemp(){
-  const r=await api('/admin/temp-files');if(!r.ok)return;
-  const files=await r.json(),root=document.getElementById('tempList');root.innerHTML='';
-  if(!files.length){root.innerHTML='<p class="muted">Временных файлов нет.</p>';return}
-  files.forEach(f=>{
-    const el=document.createElement('div');el.className='item';
-    const fileUrl = f.url.startsWith('http') ? f.url : API_BASE + f.url;
-    el.innerHTML=`<img src="${esc(fileUrl)}"><div>${esc(f.name)}</div><div class="muted">${Math.round(f.size/1024)} KB</div>`;
-    root.appendChild(el)
-  })
+  const status=document.getElementById('tempStatus'),root=document.getElementById('tempList');
+  status.className='muted';status.textContent='Загружаем временные файлы…';
+  try{
+    const r=await api('/admin/temp-files');if(!r.ok)throw new Error(await readError(r));
+    const files=await r.json();root.innerHTML='';
+    if(!files.length){root.innerHTML='<p class="muted">Временных файлов нет.</p>';status.textContent='';return true}
+    files.forEach(f=>{
+      const el=document.createElement('div');el.className='item';
+      const fileUrl = f.url.startsWith('http') ? f.url : API_BASE + f.url;
+      el.innerHTML=`<img src="${esc(fileUrl)}"><div>${esc(f.name)}</div><div class="muted">${Math.round(f.size/1024)} KB</div>`;
+      root.appendChild(el)
+    });
+    status.textContent='Файлов: '+files.length+'.';
+    return true;
+  }catch(e){
+    status.className='err';status.textContent='Не удалось загрузить временные файлы: '+e.message;
+    showToast('Не удалось загрузить временные файлы: '+e.message,'error',0);
+    return false;
+  }
 }
 document.getElementById('deleteTempBtn').onclick=async()=>{
+  const button=document.getElementById('deleteTempBtn');
   const queue=getCounterTestQueue();
   const prompt=queue.length
     ? 'Удалить все временные изображения И очистить очередь из '+queue.length+' тест(ов)? Эти тесты ещё не сохранены в GitHub. Сохранённые эталоны не затрагиваются.'
     : 'Удалить все временные изображения? Постоянные иконки и эталоны в GitHub не затрагиваются.';
-  if(!confirm(prompt))return;
-  const r=await api('/admin/temp-files',{method:'DELETE'});
-  let d={};try{d=await r.json()}catch(e){}
-  if(!r.ok){alert(d.detail||'Не удалось удалить временные файлы');return}
-  if(queue.length){
-    setCounterTestQueue([]);
-    const status=document.getElementById('saveCounterTestsStatus');
-    if(status){status.className='muted';status.textContent='Временные файлы удалены, очередь из '+queue.length+' несохранённых тест(ов) очищена. Сохранённые эталоны в GitHub не затронуты.';}
+  if(!await showConfirm('Удалить временные файлы?', prompt, 'Удалить'))return;
+  button.disabled=true;
+  document.getElementById('tempStatus').textContent='Удаляем временные файлы…';
+  showToast('Удаляем временные файлы…','busy',0);
+  try{
+    const r=await api('/admin/temp-files',{method:'DELETE'});
+    if(!r.ok)throw new Error(await readError(r));
+    const data=await r.json();
+    if(queue.length){
+      setCounterTestQueue([]);
+      const status=document.getElementById('saveCounterTestsStatus');
+      if(status){status.className='muted';status.textContent='Временные файлы удалены, очередь из '+queue.length+' несохранённых тест(ов) очищена. Сохранённые эталоны в GitHub не затронуты.';}
+    }
+    document.getElementById('statTemp').textContent='0';
+    if(await loadTemp()){
+      document.getElementById('tempStatus').className='ok';
+      document.getElementById('tempStatus').textContent='Временные файлы удалены: '+Number(data.deleted||0)+'.';
+      showToast('Удалено временных файлов: '+Number(data.deleted||0)+'.');
+    }
+  }catch(e){
+    document.getElementById('tempStatus').className='err';
+    document.getElementById('tempStatus').textContent='Не удалось удалить временные файлы: '+e.message;
+    showToast('Не удалось удалить временные файлы: '+e.message,'error',0);
+  }finally{
+    button.disabled=false;
   }
-  await loadAll()
 };
 document.getElementById('refreshBtn').onclick=loadAll;
 document.getElementById('copyBtn').onclick=()=>navigator.clipboard.writeText(document.getElementById('jsonOutput').value);
@@ -1875,6 +2108,7 @@ function renderHashRegenProgress(d){
   if(d.status==='completed'){
     status.className='ok';
     status.textContent='✅ Хеши всех сохранённых иконок обновлены. Теперь можно сохранить JSON в GitHub.';
+    showToast('Перегенерация хешей завершена.');
     clearInterval(regenPollTimer);
     regenPollTimer=null;
     loadCards();
@@ -1884,6 +2118,7 @@ function renderHashRegenProgress(d){
   if(d.status==='error'){
     status.className='err';
     status.textContent='❌ Ошибка генерации: '+(d.error||'неизвестная ошибка');
+    showToast('Ошибка перегенерации хешей: '+(d.error||'неизвестная ошибка'),'error',0);
     clearInterval(regenPollTimer);
     regenPollTimer=null;
     return;
@@ -1902,6 +2137,7 @@ async function pollHashRegen(){
   }catch(e){
     document.getElementById('regenStatus').className='err';
     document.getElementById('regenStatus').textContent='Ошибка проверки прогресса: '+e.message;
+    showToast('Не удалось получить прогресс перегенерации: '+e.message,'error',0);
     clearInterval(regenPollTimer);
     regenPollTimer=null;
   }
@@ -1909,11 +2145,12 @@ async function pollHashRegen(){
 
 document.getElementById('regenHashesBtn').onclick=async()=>{
   const b=document.getElementById('regenHashesBtn');
-  if(!confirm('Пересчитать хеши всех сохранённых карт по их постоянным иконкам? Текущие хеши будут заменены.'))return;
+  if(!await showConfirm('Пересчитать хеши?', 'Хеши всех карт будут заменены на рассчитанные по постоянным иконкам.', 'Пересчитать'))return;
 
   b.disabled=true;
   document.getElementById('regenStatus').className='muted';
   document.getElementById('regenStatus').textContent='Запускаем генерацию...';
+  showToast('Запускаем перегенерацию хешей…','busy',0);
 
   try{
     const r=await api('/admin/regenerate-hashes',{method:'POST'});
@@ -1926,18 +2163,24 @@ document.getElementById('regenHashesBtn').onclick=async()=>{
   }catch(e){
     document.getElementById('regenStatus').className='err';
     document.getElementById('regenStatus').textContent='❌ '+e.message;
+    showToast('Не удалось запустить перегенерацию хешей: '+e.message,'error',0);
   }finally{
     b.disabled=false;
   }
 };
 
 document.getElementById('commitBtn').onclick=async()=>{
-  if(!confirm('Сохранить card_hashes.json и все постоянные иконки в GitHub одним commit?'))return;
+  if(!await showConfirm('Создать commit в GitHub?', 'card_hashes.json и все постоянные иконки будут отправлены одним commit в рабочую ветку.', 'Создать commit'))return;
   const b=document.getElementById('commitBtn');b.disabled=true;b.textContent='Сохраняем...';
+  showToast('Отправляем изменения в GitHub…','busy',0);
   try{
     const r=await api('/admin/github-commit',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка GitHub');
     document.getElementById('commitStatus').innerHTML=`<span class="ok">✅ Commit создан: ${esc(d.commit.slice(0,10))} · ветка ${esc(d.branch||'feature/card-counter')} · карт: ${esc(d.cards)} · иконок: ${esc(d.icons)}</span>`;
-  }catch(e){document.getElementById('commitStatus').innerHTML=`<span class="err">❌ ${esc(e.message)}</span>`}
+    showToast('Commit создан: '+String(d.commit||'').slice(0,10)+' · ветка '+(d.branch||'feature/card-counter'));
+  }catch(e){
+    document.getElementById('commitStatus').innerHTML=`<span class="err">❌ ${esc(e.message)}</span>`;
+    showToast('Не удалось создать commit: '+e.message,'error',0);
+  }
   finally{b.disabled=false;b.textContent='💾 Отправить все изменения одним commit'}
 };
 
@@ -1970,7 +2213,9 @@ async function loadAnalytics() {
       : 'Пока нет данных.';
     status.textContent = 'Период: ' + data.days + ' дней. Событий: ' + (data.events || []).reduce((n, x) => n + Number(x.events || 0), 0) + '.';
   } catch (error) {
-    status.textContent = 'Ошибка: ' + (error.message || 'не удалось загрузить метрики');
+    const message='Ошибка: ' + (error.message || 'не удалось загрузить метрики');
+    status.className='err';status.textContent=message;
+    showToast('Не удалось загрузить метрики: '+(error.message||'ошибка сети'),'error',0);
   }
 }
 document.getElementById('refreshAnalyticsBtn').addEventListener('click', loadAnalytics);
@@ -1998,6 +2243,7 @@ document.getElementById('exportAnalyticsBtn').addEventListener('click', async ()
   } catch (error) {
     status.className = 'err';
     status.textContent = 'Не удалось скачать метрики: ' + (error.message || 'ошибка');
+    showToast('Не удалось скачать метрики: '+(error.message||'ошибка'),'error',0);
   } finally {
     button.disabled = false;
   }
@@ -2006,31 +2252,95 @@ document.getElementById('exportAnalyticsBtn').addEventListener('click', async ()
 document.getElementById('clearScanMetricsBtn').addEventListener('click', async () => {
   const button = document.getElementById('clearScanMetricsBtn');
   const status = document.getElementById('analyticsStatus');
-  if (!confirm('Удалить только время обработки (duration_ms и profile) из всех сохранённых событий сканирования? Сами события и остальные метрики останутся.')) return;
+  if (!await showConfirm('Очистить метрики скорости?', 'Будут удалены duration_ms и profile из событий сканирования. Сами события и остальные метрики сохранятся.', 'Очистить')) return;
   button.disabled = true;
   status.className = 'muted';
   status.textContent = 'Очищаем метрики скорости…';
+  showToast('Очищаем метрики скорости сканирования…','busy',0);
   try {
     const response = await api('/admin/analytics/scan-performance', { method: 'DELETE' });
+    if (!response.ok) throw new Error(await readError(response));
     const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || 'Не удалось очистить метрики');
-    await loadAnalytics();
     status.className = 'ok';
     status.textContent = 'Очищены метрики скорости в ' + Number(data.cleared_events || 0) + ' событиях. Остальные данные сохранены.';
+    showToast('Метрики скорости очищены в '+Number(data.cleared_events||0)+' событиях.');
+    await loadAnalytics();
   } catch (error) {
     status.className = 'err';
     status.textContent = 'Ошибка очистки: ' + (error.message || 'не удалось очистить метрики');
+    showToast('Не удалось очистить метрики скорости: '+(error.message||'ошибка сети'),'error',0);
   } finally {
     button.disabled = false;
   }
 });
 
-document.querySelectorAll('.tab').forEach(btn=>btn.onclick=()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');
-  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-  document.getElementById(btn.dataset.tab).classList.add('active');
-  if(btn.dataset.tab==='temp')loadTemp();if(btn.dataset.tab==='counterTests')loadCounterTests();if(btn.dataset.tab==='screenshotTests')loadShotFixtures();if(btn.dataset.tab==='users')loadUsers();if(btn.dataset.tab==='analytics')loadAnalytics();
-});
+const ADMIN_NAV_GROUPS={
+  catalog:[
+    {id:'scan',label:'🧪 Хеши'},
+    {id:'icons',label:'🖼️ Иконки'},
+    {id:'cards',label:'🃏 Карты'},
+    {id:'temp',label:'🗑️ Временные'}
+  ],
+  quality:[
+    {id:'counterTests',label:'🧪 Тесты счётчика'},
+    {id:'screenshotTests',label:'🖼️ Качество скриншотов'}
+  ],
+  analytics:[
+    {id:'users',label:'👥 Пользователи'},
+    {id:'analytics',label:'📊 Метрики'}
+  ]
+};
+let activeAdminTab='scan';
+function loadAdminPanel(tabId){
+  if(tabId==='temp')return loadTemp();
+  if(tabId==='counterTests')return loadCounterTests();
+  if(tabId==='screenshotTests')return loadShotFixtures();
+  if(tabId==='users')return loadUsers();
+  if(tabId==='analytics')return loadAnalytics();
+}
+function loadActiveAdminPanel(){
+  if(['scan','icons','cards','temp'].includes(activeAdminTab))return;
+  return loadAdminPanel(activeAdminTab);
+}
+function activateAdminTab(tabId,loadData=true){
+  const group=Object.entries(ADMIN_NAV_GROUPS).find(([,tabs])=>tabs.some(tab=>tab.id===tabId));
+  if(!group)return;
+  const [groupId,tabs]=group;
+  activeAdminTab=tabId;
+  sessionStorage.setItem('adminNavGroup',groupId);
+  sessionStorage.setItem('adminTab:'+groupId,tabId);
+  document.querySelectorAll('.admin-group-tab').forEach(button=>{
+    const active=button.dataset.navGroup===groupId;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active));
+  });
+  const subtabs=document.getElementById('adminSubtabs');
+  subtabs.replaceChildren(...tabs.map(tab=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='tab';
+    button.dataset.tab=tab.id;
+    button.textContent=tab.label;
+    button.setAttribute('aria-current',tab.id===tabId?'page':'false');
+    button.classList.toggle('active',tab.id===tabId);
+    button.addEventListener('click',()=>activateAdminTab(tab.id));
+    return button;
+  }));
+  document.querySelectorAll('.panel').forEach(panel=>panel.classList.toggle('active',panel.id===tabId));
+  if(loadData)loadAdminPanel(tabId);
+}
+document.querySelectorAll('.admin-group-tab').forEach(button=>button.addEventListener('click',()=>{
+  const groupId=button.dataset.navGroup;
+  const tabs=ADMIN_NAV_GROUPS[groupId];
+  if(!tabs)return;
+  const remembered=sessionStorage.getItem('adminTab:'+groupId);
+  activateAdminTab(tabs.some(tab=>tab.id===remembered)?remembered:tabs[0].id);
+}));
+const savedGroup=sessionStorage.getItem('adminNavGroup');
+const initialGroup=Object.prototype.hasOwnProperty.call(ADMIN_NAV_GROUPS,savedGroup)?savedGroup:'catalog';
+const rememberedTab=sessionStorage.getItem('adminTab:'+initialGroup);
+const initialTab=ADMIN_NAV_GROUPS[initialGroup].some(tab=>tab.id===rememberedTab)?rememberedTab:ADMIN_NAV_GROUPS[initialGroup][0].id;
+activateAdminTab(initialTab,false);
 document.getElementById('logoutBtn').onclick=async()=>{try{await api('/admin/logout',{method:'POST'})}finally{clearToken();location.reload()}};
 
 checkLogin();

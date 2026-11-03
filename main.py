@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import json
+import logging
 import math
 import os
 import platform
 import re
+import tempfile
 import threading
 import time
 import uuid
@@ -19,11 +22,11 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import Request as UrlRequest, urlopen
 
 import sentry_sdk
 
-from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -37,6 +40,16 @@ from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inve
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
 from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
+from scanner_diagnostics import ScannerDiagnosticStore
+from scanner_prewarm import ScannerPrewarmController
+
+LOGGER = logging.getLogger(__name__)
+
+SCAN_CONCURRENCY = max(1, int(os.getenv("SCAN_CONCURRENCY", "1")))
+SCAN_SEMAPHORE = asyncio.Semaphore(SCAN_CONCURRENCY)
+MAX_SCAN_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_SCAN_IMAGE_PIXELS = 30_000_000
+SCAN_RATE_LIMIT_EVENTS: dict[str, deque[float]] = {}
 
 # Sentry is optional in local/test environments. Configure SENTRY_DSN to enable reporting.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
@@ -56,13 +69,154 @@ def startup_database() -> None:
     init_trade_request_schema()
 
 
+def _scanner_warmup() -> None:
+    image = Image.new("RGB", (32, 32), (22, 28, 34))
+    for image_format in ("PNG", "JPEG"):
+        encoded = BytesIO()
+        image.save(encoded, image_format)
+        encoded.seek(0)
+        with Image.open(encoded) as decoded:
+            decoded.load()
+            decoded.convert("RGB")
+
+
+SCANNER_DIAGNOSTICS = ScannerDiagnosticStore(
+    resource_provider=lambda: _resource_snapshot()
+)
+SCANNER_PREWARM = ScannerPrewarmController(
+    SCANNER_DIAGNOSTICS, lambda: _scanner_warmup()
+)
+ACTIVE_SCAN_REQUESTS = 0
+DIAGNOSTICS_APP_COMMIT = get_app_commit()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     startup_database()
-    yield
+    SCANNER_DIAGNOSTICS.record_event({
+        "event": "application_start",
+        "process_uptime_sec": 0.0,
+        "process_started_at": SCANNER_DIAGNOSTICS.started_at.isoformat(),
+        "worker_run_id": SCANNER_DIAGNOSTICS.run_id,
+        "app_commit": DIAGNOSTICS_APP_COMMIT,
+    })
+    SCANNER_DIAGNOSTICS.record_event({
+        "event": "worker_start",
+        "worker_pid": os.getpid(),
+        "app_commit": DIAGNOSTICS_APP_COMMIT,
+        "python_version": platform.python_version(),
+        "process_started_at": SCANNER_DIAGNOSTICS.started_at.isoformat(),
+        "runtime_resources": SCANNER_DIAGNOSTICS.resource_metrics(0),
+        "prewarm_flags": SCANNER_PREWARM.feature_flags(),
+    })
+    try:
+        async with SCAN_SEMAPHORE:
+            await SCANNER_PREWARM.on_application_start()
+        yield
+    finally:
+        await SCANNER_PREWARM.shutdown()
+        SCANNER_DIAGNOSTICS.record_event({
+            "event": "application_shutdown",
+            "process_uptime_sec": round(
+                time.perf_counter() - SCANNER_DIAGNOSTICS.started_monotonic, 3
+            ),
+            "warmup_status": SCANNER_PREWARM.status,
+        })
 
 
 app = FastAPI(title="PUBG Card Scanner", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def scanner_diagnostics_middleware(request: Request, call_next):
+    global ACTIVE_SCAN_REQUESTS
+    if request.url.path != "/scan":
+        return await call_next(request)
+
+    started = time.perf_counter()
+    session_id = _scanner_session_id(request.headers.get("x-scanner-session-id"))
+    request.state.scanner_session_id = session_id
+    request.state.scanner_request_started = started
+    request.state.scanner_diagnostics = {
+        "request_body_read_ms": None,
+        "image_upload_size_bytes": None,
+        "image_decode_ms": None,
+        "image_width": None,
+        "image_height": None,
+        "image_format": None,
+        "image_preprocess_ms": None,
+        "detection_ms": None,
+        "counter_ms": None,
+        "raw_hash_ms": None,
+        "clean_hash_ms": None,
+        "hashing_total_ms": None,
+        "matching_ms": None,
+        "quality_check_ms": None,
+        "response_build_ms": None,
+    }
+    request.state.scanner_diagnostics["request_received_ms"] = round(
+        (started - SCANNER_DIAGNOSTICS.started_monotonic) * 1000, 3
+    )
+    ACTIVE_SCAN_REQUESTS += 1
+    status_code = 500
+    failure_type = None
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception as exc:
+        failure_type = type(exc).__name__
+        raise
+    finally:
+        try:
+            if SCANNER_DIAGNOSTICS.enabled and SCANNER_DIAGNOSTICS.storage_enabled:
+                warmup = SCANNER_PREWARM.snapshot()
+                event = {
+                    **request.state.scanner_diagnostics,
+                    "event": "scan_completed" if status_code < 400 else "scan_failed",
+                    "session_id": session_id,
+                    "app_commit": DIAGNOSTICS_APP_COMMIT,
+                    "http_status": status_code,
+                    "failure_type": failure_type,
+                    "total_server_ms": round((time.perf_counter() - started) * 1000, 3),
+                    "process_uptime_sec": round(
+                        time.perf_counter() - SCANNER_DIAGNOSTICS.started_monotonic, 3
+                    ),
+                    "warmup_status_at_scan": request.state.scanner_diagnostics.get(
+                        "warmup_status_at_scan", warmup["warmup_status"]
+                    ),
+                    "warmup_trigger": request.state.scanner_diagnostics.get(
+                        "warmup_trigger", warmup["warmup_trigger"]
+                    ),
+                    "warmup_duration_ms": request.state.scanner_diagnostics.get(
+                        "warmup_duration_ms", warmup["warmup_duration_ms"]
+                    ),
+                    "warmup_age_ms": request.state.scanner_diagnostics.get(
+                        "warmup_age_ms", SCANNER_PREWARM.warmup_age_ms(started)
+                    ),
+                    "prewarm_mode": warmup["prewarm_mode"],
+                    "initialization_required": request.state.scanner_diagnostics.get(
+                        "initialization_required",
+                        warmup["warmup_status"] != "completed",
+                    ),
+                    "runtime_resources": SCANNER_DIAGNOSTICS.resource_metrics(
+                        ACTIVE_SCAN_REQUESTS
+                    ),
+                }
+                classified = SCANNER_DIAGNOSTICS.record_scan(session_id, event)
+                SCANNER_DIAGNOSTICS.record_event(classified)
+        except Exception as exc:
+            LOGGER.warning("Scanner diagnostics collection failed (%s)", type(exc).__name__)
+        ACTIVE_SCAN_REQUESTS = max(0, ACTIVE_SCAN_REQUESTS - 1)
+
+
+def _scanner_session_id(value: str | None) -> str:
+    if value:
+        try:
+            return str(uuid.UUID(value))
+        except (ValueError, AttributeError):
+            pass
+    return str(uuid.uuid4())
 
 
 STATIC_DIR = Path("static")
@@ -82,6 +236,10 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
 
 DB_FILE = Path("card_hashes.json")
+_DB_CACHE_SIGNATURE: tuple[str, int | None, int | None] | None = None
+_DB_CACHE_DATA: dict[str, Any] | None = None
+_MATCH_INDEX_DB: dict[str, Any] | None = None
+_MATCH_INDEX: list[dict[str, Any]] | None = None
 SESSION_MAX_AGE = 12 * 60 * 60
 ADMIN_TOKEN_PREFIX = "pubg_admin_v1"
 
@@ -99,19 +257,43 @@ HASH_REGEN_PROGRESS: dict[str, Any] = {
 
 
 def load_db() -> dict[str, Any]:
-    if not DB_FILE.exists():
-        return {}
+    global _DB_CACHE_SIGNATURE, _DB_CACHE_DATA, _MATCH_INDEX_DB, _MATCH_INDEX
     try:
-        data = json.loads(DB_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {}
+        stat = DB_FILE.stat()
+        signature = (str(DB_FILE), stat.st_mtime_ns, stat.st_size)
+    except FileNotFoundError:
+        signature = (str(DB_FILE), None, None)
+
+    if signature == _DB_CACHE_SIGNATURE and _DB_CACHE_DATA is not None:
+        return _DB_CACHE_DATA
+
+    if signature[1] is None:
+        data: dict[str, Any] = {}
+    else:
+        try:
+            loaded = json.loads(DB_FILE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Card catalogue contains invalid JSON: {DB_FILE}") from exc
+        if not isinstance(loaded, dict):
+            raise RuntimeError(f"Card catalogue must contain a JSON object: {DB_FILE}")
+        data = loaded
+
+    _DB_CACHE_SIGNATURE = signature
+    _DB_CACHE_DATA = data
+    _MATCH_INDEX_DB = None
+    _MATCH_INDEX = None
+    return data
 
 
 def save_db(data: dict[str, Any]) -> None:
+    global _DB_CACHE_SIGNATURE, _DB_CACHE_DATA, _MATCH_INDEX_DB, _MATCH_INDEX
     tmp = DB_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(DB_FILE)
+    _DB_CACHE_SIGNATURE = None
+    _DB_CACHE_DATA = None
+    _MATCH_INDEX_DB = None
+    _MATCH_INDEX = None
 
 
 def clean_hashes(value: Any) -> dict[str, str]:
@@ -375,152 +557,258 @@ def _migrate_frame_color_hashes() -> None:
         save_db(db)
 
 
-def _match_card(
-    card_hashes: dict[str, str],
-    db: dict[str, Any],
-    profile: dict[str, int] | None = None,
-) -> tuple[str | None, float]:
-    """
-    Match by hash voting, with a conservative confidence-margin fallback.
+def _hex_hash_int(value: Any) -> int | None:
+    try:
+        return int(value, 16)
+    except Exception:
+        return None
 
-    Every match must have enough acceptable hash votes and a clear score
-    margin over the runner-up. Strong votes alone are not enough: duplicate or
-    visually similar catalogue entries can otherwise receive the wrong ID.
-    Animated cards may pass without two strong hashes only when:
-      - they have at least 3 acceptable grayscale hashes;
-      - no hash exceeds the existing outlier safety ceiling;
-      - their frame color is compatible;
-      - they are clearly ahead of the runner-up by CARD_MATCH_CONFIDENT_MARGIN.
 
-    With at least two strong hashes, one outlier is tolerated; the vote quorum
-    and confidence margin prevent it from deciding a match.
-    Ambiguous scans intentionally remain unmatched rather than being assigned
-    to a different card.
-    """
+def _build_match_index(db: dict[str, Any]) -> list[dict[str, Any]]:
+    index = []
+    for card_id, info in db.items():
+        info = info if isinstance(info, dict) else {}
+        hashes = clean_hashes(info.get("hashes"))
+        index.append({
+            "id": card_id,
+            "hashes": hashes,
+            "hash_values": {key: _hex_hash_int(value) for key, value in hashes.items()},
+            "legacy_hash": info.get("hash"),
+            "legacy_hash_value": _hex_hash_int(str(info.get("hash"))) if info.get("hash") else None,
+        })
+    return index
+
+
+def _match_index_for(db: dict[str, Any]) -> list[dict[str, Any]]:
+    global _MATCH_INDEX_DB, _MATCH_INDEX
+    if db is not _DB_CACHE_DATA:
+        return _build_match_index(db)
+    if _MATCH_INDEX_DB is not db or _MATCH_INDEX is None:
+        _MATCH_INDEX_DB = db
+        _MATCH_INDEX = _build_match_index(db)
+    return _MATCH_INDEX
+
+
+def _match_card_detailed(card_hashes: dict[str, str], db: dict[str, Any], profile: dict[str, int] | None = None) -> dict[str, Any]:
+    """Detailed equivalent of _match_card; thresholds and candidate ranking are unchanged."""
     candidates: list[dict[str, Any]] = []
-    hash_comparisons = 0
+    rejected: list[str] = []
+    comparisons = 0
     if profile is not None:
         profile["matching_calls"] = profile.get("matching_calls", 0) + 1
-    standard_keys = (
-        "full_phash",
-        "full_dhash",
-        "visual_phash",
-        "visual_dhash",
-    )
-
-    for card_id, info in db.items():
-        stored = clean_hashes(info.get("hashes"))
+    keys = ("full_phash", "full_dhash", "visual_phash", "visual_dhash")
+    scan_values = {key: _hex_hash_int(card_hashes.get(key)) for key in (*keys, "frame_colorhash")}
+    for indexed in _match_index_for(db):
+        card_id = indexed["id"]
+        stored = indexed["hashes"]
+        stored_values = indexed["hash_values"]
+        per_hash: dict[str, int | None] = {}
         distances: list[int] = []
-
-        for key in standard_keys:
-            value = card_hashes.get(key)
-            other = stored.get(key)
-            if not value or not other:
-                continue
-            d = _hamming(value, other)
+        for key in keys:
+            value, other = card_hashes.get(key), stored.get(key)
+            scan_hash, stored_hash = scan_values[key], stored_values.get(key)
+            d = (scan_hash ^ stored_hash).bit_count() if value and other and scan_hash is not None and stored_hash is not None else None
+            per_hash[key] = d
             if d is not None:
-                hash_comparisons += 1
+                comparisons += 1
                 distances.append(d)
-
         if not distances:
-            legacy = info.get("hash")
-            value = card_hashes.get("full_dhash", "")
-            d = _hamming(value, str(legacy)) if legacy else None
+            legacy = indexed["legacy_hash"]
+            legacy_value = indexed["legacy_hash_value"]
+            scan_value = scan_values["full_dhash"]
+            d = (scan_value ^ legacy_value).bit_count() if legacy and scan_value is not None and legacy_value is not None else None
             if d is not None:
-                hash_comparisons += 1
+                comparisons += 1
                 distances.append(d)
-
+                per_hash["full_dhash"] = d
         if len(distances) < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            rejected.append("unmatched_low_strong")
             continue
-
         distances.sort()
-        strong_count = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
-        acceptable_count = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
-
-        if acceptable_count < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+        strong = sum(d <= CARD_MATCH_STRONG_DISTANCE for d in distances)
+        acceptable = sum(d <= CARD_MATCH_ACCEPTABLE_DISTANCE for d in distances)
+        if acceptable < CARD_MATCH_MIN_ACCEPTABLE_HASHES:
+            rejected.append("unmatched_low_strong")
             continue
-
-        if (
-            distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6
-            and strong_count < CARD_MATCH_MIN_STRONG_HASHES
-        ):
+        if distances[-1] > CARD_MATCH_ACCEPTABLE_DISTANCE + 6 and strong < CARD_MATCH_MIN_STRONG_HASHES:
+            rejected.append("unmatched_outlier_hash")
             continue
-
-        scan_color = card_hashes.get("frame_colorhash")
-        stored_color = stored.get("frame_colorhash")
-
+        scan_color, stored_color = card_hashes.get("frame_colorhash"), stored.get("frame_colorhash")
+        color_bits = None
         if scan_color and not stored_color:
+            rejected.append("unmatched_color_reject")
             continue
-
         if scan_color and stored_color:
-            color_distance = _hamming(scan_color, stored_color)
-            if color_distance is None:
+            scan_color_value = scan_values["frame_colorhash"]
+            stored_color_value = stored_values.get("frame_colorhash")
+            color_bits = (
+                (scan_color_value ^ stored_color_value).bit_count()
+                if scan_color_value is not None and stored_color_value is not None
+                else None
+            )
+            if color_bits is None:
+                rejected.append("unmatched_color_reject")
                 continue
-            hash_comparisons += 1
-            color_bits = max(1, len(scan_color) * 4)
-            color_ratio = color_distance / color_bits
-            if color_ratio > 0.55 and strong_count < 3:
+            comparisons += 1
+            color_ratio = color_bits / max(1, len(scan_color) * 4)
+            if color_ratio > 0.55 and strong < 3:
+                rejected.append("unmatched_color_reject")
                 continue
             color_penalty = color_ratio * 8.0
         else:
-            color_ratio = 0.0
-            color_penalty = 0.0
-
-        score = (distances[0] + distances[1]) / 2 + color_penalty
+            color_ratio, color_penalty = 0.0, 0.0
         candidates.append({
-            "id": card_id,
-            "score": score,
-            "strong": strong_count,
-            "acceptable": acceptable_count,
-            "color_ratio": color_ratio,
+            "id": card_id, "score": (distances[0] + distances[1]) / 2 + color_penalty,
+            "strong": strong, "acceptable": acceptable, "color_ratio": color_ratio,
+            "color_penalty": color_penalty, "distances": per_hash, "color_bits": color_bits,
         })
-
     if profile is not None:
-        profile["catalog_candidates_before_filter"] = (
-            profile.get("catalog_candidates_before_filter", 0) + len(db)
-        )
-        profile["matching_hash_comparisons"] = (
-            profile.get("matching_hash_comparisons", 0) + hash_comparisons
-        )
-        profile["matching_candidates_after_filter"] = (
-            profile.get("matching_candidates_after_filter", 0) + len(candidates)
-        )
-
+        profile["catalog_candidates_before_filter"] = profile.get("catalog_candidates_before_filter", 0) + len(db)
+        profile["matching_hash_comparisons"] = profile.get("matching_hash_comparisons", 0) + comparisons
+        profile["matching_candidates_after_filter"] = profile.get("matching_candidates_after_filter", 0) + len(candidates)
     if not candidates:
-        return None, float("inf")
-
+        reason = ("unmatched_no_candidates" if not db else
+                  "unmatched_color_reject" if "unmatched_color_reject" in rejected else
+                  "unmatched_outlier_hash" if "unmatched_outlier_hash" in rejected else
+                  "unmatched_low_strong" if rejected else "unmatched_no_candidates")
+        return {"id": None, "candidate_id": None, "score": None, "candidate_score": None,
+                "runner_up_id": None, "runner_up_score": None, "margin": None,
+                "strong_count": 0, "acceptable_count": 0, "color_ratio": None,
+                "color_penalty": None, "distances": None, "runner_up_distances": None, "reason": reason}
     candidates.sort(key=lambda item: item["score"])
     best = candidates[0]
-    runner_up = candidates[1] if len(candidates) > 1 else None
-
-    # Never select a card merely because it has enough passing hash votes:
-    # two different cards can share similar artwork/frame hashes. Ambiguous
-    # results must remain unmatched instead of silently assigning the wrong ID.
-    margin = (
-        runner_up["score"] - best["score"]
-        if runner_up is not None
-        else float("inf")
-    )
-
-    # Strong votes are necessary, but not sufficient when another catalogue
-    # entry is nearly as close. Keep the same explicit confidence margin for
-    # both the normal and animated-card fallback paths.
+    runner = candidates[1] if len(candidates) > 1 else None
+    margin = runner["score"] - best["score"] if runner else float("inf")
+    accepted = False
+    reason = "unmatched_low_strong"
     if best["strong"] >= CARD_MATCH_MIN_STRONG_HASHES:
-        if runner_up is None or margin > CARD_MATCH_CONFIDENT_MARGIN:
-            return best["id"], best["score"]
-        return None, float("inf")
+        if runner is None or margin > CARD_MATCH_CONFIDENT_MARGIN:
+            accepted, reason = True, "matched"
+        else:
+            reason = "unmatched_low_margin"
+    elif (best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
+          and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO
+          and margin > CARD_MATCH_CONFIDENT_MARGIN):
+        accepted, reason = True, "matched"
+    elif runner is not None and margin <= CARD_MATCH_CONFIDENT_MARGIN:
+        reason = "unmatched_low_margin"
+    elif best["color_ratio"] > CARD_MATCH_COLOR_MAX_RATIO:
+        reason = "unmatched_color_reject"
+    return {
+        "id": best["id"] if accepted else None, "candidate_id": best["id"],
+        "score": best["score"] if accepted else None, "candidate_score": best["score"],
+        "runner_up_id": runner["id"] if runner else None,
+        "runner_up_score": runner["score"] if runner else None,
+        "margin": margin if runner else None, "strong_count": best["strong"],
+        "acceptable_count": best["acceptable"], "color_ratio": best["color_ratio"],
+        "color_penalty": best["color_penalty"], "distances": best["distances"],
+        "frame_colorhash_bits": best["color_bits"],
+        "runner_up_distances": runner["distances"] if runner else None, "reason": reason,
+    }
 
-    # Conservative fallback for animated/dynamic cards. Do not simply lower
-    # the strong-vote threshold globally; require enough acceptable hashes,
-    # compatible frame colour, and a clear lead over every alternative.
-    if (
-        best["acceptable"] >= CARD_MATCH_MIN_ACCEPTABLE_HASHES
-        and best["color_ratio"] <= CARD_MATCH_COLOR_MAX_RATIO
-        and margin > CARD_MATCH_CONFIDENT_MARGIN
-    ):
-        return best["id"], best["score"]
 
-    return None, float("inf")
+def _match_card(card_hashes: dict[str, str], db: dict[str, Any], profile: dict[str, int] | None = None) -> tuple[str | None, float]:
+    """Keep the public/internal legacy return contract unchanged."""
+    result = _match_card_detailed(card_hashes, db, profile)
+    return (result["id"], float(result["score"])) if result["id"] is not None else (None, float("inf"))
+
+
+def _identity_hash_distances(scan_hashes: dict[str, str], info: dict[str, Any] | None) -> dict[str, Any]:
+    stored = clean_hashes((info or {}).get("hashes"))
+    if not stored.get("full_dhash") and (info or {}).get("hash"):
+        stored["full_dhash"] = str(info["hash"])
+    result = {key: (_hamming(scan_hashes.get(key, ""), stored.get(key, ""))
+                    if scan_hashes.get(key) and stored.get(key) else None)
+              for key in ("full_phash", "full_dhash", "visual_phash", "visual_dhash")}
+    scan_color, stored_color = scan_hashes.get("frame_colorhash"), stored.get("frame_colorhash")
+    bits = _hamming(scan_color, stored_color) if scan_color and stored_color else None
+    result["frame_colorhash_bits"] = bits
+    result["frame_colorhash_ratio"] = bits / max(1, len(scan_color) * 4) if bits is not None and scan_color else None
+    return result
+
+
+def _identity_percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    pos = (len(ordered) - 1) * percentile
+    lo, hi = math.floor(pos), math.ceil(pos)
+    value = ordered[lo] if lo == hi else ordered[lo] * (hi - pos) + ordered[hi] * (pos - lo)
+    return round(float(value), 3)
+
+
+def _identity_quantity(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _empty_identity_detail(expected: dict[str, Any]) -> dict[str, Any]:
+    """Represent a verified fixture card for which no detected crop was available."""
+    return {
+        "expected_card_id": str(expected.get("card_id") or ""),
+        "expected_card_name": str(expected.get("card_name") or expected.get("card_id") or "Карта"),
+        "matched_card_id": None, "matched": False, "decision": "unmatched_other",
+        "match_score": None, "runner_up_id": None, "runner_up_score": None, "margin": None,
+        "strong_count": 0, "acceptable_count": 0, "color_ratio": None, "color_penalty": None,
+        "distances_to_expected": {key: None for key in (
+            "full_phash", "full_dhash", "visual_phash", "visual_dhash",
+            "frame_colorhash_bits", "frame_colorhash_ratio"
+        )},
+        "distances_to_matched": None, "distances_to_runner_up": None,
+        "crop": {"box": None, "width": None, "height": None},
+        "quantity": {"expected": _identity_quantity(expected.get("expected_quantity", 1)), "detected": None},
+        "has_counter_evidence": False, "hash_reuse": False,
+    }
+
+
+def _build_identity_stats(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    decisions = ("matched_ok", "wrong_id", "unmatched_no_candidates", "unmatched_low_strong",
+                 "unmatched_low_margin", "unmatched_color_reject", "unmatched_outlier_hash", "unmatched_other")
+    rows = [row for case in cases for row in case.get("identity_details", [])]
+    counts = {key: sum(row.get("decision") == key for row in rows) for key in decisions}
+    correct = [row for row in rows if row.get("decision") == "matched_ok"]
+    scores = [float(row["match_score"]) for row in correct if isinstance(row.get("match_score"), (int, float))]
+    margins = [float(row["margin"]) for row in correct if isinstance(row.get("margin"), (int, float))]
+    hash_keys = ("full_phash", "full_dhash", "visual_phash", "visual_dhash", "frame_colorhash_ratio")
+    hash_values = {key: [] for key in hash_keys}
+    for row in correct:
+        distances = row.get("distances_to_matched") or {}
+        for key in hash_keys:
+            if isinstance(distances.get(key), (int, float)):
+                hash_values[key].append(float(distances[key]))
+    pairs: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        expected = str(row.get("expected_card_id") or "")
+        if row.get("decision") == "wrong_id" and row.get("matched_card_id"):
+            key = (expected, str(row["matched_card_id"]), "wrong_id")
+        elif row.get("runner_up_id"):
+            key = (expected, str(row["runner_up_id"]), "runner_up")
+        else:
+            continue
+        pairs.setdefault(key, []).append(row)
+    confusions = []
+    for (expected, other, relation), items in pairs.items():
+        margins_for_pair = [float(x["margin"]) for x in items if isinstance(x.get("margin"), (int, float))]
+        scores_for_pair = [float(x["match_score"]) for x in items if isinstance(x.get("match_score"), (int, float))]
+        confusions.append({"expected_id": expected, "other_id": other, "relation": relation, "count": len(items),
+                           "avg_margin": round(sum(margins_for_pair) / len(margins_for_pair), 3) if margins_for_pair else None,
+                           "avg_score": round(sum(scores_for_pair) / len(scores_for_pair), 3) if scores_for_pair else None})
+    confusions.sort(key=lambda x: (-x["count"], x["expected_id"], x["other_id"], x["relation"]))
+    checked = len(rows)
+    return {
+        "checked": checked, "correct": counts["matched_ok"], "wrong": counts["wrong_id"],
+        "unmatched": checked - counts["matched_ok"] - counts["wrong_id"], "by_decision": counts,
+        "score_correct": {"median": _identity_percentile(scores, .5), "p90": _identity_percentile(scores, .9),
+                          "max": round(max(scores), 3) if scores else None, "count": len(scores)},
+        "margin_correct": {"median": _identity_percentile(margins, .5), "p90": _identity_percentile(margins, .9),
+                           "min": round(min(margins), 3) if margins else None, "count": len(margins)},
+        "hash_distance_correct_median": {k: _identity_percentile(v, .5) for k, v in hash_values.items()},
+        "hash_distance_correct_p90": {k: _identity_percentile(v, .9) for k, v in hash_values.items()},
+        "top_confusions": confusions[:10],
+    }
+
 
 def _match_card_diagnostics(card_hashes: dict[str, str], db: dict[str, Any], limit: int = 8) -> list[dict[str, Any]]:
     """Return ranked match diagnostics for admin troubleshooting.
@@ -828,38 +1116,78 @@ def _enrich_admin_scan(
     return result
 
 
+def _decode_image_data(data: bytes) -> tuple[Image.Image, dict[str, Any]]:
+    decode_started = time.perf_counter()
+    source_image = Image.open(BytesIO(data))
+    source_format = source_image.format or "UNKNOWN"
+    source_width, source_height = source_image.size
+    if source_width * source_height > MAX_SCAN_IMAGE_PIXELS:
+        raise HTTPException(status_code=413, detail="Разрешение изображения превышает 30 мегапикселей")
+    source_image.load()
+    decode_ms = (time.perf_counter() - decode_started) * 1000
+
+    convert_started = time.perf_counter()
+    image = source_image.convert("RGB")
+    convert_ms = (time.perf_counter() - convert_started) * 1000
+    return image, {
+        "upload_size_bytes": len(data),
+        "upload_format": source_format,
+        "upload_source_width": source_width,
+        "upload_source_height": source_height,
+        "upload_image_decode_ms": round(decode_ms, 1),
+        "upload_rgb_convert_ms": round(convert_ms, 1),
+    }
+
+
 async def _read_image(
     file: UploadFile,
     profile: dict[str, Any] | None = None,
 ) -> Image.Image:
     try:
         read_started = time.perf_counter()
-        data = await file.read()
+        if file.size is not None and file.size > MAX_SCAN_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Файл изображения превышает лимит 15 МБ")
+        data = await file.read(MAX_SCAN_UPLOAD_BYTES + 1)
         read_ms = (time.perf_counter() - read_started) * 1000
+        if len(data) > MAX_SCAN_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Файл изображения превышает лимит 15 МБ")
 
-        decode_started = time.perf_counter()
-        source_image = Image.open(BytesIO(data))
-        source_format = source_image.format or "UNKNOWN"
-        source_width, source_height = source_image.size
-        source_image.load()
-        decode_ms = (time.perf_counter() - decode_started) * 1000
-
-        convert_started = time.perf_counter()
-        image = source_image.convert("RGB")
-        convert_ms = (time.perf_counter() - convert_started) * 1000
+        image, decode_profile = await asyncio.to_thread(_decode_image_data, data)
         if profile is not None:
-            profile.update({
-                "upload_size_bytes": len(data),
-                "upload_format": source_format,
-                "upload_source_width": source_width,
-                "upload_source_height": source_height,
-                "upload_read_ms": round(read_ms, 1),
-                "upload_image_decode_ms": round(decode_ms, 1),
-                "upload_rgb_convert_ms": round(convert_ms, 1),
-            })
+            profile.update(decode_profile)
+            profile["upload_read_ms"] = round(read_ms, 1)
         return image
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Не удалось прочитать изображение") from exc
+
+
+def _enforce_scan_rate_limit(rate_key: str) -> None:
+    limit = int(os.getenv("SCAN_RATE_LIMIT", "10"))
+    window_seconds = int(os.getenv("SCAN_RATE_WINDOW_SECONDS", "60"))
+    if limit < 1 or window_seconds < 1:
+        raise RuntimeError("SCAN_RATE_LIMIT и SCAN_RATE_WINDOW_SECONDS должны быть положительными числами")
+
+    now = time.monotonic()
+    events = SCAN_RATE_LIMIT_EVENTS.setdefault(rate_key, deque())
+    cutoff = now - window_seconds
+    while events and events[0] <= cutoff:
+        events.popleft()
+    if len(events) >= limit:
+        retry_after = max(1, math.ceil(events[0] + window_seconds - now))
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много запросов на сканирование; попробуйте позже",
+            headers={"Retry-After": str(retry_after)},
+        )
+    events.append(now)
+    if len(SCAN_RATE_LIMIT_EVENTS) > 10_000:
+        for key, key_events in list(SCAN_RATE_LIMIT_EVENTS.items()):
+            while key_events and key_events[0] <= cutoff:
+                key_events.popleft()
+            if not key_events:
+                SCAN_RATE_LIMIT_EVENTS.pop(key, None)
 
 
 def _prepare_icon(image: Image.Image) -> Image.Image:
@@ -1127,10 +1455,14 @@ async def admin_status(authorization: str | None = Header(default=None)):
     logged_in = bool(os.getenv("ADMIN_PASSWORD")) and _valid_session(
         _authorization_token(authorization)
     )
+    db = load_db()
     return {
         "logged_in": logged_in,
-        "cards": len(load_db()),
-        "icons": sum(1 for x in load_db().values() if x.get("icon")),
+        "cards": len(db),
+        "icons": sum(
+            1 for item in db.values()
+            if isinstance(item, dict) and item.get("icon")
+        ),
         "temporary_files": sum(1 for p in TEMP_DIR.iterdir() if p.is_file()),
     }
 
@@ -1211,13 +1543,44 @@ async def admin_user_detail(telegram_id: int, authorization: str | None = Header
 
 
 @app.post("/me/activity")
-async def record_my_activity(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+async def record_my_activity(
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+    session_header: str | None = Header(default=None, alias="X-Scanner-Session-ID"),
+):
     """Authenticated heartbeat for Telegram Mini App online presence."""
     auth = _validate_telegram_init_data(init_data)
     user = auth["user"]
     saved = get_or_create_user(auth["id"], username=str(user.get("username") or ""),
         first_name=str(user.get("first_name") or ""), last_name=str(user.get("last_name") or ""))
+    session_id = _scanner_session_id(session_header)
+    if SCANNER_DIAGNOSTICS.note_user_online(auth["id"]):
+        try:
+            await SCANNER_PREWARM.on_trigger(
+                "user_online", session_id, ACTIVE_SCAN_REQUESTS
+            )
+        except Exception as exc:
+            LOGGER.warning("Scanner online prewarm failed (%s)", type(exc).__name__)
     return {"status": "ok", "telegram_id": saved["telegram_id"]}
+
+
+@app.post("/me/scanner-prewarm")
+async def request_scanner_prewarm(
+    trigger: str,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+    session_header: str | None = Header(default=None, alias="X-Scanner-Session-ID"),
+):
+    """Request a non-blocking, authenticated scanner warmup signal."""
+    _validate_telegram_init_data(init_data)
+    if trigger not in {"scanner_open", "image_selected"}:
+        raise HTTPException(status_code=400, detail="Недопустимый сигнал прогрева")
+    session_id = _scanner_session_id(session_header)
+    try:
+        return await SCANNER_PREWARM.on_trigger(
+            trigger, session_id, ACTIVE_SCAN_REQUESTS
+        )
+    except Exception as exc:
+        LOGGER.warning("Scanner prewarm signal failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Не удалось подготовить сканер") from exc
 
 
 @app.post("/admin/login")
@@ -1256,9 +1619,10 @@ async def scan_preview(
         "app_commit": get_app_commit(),
     }
     try:
-        image = await _read_image(file)
-        log_entry["image_size"] = [image.width, image.height]
-        result = scan_screenshot(image, save_previews=True)
+        async with SCAN_SEMAPHORE:
+            image = await _read_image(file)
+            log_entry["image_size"] = [image.width, image.height]
+            result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
         for index, card in enumerate(result.get("cards", [])):
             card["counter_fixture"] = _save_counter_fixture(image, card.get("box"), index)
             if card.get("preview"):
@@ -1348,16 +1712,53 @@ async def download_scan_logs(authorization: str | None = Header(default=None)):
     payload = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "app_commit": get_app_commit(),
-        "retention": "Most recent 100 scan-preview requests in this running process; cleared on restart/redeploy.",
+        "retention": "Includes the most recent in-memory admin preview logs; process-local JSONL scan events are listed separately.",
         "count": len(SCAN_DIAGNOSTIC_LOGS),
         "logs": list(SCAN_DIAGNOSTIC_LOGS),
     }
     body = json.dumps(payload, ensure_ascii=False, indent=2)
+    if len(body.encode("utf-8")) > SCANNER_DIAGNOSTICS.max_report_bytes:
+        raise HTTPException(status_code=413, detail="Отчёт превышает допустимый размер")
     filename = f"pubg-scan-logs-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json"
     return Response(
         content=body,
         media_type="application/json; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/admin/scan-logs/files")
+async def list_scanner_diagnostic_files(
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    return {
+        "files": SCANNER_DIAGNOSTICS.list_files(),
+        "summary": SCANNER_DIAGNOSTICS.summary(),
+    }
+
+
+@app.get("/admin/scan-logs/summary")
+async def scanner_diagnostics_summary(
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    return SCANNER_DIAGNOSTICS.summary()
+
+
+@app.get("/admin/scan-logs/files/{filename}")
+async def download_scanner_diagnostic_file(
+    filename: str,
+    authorization: str | None = Header(default=None),
+):
+    require_admin(authorization)
+    path = SCANNER_DIAGNOSTICS.safe_file(filename)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Файл диагностики не найден")
+    return FileResponse(
+        path,
+        media_type="application/x-ndjson",
+        filename=path.name,
     )
 
 
@@ -1383,7 +1784,7 @@ def _github_read_text(path: str, branch: str) -> str | None:
         "User-Agent": "pubg-card-admin",
     }
     try:
-        with urlopen(Request(url, headers=headers), timeout=20) as response:
+        with urlopen(UrlRequest(url, headers=headers), timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
         return base64.b64decode(payload.get("content", "")).decode("utf-8")
     except HTTPError as exc:
@@ -1446,7 +1847,7 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
         "User-Agent": "pubg-card-admin",
     }
     try:
-        with urlopen(Request(url, headers=headers), timeout=20) as response:
+        with urlopen(UrlRequest(url, headers=headers), timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
         encoded = payload.get("content", "")
         if encoded:
@@ -1459,7 +1860,7 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
         download_headers = {"User-Agent": "pubg-card-admin"}
         if token:
             download_headers["Authorization"] = f"Bearer {token}"
-        with urlopen(Request(download_url, headers=download_headers), timeout=30) as response:
+        with urlopen(UrlRequest(download_url, headers=download_headers), timeout=30) as response:
             return response.read()
     except HTTPError as exc:
         if exc.code == 404:
@@ -1472,6 +1873,52 @@ def _github_read_bytes(path: str, branch: str) -> bytes | None:
 
 SCREENSHOT_TEST_CASES_PATH = "tests/fixtures/screenshots/cases.json"
 SCREENSHOT_TEST_IMAGES_PATH = "tests/fixtures/screenshots/images"
+SCREENSHOT_FIXTURE_CACHE_DIR = Path(tempfile.gettempdir()) / "pubg-backend-screenshot-fixtures"
+
+
+def _cache_screenshot_fixture(data: bytes, digest: str) -> None:
+    cache_path = SCREENSHOT_FIXTURE_CACHE_DIR / digest
+    SCREENSHOT_FIXTURE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if cache_path.is_file():
+        return
+    temporary_path = SCREENSHOT_FIXTURE_CACHE_DIR / f".{digest}.{uuid.uuid4().hex}.tmp"
+    temporary_path.write_bytes(data)
+    temporary_path.replace(cache_path)
+
+
+def _screenshot_fixture_bytes(
+    image_path: str,
+    branch: str,
+    expected_sha: Any,
+) -> bytes | None:
+    digest = str(expected_sha).strip().lower() if expected_sha else ""
+    if digest and not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError("Некорректный SHA-256 эталонного скриншота")
+
+    if digest:
+        cache_path = SCREENSHOT_FIXTURE_CACHE_DIR / digest
+        if cache_path.is_file():
+            cached = cache_path.read_bytes()
+            if hashlib.sha256(cached).hexdigest() == digest:
+                return cached
+            cache_path.unlink()
+
+    local_image = Path(image_path)
+    if local_image.is_file():
+        local_data = local_image.read_bytes()
+        local_digest = hashlib.sha256(local_data).hexdigest()
+        if not digest or local_digest == digest:
+            _cache_screenshot_fixture(local_data, local_digest)
+            return local_data
+
+    data = _github_read_bytes(image_path, branch)
+    if data is None:
+        return None
+    actual_digest = hashlib.sha256(data).hexdigest()
+    if digest and actual_digest != digest:
+        raise ValueError("SHA-256 изображения не совпадает с cases.json")
+    _cache_screenshot_fixture(data, actual_digest)
+    return data
 
 
 def _screenshot_test_branch() -> str:
@@ -1947,20 +2394,29 @@ async def preview_screenshot_test(file: UploadFile = File(...), authorization: s
     require_admin(authorization)
     if Path(file.filename or "").suffix.lower() != ".png":
         raise HTTPException(status_code=400, detail="Загрузи оригинальный PNG-скриншот")
-    data = await file.read()
-    if not data or len(data) > 15 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="PNG должен быть не пустым и не больше 15 МБ")
+    if file.size is not None and file.size > MAX_SCAN_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="PNG должен быть не больше 15 МБ")
+    data = await file.read(MAX_SCAN_UPLOAD_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="PNG не должен быть пустым")
+    if len(data) > MAX_SCAN_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="PNG должен быть не больше 15 МБ")
     try:
-        with Image.open(BytesIO(data)) as opened:
-            if opened.format != "PNG":
-                raise ValueError("not png")
-            opened.load()
-            size = [opened.width, opened.height]
-            image = opened.convert("RGB")
+        def decode_png() -> tuple[list[int], Image.Image]:
+            with Image.open(BytesIO(data)) as opened:
+                if opened.format != "PNG":
+                    raise ValueError("not png")
+                size = [opened.width, opened.height]
+                if opened.width * opened.height > MAX_SCAN_IMAGE_PIXELS:
+                    raise HTTPException(status_code=413, detail="Разрешение превышает 30 мегапикселей")
+                opened.load()
+                return size, opened.convert("RGB")
+
+        size, image = await asyncio.to_thread(decode_png)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Не удалось прочитать PNG-скриншот") from exc
-    if image.width * image.height > 30_000_000:
-        raise HTTPException(status_code=400, detail="Разрешение превышает 30 мегапикселей")
     upload_id = uuid.uuid4().hex
     (TEMP_DIR / f"screenshot-fixture-{upload_id}.png").write_bytes(data)
     result = scan_screenshot(image, save_previews=False)
@@ -2133,18 +2589,24 @@ def delete_screenshot_test(case_id: str, authorization: str | None = Header(defa
 
 
 @app.post("/admin/screenshot-tests/run")
-def run_screenshot_tests(authorization: str | None = Header(default=None)):
+def run_screenshot_tests(
+    authorization: str | None = Header(default=None),
+    save_previews: bool = False,
+):
     require_admin(authorization)
     if not SCREENSHOT_TEST_RUN_LOCK.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="Проверка скриншотов уже выполняется")
     try:
         with _ResourceMonitor() as resource_monitor:
-            return _run_screenshot_tests(resource_monitor)
+            return _run_screenshot_tests(resource_monitor, save_previews=save_previews)
     finally:
         SCREENSHOT_TEST_RUN_LOCK.release()
 
 
-def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
+def _run_screenshot_tests(
+    resource_monitor: _ResourceMonitor,
+    save_previews: bool = False,
+) -> dict[str, Any]:
     manifest_started = time.perf_counter()
     branch = _screenshot_test_branch()
     cases = _screenshot_test_manifest(branch).get("cases", [])
@@ -2207,7 +2669,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             fetch_error = "Некорректный путь к эталонному изображению"
         else:
             try:
-                data = _github_read_bytes(path, branch)
+                data = _screenshot_fixture_bytes(path, branch, case.get("image_sha256"))
                 fetch_error = None
             except Exception as exc:
                 data = None
@@ -2219,11 +2681,18 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             error = fetch_error or "Файл скриншота отсутствует"
             case_profile.update({"case_total_ms": total_ms, "result": "fixture_load_error"})
             case_timings.update({"case_total_ms": total_ms})
+            identity_details = [
+                _empty_identity_detail(card) for card in raw_cards
+                if isinstance(card, dict) and card.get("state", "owned") == "owned"
+                and card.get("identity_verified") is True
+            ]
             result_entry = {
                 "id": case_id, "passed": False, "errors": [error],
                 "expected_cards": expected_owned_count, "detected_cards": 0,
                 "quantity_matches": 0, "quantity_checked": 0,
-                "identity_matches": 0, "identity_checked": 0,
+                "identity_matches": 0, "identity_checked": len(identity_details),
+                "identity_details": identity_details,
+                "identity_decision_counts": _build_identity_stats([{"identity_details": identity_details}])["by_decision"],
                 "profile": case_profile, "timings": case_timings,
                 "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
                 "measurement_limitations": ["Изображение не загружено; показатели включают время получения эталона."],
@@ -2240,7 +2709,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             case_timings["decode_ms"] = round((time.perf_counter() - load_started) * 1000, 1)
             stage = "scan"
             scan_started = time.perf_counter()
-            result = scan_screenshot(image, save_previews=False)
+            result = scan_screenshot(image, save_previews=save_previews)
             case_timings["scan_ms"] = round((time.perf_counter() - scan_started) * 1000, 1)
             case_profile.update(dict(result.get("profile", {})))
             case_profile["scan_total_ms"] = case_timings["scan_ms"]
@@ -2250,16 +2719,18 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             error = f"Ошибка этапа {stage}: {type(exc).__name__}"
             case_profile.update({"case_total_ms": total_ms, "result": f"{stage}_exception"})
             case_timings.update({"case_total_ms": total_ms})
+            identity_details = [
+                _empty_identity_detail(card) for card in case.get("cards", [])
+                if isinstance(card, dict) and card.get("state", "owned") == "owned"
+                and card.get("identity_verified") is True
+            ]
             result_entry = {
                 "id": case_id, "passed": False, "errors": [error],
                 "expected_cards": expected_owned_count, "detected_cards": 0,
                 "quantity_matches": 0, "quantity_checked": 0,
-                "identity_matches": 0,
-                "identity_checked": sum(
-                    1 for card in case.get("cards", [])
-                    if card.get("state", "owned") == "owned"
-                    and card.get("identity_verified") is True
-                ),
+                "identity_matches": 0, "identity_checked": len(identity_details),
+                "identity_details": identity_details,
+                "identity_decision_counts": _build_identity_stats([{"identity_details": identity_details}])["by_decision"],
                 "profile": case_profile, "timings": case_timings,
                 "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
                 "measurement_limitations": ["Ресурсные пики являются интервальными оценками."],
@@ -2292,6 +2763,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
         matched = checked = 0
         identity_matches = 0
         identity_checked = sum(1 for card in owned if card.get("identity_verified") is True)
+        identity_details: list[dict[str, Any]] = []
         for expected in owned:
             box = expected.get("box", [])
             if (
@@ -2302,6 +2774,8 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 or box[3] <= 0
             ):
                 errors.append("Некорректная эталонная рамка")
+                if expected.get("identity_verified") is True:
+                    identity_details.append(_empty_identity_detail(expected))
                 continue
             ex, ey, ew, eh = box
             best, best_iou = None, 0.0
@@ -2326,6 +2800,19 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             label = expected.get("card_name") or expected.get("card_id") or "Карта"
             if best is None or best_iou < 0.70:
                 errors.append(f"{label}: IoU {best_iou:.2f}, требуется не менее 0.70")
+                if expected.get("identity_verified") is True:
+                    identity_details.append({
+                        "expected_card_id": str(expected.get("card_id") or ""),
+                        "expected_card_name": str(expected.get("card_name") or label),
+                        "matched_card_id": None, "matched": False, "decision": "unmatched_other",
+                        "match_score": None, "runner_up_id": None, "runner_up_score": None, "margin": None,
+                        "strong_count": 0, "acceptable_count": 0, "color_ratio": None, "color_penalty": None,
+                        "distances_to_expected": {k: None for k in ("full_phash", "full_dhash", "visual_phash", "visual_dhash", "frame_colorhash_bits", "frame_colorhash_ratio")},
+                        "distances_to_matched": None, "distances_to_runner_up": None,
+                        "crop": {"box": None, "width": None, "height": None},
+                        "quantity": {"expected": _identity_quantity(expected.get("expected_quantity", 1)), "detected": None},
+                        "has_counter_evidence": False, "hash_reuse": False,
+                    })
                 continue
             actual_index = next((index for index, candidate in enumerate(detected) if candidate is best), None)
             unmatched.remove(best)
@@ -2337,6 +2824,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             if coverage < 0.90: errors.append(f"{label}: покрытие карты {coverage:.0%}, требуется ≥ 90%")
             if precision < 0.75: errors.append(f"{label}: точность кропа {precision:.0%}, требуется ≥ 75%")
             checked += 1
+            actual_quantity = None
             try:
                 actual_quantity = int(best.get("quantity", 1))
                 expected_quantity = int(expected.get("expected_quantity", 1))
@@ -2351,25 +2839,72 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                     )
             if expected.get("identity_verified") is True:
                 expected_id = str(expected.get("card_id") or "").strip()
-                actual_identity = (
-                    catalog_matches[actual_index]
-                    if actual_index is not None and actual_index < len(catalog_matches)
-                    and isinstance(catalog_matches[actual_index], dict)
-                    else {}
-                )
+                actual_identity = catalog_matches[actual_index] if actual_index is not None and actual_index < len(catalog_matches) and isinstance(catalog_matches[actual_index], dict) else {}
                 actual_id = str(actual_identity.get("id") or "").strip() if actual_identity.get("matched") else ""
-                if expected_id == actual_id:
+                scan_hashes = clean_hashes(best.get("hashes"))
+                raw_hashes = clean_hashes(best.get("raw_hashes"))
+                hash_reuse = bool(raw_hashes) and scan_hashes == raw_hashes
+                detail = _match_card_detailed(scan_hashes, catalog)
+                if raw_hashes != scan_hashes:
+                    raw_detail = _match_card_detailed(raw_hashes, catalog)
+                    if raw_detail.get("id") is not None and (detail.get("score") is None or raw_detail["score"] < detail["score"]):
+                        detail, scan_hashes = raw_detail, raw_hashes
+                runner_id = detail.get("runner_up_id")
+                expected_distances = _identity_hash_distances(scan_hashes, catalog.get(expected_id))
+                matched_info = catalog.get(actual_id) if actual_id else None
+                # Пустой expected_id = вручную подтверждённая неизвестная карта:
+                # успех, если матчер тоже ничего не выбрал.
+                is_unknown_ok = (not expected_id) and (not actual_id)
+                is_known_ok = bool(actual_id) and actual_id == expected_id
+                if is_unknown_ok or is_known_ok:
+                    decision = "matched_ok"
+                elif actual_id:
+                    decision = "wrong_id"
+                else:
+                    decision = detail.get("reason", "unmatched_other")
+                if decision not in (
+                    "matched_ok",
+                    "wrong_id",
+                    "unmatched_no_candidates",
+                    "unmatched_low_strong",
+                    "unmatched_low_margin",
+                    "unmatched_color_reject",
+                    "unmatched_outlier_hash",
+                ):
+                    decision = "unmatched_other"
+                if decision == "matched_ok":
                     identity_matches += 1
                 else:
-                    expected_label = expected_id or "неизвестная карта"
-                    actual_label = actual_id or "совпадение не найдено"
-                    errors.append(f"{label}: ID карты — ожидалось {expected_label}, распознано {actual_label}")
+                    errors.append(
+                        f"{label}: ID карты — ожидалось {expected_id or 'неизвестная карта'}, "
+                        f"распознано {actual_id or 'совпадение не найдено'}"
+                    )
+                score_value = detail.get("score") if actual_id else detail.get("candidate_score")
+                identity_details.append({
+                    "expected_card_id": expected_id, "expected_card_name": str(expected.get("card_name") or label),
+                    "matched_card_id": actual_id or None, "matched": bool(actual_id), "decision": decision,
+                    "match_score": round(float(score_value), 3) if score_value is not None else None,
+                    "runner_up_id": runner_id,
+                    "runner_up_score": round(float(detail["runner_up_score"]), 3) if detail.get("runner_up_score") is not None else None,
+                    "margin": round(float(detail["margin"]), 3) if detail.get("margin") is not None and math.isfinite(float(detail["margin"])) else None,
+                    "strong_count": int(detail.get("strong_count", 0)), "acceptable_count": int(detail.get("acceptable_count", 0)),
+                    "color_ratio": round(float(detail["color_ratio"]), 4) if detail.get("color_ratio") is not None else None,
+                    "color_penalty": round(float(detail["color_penalty"]), 4) if detail.get("color_penalty") is not None else None,
+                    "distances_to_expected": expected_distances,
+                    "distances_to_matched": _identity_hash_distances(scan_hashes, matched_info) if matched_info else None,
+                    "distances_to_runner_up": _identity_hash_distances(scan_hashes, catalog.get(runner_id)) if runner_id else None,
+                    "crop": {"box": [ax, ay, aw, ah], "width": aw, "height": ah},
+                    "quantity": {"expected": _identity_quantity(expected.get("expected_quantity", 1)), "detected": actual_quantity},
+                    "has_counter_evidence": _has_counter_evidence(float(best.get("quantity_confidence", 0) or 0), best.get("counter_debug", {}) if isinstance(best.get("counter_debug"), dict) else {}),
+                    "hash_reuse": hash_reuse,
+                })
         case_timings["quality_check_ms"] = round((time.perf_counter() - quality_started) * 1000, 1)
         case_profile["quality_passed"] = not errors
         case_profile["quantity_matches"] = matched
         case_profile["quantity_checked"] = checked
         case_profile["identity_matches"] = identity_matches
         case_profile["identity_checked"] = identity_checked
+        identity_decision_counts = _build_identity_stats([{"identity_details": identity_details}])["by_decision"]
         processed += 1
         _, resource_metrics = resource_monitor.finish_case(case_before, case_started, case_samples)
         result_started = time.perf_counter()
@@ -2378,6 +2913,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             "expected_cards": len(owned), "detected_cards": len(detected),
             "quantity_matches": matched, "quantity_checked": checked,
             "identity_matches": identity_matches, "identity_checked": identity_checked,
+            "identity_details": identity_details, "identity_decision_counts": identity_decision_counts,
             "profile": case_profile, "timings": case_timings,
             "cpu_metrics": resource_metrics["cpu"], "memory_metrics": resource_metrics["memory"],
             "measurement_limitations": ["Пики CPU и памяти являются интервальными оценками; короткие пики могут быть пропущены."],
@@ -2414,6 +2950,9 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
     aggregate_timing_values["test.catalog_load_ms"] = [catalog_load_ms]
 
     resource_summary = resource_monitor.summary()
+    diagnostics_runtime = SCANNER_DIAGNOSTICS.resource_metrics(ACTIVE_SCAN_REQUESTS)
+    scanner_warmup = SCANNER_PREWARM.snapshot()
+    prewarm_flags = SCANNER_PREWARM.feature_flags()
     scan_times = [
         float(item["timings"]["scan_ms"])
         for item in results
@@ -2453,19 +2992,25 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
         },
     }
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "metadata": {
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat(),
             "duration_ms": test_duration_ms,
             "run_id": report_id,
-            "schema_version": 1,
+            "worker_run_id": SCANNER_DIAGNOSTICS.run_id,
+            "worker_pid": os.getpid(),
+            "schema_version": 2,
             "case_count": len(cases),
             "processed_count": processed,
             "passed_count": passed,
             "failed_count": len(results) - passed,
             "error_count": error_count,
             "profiling_mode": "server-side stdlib process and cgroup sampling",
+            "preview_mode": "enabled" if save_previews else "disabled",
+            "scanner_warmup": scanner_warmup,
+            "prewarm_trigger": SCANNER_PREWARM.trigger,
+            "prewarm_feature_flags": prewarm_flags,
             "timings": {
                 "manifest_fetch_ms": manifest_fetch_ms,
                 "catalog_load_ms": catalog_load_ms,
@@ -2479,6 +3024,9 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             "os": platform.platform(),
             "platform": platform.system(),
             "git_sha": get_app_commit(),
+            "worker_pid": os.getpid(),
+            "worker_run_id": SCANNER_DIAGNOSTICS.run_id,
+            "runtime_metrics": diagnostics_runtime,
             "cpu_count": resource_summary["end_state"].get("cpu_count"),
             "available_cpu_count": resource_summary["end_state"].get("available_cpu_count"),
             "cpu_limit": resource_summary["end_state"].get("cpu_limit"),
@@ -2506,6 +3054,7 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
             "max_case_duration_ms": max((float(item.get("timings", {}).get("case_total_ms", 0.0)) for item in results if isinstance(item.get("timings"), dict)), default=0.0),
             "peak_rss": resource_summary["sampled_peak_rss_bytes"],
             "peak_cpu": resource_summary["cpu_peak_percent"],
+            "identity_stats": _build_identity_stats(results),
         },
         "resource_usage": {
             "start_state": resource_summary["start_state"],
@@ -2547,6 +3096,8 @@ def _run_screenshot_tests(resource_monitor: _ResourceMonitor) -> dict[str, Any]:
                 "detected_cards": item.get("detected_cards"),
                 "quality_result": item.get("passed"),
                 "matches": {"quantity": item.get("quantity_matches"), "identity": item.get("identity_matches")},
+                "identity_details": item.get("identity_details", []),
+                "identity_decision_counts": item.get("identity_decision_counts", {}),
                 "mismatches": {"quantity": max(item.get("quantity_checked", 0) - item.get("quantity_matches", 0), 0), "identity": max(item.get("identity_checked", 0) - item.get("identity_matches", 0), 0)},
                 "profile": item.get("profile"),
                 "timings": item.get("timings"),
@@ -2950,7 +3501,7 @@ def _send_telegram_message(chat_id: int, text: str) -> None:
         raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN не задан на сервере")
 
     payload = json.dumps({"chat_id": chat_id, "text": text}).encode("utf-8")
-    request = Request(
+    request = UrlRequest(
         f"https://api.telegram.org/bot{bot_token}/sendMessage",
         data=payload,
         headers={"Content-Type": "application/json"},
@@ -2995,7 +3546,7 @@ def _send_telegram_media_group(chat_id: int, media: list[dict[str, str]]) -> Non
         return
 
     payload = json.dumps({"chat_id": chat_id, "media": media}, ensure_ascii=False).encode("utf-8")
-    request = Request(
+    request = UrlRequest(
         f"https://api.telegram.org/bot{bot_token}/sendMediaGroup",
         data=payload,
         headers={"Content-Type": "application/json"},
@@ -3155,25 +3706,85 @@ async def save_my_collection(
     if not isinstance(cards, list):
         raise HTTPException(status_code=400, detail="cards должен быть массивом")
     get_or_create_user(auth["id"])
-    saved = 0
-    for item in cards:
-        if not isinstance(item, dict) or not item.get("id"):
-            continue
-        quantity = max(0, int(item.get("quantity", 0) or 0))
-        set_user_card_quantity(auth["id"], str(item["id"]), quantity)
-        saved += 1
-    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"]) }
+    updates = _normalize_collection_updates(cards)
+    set_user_card_quantities(auth["id"], updates)
+    return {"status": "ok", "saved": len(updates), "cards": get_user_cards(auth["id"]) }
 
 
 @app.post("/scan")
-async def scan(file: UploadFile = File(...), init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+async def scan(
+    request: Request,
+    file: UploadFile = File(...),
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
     request_started = time.perf_counter()
+    request_diag = getattr(request.state, "scanner_diagnostics", None)
+    if not isinstance(request_diag, dict):
+        request_diag = {}
+        request.state.scanner_diagnostics = request_diag
+    request_started_at = getattr(request.state, "scanner_request_started", request_started)
+    session_id = getattr(request.state, "scanner_session_id", None)
+    if not session_id:
+        raw_headers = request.scope.get("headers", ())
+        session_header = next(
+            (
+                value.decode("latin-1")
+                for name, value in raw_headers
+                if name.lower() == b"x-scanner-session-id"
+            ),
+            None,
+        )
+        session_id = _scanner_session_id(session_header)
+    request.state.scanner_session_id = session_id
+    request.state.scanner_request_started = request_started_at
+    request_diag.setdefault(
+        "request_received_ms",
+        round((request_started_at - SCANNER_DIAGNOSTICS.started_monotonic) * 1000, 3),
+    )
+    request_diag["request_body_read_ms"] = round(
+        (request_started - request_started_at) * 1000, 3
+    )
     auth = _validate_telegram_init_data(init_data) if init_data else None
+    rate_key = (
+        f"user:{auth['id']}"
+        if auth
+        else f"ip:{request.client.host if request.client else 'unknown'}"
+    )
+    _enforce_scan_rate_limit(rate_key)
+    try:
+        prewarm = await SCANNER_PREWARM.on_trigger(
+            "before_scan", session_id, max(0, ACTIVE_SCAN_REQUESTS - 1)
+        )
+    except Exception as exc:
+        LOGGER.warning("Scanner before-scan prewarm check failed (%s)", type(exc).__name__)
+        prewarm = SCANNER_PREWARM.snapshot()
+    request_diag.update({
+        "warmup_status_at_scan": prewarm["warmup_status"],
+        "warmup_trigger": prewarm["warmup_trigger"],
+        "warmup_duration_ms": prewarm["warmup_duration_ms"],
+        "warmup_age_ms": SCANNER_PREWARM.warmup_age_ms(request_started),
+        "prewarm_mode": prewarm["prewarm_mode"],
+        "prewarm_check_trigger": "before_scan",
+        "prewarm_check_reason": prewarm.get("reason"),
+        "initialization_required": prewarm["warmup_status"] != "completed",
+    })
     decode_started = time.perf_counter()
     upload_profile: dict[str, Any] = {}
-    image = await _read_image(file, upload_profile)
-    upload_decode_ms = (time.perf_counter() - decode_started) * 1000
-    result = scan_screenshot(image, save_previews=True)
+    async with SCAN_SEMAPHORE:
+        image = await _read_image(file, upload_profile)
+        upload_decode_ms = (time.perf_counter() - decode_started) * 1000
+        result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
+    image_size = getattr(image, "size", (None, None))
+    request_diag.update({
+        "image_upload_size_bytes": upload_profile.get("upload_size_bytes"),
+        "image_decode_ms": upload_profile.get("upload_image_decode_ms"),
+        "image_width": upload_profile.get("upload_source_width", image_size[0]),
+        "image_height": upload_profile.get("upload_source_height", image_size[1]),
+        "image_format": upload_profile.get("upload_format"),
+        "upload_rgb_convert_ms": upload_profile.get("upload_rgb_convert_ms"),
+        "upload_file_read_ms": upload_profile.get("upload_read_ms"),
+    })
+    request_diag["image_preprocess_ms"] = result.get("profile", {}).get("rgb_convert_ms")
     matching_started = time.perf_counter()
     catalog_load_started = time.perf_counter()
     db = load_db()
@@ -3182,6 +3793,7 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
     matches = []
     matching_profile: dict[str, int] = {}
     matching_evaluation_started = time.perf_counter()
+    card_match_threshold = float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
     for card in result["cards"]:
         best_id, best_distance = _match_card(card["hashes"], db, matching_profile)
         raw_hashes = card.get("raw_hashes", {})
@@ -3191,7 +3803,7 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
                 best_id, best_distance = raw_id, raw_distance
         matched = (
             best_id is not None
-            and best_distance <= float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
+            and best_distance <= card_match_threshold
         )
         if matched:
             info = db[best_id]
@@ -3233,8 +3845,50 @@ async def scan(file: UploadFile = File(...), init_data: str = Header(default="",
     profile["matching_evaluation_ms"] = round(matching_evaluation_ms, 1)
     profile.update(matching_profile)
     profile["matched_count"] = sum(card.get("id") is not None for card in matches)
+    profile["request_received_ms"] = request_diag["request_received_ms"]
+    profile["request_body_read_ms"] = request_diag["request_body_read_ms"]
+    profile["image_upload_size_bytes"] = request_diag["image_upload_size_bytes"]
+    profile["image_decode_ms"] = request_diag["image_decode_ms"]
+    profile["image_width"] = request_diag["image_width"]
+    profile["image_height"] = request_diag["image_height"]
+    profile["image_format"] = request_diag["image_format"]
+    profile["image_preprocess_ms"] = request_diag["image_preprocess_ms"]
+    profile["upload_rgb_convert_ms"] = request_diag.get("upload_rgb_convert_ms")
+    profile["hashing_total_ms"] = round(
+        float(profile.get("raw_hash_ms", 0.0) or 0.0)
+        + float(profile.get("clean_hash_ms", 0.0) or 0.0),
+        3,
+    )
+    profile["quality_check_ms"] = None
+    profile["warmup_status"] = prewarm["warmup_status"]
+    profile["warmup_trigger"] = prewarm["warmup_trigger"]
+    profile["warmup_duration_ms"] = prewarm["warmup_duration_ms"]
+    profile["warmup_age_ms"] = request_diag["warmup_age_ms"]
+    profile["prewarm_mode"] = prewarm["prewarm_mode"]
+    profile["initialization_required"] = prewarm["warmup_status"] != "completed"
+    response_started = time.perf_counter()
+    response_data = {
+        "cards": matches,
+        "count": len(matches),
+        "authenticated": bool(auth),
+        "profile": profile,
+    }
+    response_build_ms = round((time.perf_counter() - response_started) * 1000, 3)
+    request_diag.update({
+        "detection_ms": profile.get("detection_ms"),
+        "counter_ms": profile.get("counter_ms"),
+        "raw_hash_ms": profile.get("raw_hash_ms"),
+        "clean_hash_ms": profile.get("clean_hash_ms"),
+        "hashing_total_ms": profile.get("hashing_total_ms"),
+        "matching_ms": profile.get("matching_ms"),
+        "quality_check_ms": None,
+        "response_build_ms": response_build_ms,
+    })
+    profile["response_build_ms"] = response_build_ms
+    profile["total_server_ms"] = round((time.perf_counter() - request.state.scanner_request_started) * 1000, 3)
     profile["server_total_ms"] = round((time.perf_counter() - request_started) * 1000, 1)
-    return {"cards": matches, "count": len(matches), "authenticated": bool(auth), "profile": profile}
+    request_diag["total_server_ms"] = profile["total_server_ms"]
+    return response_data
 
 
 @app.post("/admin/save-card")
@@ -3442,7 +4096,7 @@ def _github_request(method: str, url: str, token: str, payload: dict[str, Any] |
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
 
-    req = Request(url, data=body, headers=headers, method=method)
+    req = UrlRequest(url, data=body, headers=headers, method=method)
     try:
         with urlopen(req, timeout=30) as resp:
             raw = resp.read()
