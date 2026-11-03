@@ -297,9 +297,12 @@ input[type=file]{display:none}
 @keyframes upload-pulse{0%,100%{box-shadow:0 0 0 0 rgba(121,192,255,.25)}50%{box-shadow:0 0 0 10px rgba(121,192,255,0)}}
 
 /* Toast notifications */
-/* The top position is synchronized with the visible WebView viewport by JS. */
-.toast-container{position:fixed;left:50%;top:var(--toast-top,auto);bottom:auto;transform:translateX(-50%);z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(92vw,420px)}
-.toast{padding:11px 16px;border-radius:10px;font-size:13px;font-weight:700;line-height:1.35;box-shadow:0 10px 30px rgba(0,0,0,.45);border:1px solid var(--border);background:var(--surface-raised);color:var(--text);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;max-width:100%}
+/* Закреплены у верхней границы ВИДИМОЙ области: нижний край WebView/шторки Telegram может оказаться за экраном
+   (свёрнутая шторка, клавиатура, нижние панели), а верхний виден всегда. Safe area Telegram берётся из --tg-* (Bot API 8.0+).
+   У контейнера нет transform: иначе он становится containing block для fixed-потомков и сбивает их положение.
+   Тосты лежат в обычном потоке контейнера (не position:fixed), поэтому несколько уведомлений не накладываются. */
+.toast-container{position:fixed;left:0;right:0;top:calc(var(--toast-viewport-top,0px) + max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px)) + var(--tg-content-safe-area-inset-top,0px) + 12px);z-index:2000;display:flex;flex-direction:column;gap:8px;align-items:center;padding:0 14px;pointer-events:none}
+.toast{max-width:min(100%,420px);padding:10px 16px;border:1px solid var(--border);border-radius:14px;background:#1e2631;box-shadow:0 8px 24px rgba(0,0,0,.6);color:var(--text);font-size:13px;font-weight:700;line-height:1.35;text-align:center;overflow-wrap:anywhere;opacity:0;transform:translateY(-12px);transition:opacity .25s ease,transform .25s ease}
 .toast.show{opacity:1;transform:translateY(0)}
 .toast.success{border-color:#2d8748;color:#a5f3b5}
 .toast.error{border-color:#632525;color:#ff7b72}
@@ -321,50 +324,29 @@ button.trade.saving{background:linear-gradient(90deg,#1f6f3f,#2d8748,#1f6f3f);ba
 .scan-card-image{width:100%;height:100%;display:block;object-fit:cover}
 .scan-detected-badge{position:absolute;top:6px;left:6px;z-index:3;min-width:34px;padding:4px 7px;border:1px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(12,16,22,.9);color:#fff;font-size:12px;font-weight:800;line-height:1.2;text-align:center;backdrop-filter:blur(4px)}
 .scan-inventory-badge{position:absolute;left:6px;bottom:6px;z-index:3;min-width:34px;padding:4px 7px;border:1px solid rgba(255,255,255,.16);border-radius:6px;background:rgba(12,16,22,.9);color:#d7e2ea;font-size:11px;font-weight:800;line-height:1.2;text-align:center;backdrop-filter:blur(4px)}
-.scan-help-example{display:grid;grid-template-columns:minmax(112px,150px) minmax(0,1fr);gap:12px;align-items:center;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
-.scan-help-art{position:relative;width:100%;aspect-ratio:2/3;overflow:hidden;border-radius:8px;background:#0c0f12}
-.scan-help-art>img:first-child{display:block;width:100%;height:100%;object-fit:cover}
-.scan-help-badge{position:absolute;top:6px;min-width:31px;padding:4px 6px;border:1px solid rgba(255,255,255,.2);border-radius:6px;background:rgba(12,16,22,.94);color:#fff;font-size:11px;font-weight:800;text-align:center;line-height:1.2}
-.scan-help-badge.detected{left:6px}.scan-help-badge.owned{left:6px;top:auto;bottom:6px;background:rgba(16,48,27,.96);border-color:#2d8748;color:#a5f3b5}.scan-help-badge.counter{right:6px;left:auto;background:rgba(25,38,58,.96);border-color:#52749b;color:#c5ddff}
-.scan-help-reference{position:absolute;right:5px;bottom:5px;width:31%;aspect-ratio:2/3;padding:2px;border:1px solid rgba(255,255,255,.85);border-radius:6px;background:#090c10;object-fit:contain;box-shadow:0 2px 8px rgba(0,0,0,.6)}
-.scan-help-callouts{display:grid;gap:9px;min-width:0;font-size:12px;line-height:1.35;color:var(--text-muted)}
-.scan-help-callout{display:grid;grid-template-columns:12px minmax(0,1fr);gap:6px;align-items:start}
-.scan-help-dot{width:9px;height:9px;margin-top:3px;border-radius:50%;background:var(--accent)}
-.scan-help-dot.green{background:#3fb950}.scan-help-dot.gold{background:var(--gold)}
-.scan-help-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)}
-.scan-help-controls .demo-check{width:18px;height:18px;border-radius:4px;background:#8bbcf5;color:#102033;display:inline-flex;align-items:center;justify-content:center;font-weight:900}
-.scan-help-controls .demo-qty{padding:4px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface-raised);color:var(--text);font-weight:800}
-@media(max-width:380px){.scan-help-example{grid-template-columns:112px minmax(0,1fr);gap:9px;padding:8px}.scan-help-callouts{font-size:11px}}
-.scan-inventory-badge.owned{background:rgba(16,48,27,.94);border-color:#2d8748;color:#a5f3b5}
-.scan-inventory-badge.not-owned{background:rgba(40,28,14,.94);border-color:#8a6428;color:#fcd58a}
-.scan-reference{position:absolute;right:6px;bottom:6px;z-index:2;width:31%;max-width:86px;aspect-ratio:2/3;padding:3px;border:1px solid rgba(255,255,255,.72);border-radius:7px;background:rgba(9,12,16,.94);box-shadow:0 2px 10px rgba(0,0,0,.6);object-fit:contain}
-.scan-reference-placeholder{position:absolute;right:6px;bottom:6px;z-index:2;width:31%;max-width:86px;aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;padding:3px;border:1px solid rgba(255,255,255,.3);border-radius:7px;background:rgba(9,12,16,.94);color:var(--text-muted);font-size:9px;text-align:center}
-
-.scan-reference{cursor:zoom-in;transition:transform .15s,border-color .15s}
-.scan-reference:active{transform:scale(.96)}
-/* Side-by-side comparison of scanned crop and reference card. */
-.scan-compare-overlay{position:fixed;inset:0;z-index:1500;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.84);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);opacity:0;pointer-events:none;transition:opacity .18s}
-.scan-compare-overlay.open{opacity:1;pointer-events:auto}
-.scan-compare-dialog{position:relative;width:min(100%,760px);max-height:calc(100dvh - 28px);overflow:auto;background:linear-gradient(160deg,rgba(255,255,255,.035),transparent 45%),var(--surface);border:1px solid #3a424e;border-radius:var(--radius-lg);padding:16px;box-shadow:0 20px 64px rgba(0,0,0,.72);transform:translateY(8px) scale(.99);transition:transform .18s;outline:none}
-.scan-compare-overlay.open .scan-compare-dialog{transform:translateY(0) scale(1)}
-.scan-compare-close{position:absolute;top:8px;right:8px;z-index:2;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:rgba(12,16,22,.92);color:#fff;font-size:24px;line-height:1;cursor:pointer}
-.scan-compare-title{margin:2px 42px 14px 0;font-size:15px;font-weight:800}
-.scan-compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.scan-compare-item{min-width:0}
-.scan-compare-label{margin-bottom:6px;color:var(--text-muted);font-size:12px;font-weight:700;text-align:center}
-.scan-compare-image-wrap{height:min(58dvh,520px);min-height:180px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid #303946;border-radius:var(--radius-sm);background:radial-gradient(ellipse at center,#151b23 0%,#090c10 75%)}
-.scan-compare-image{display:block;width:100%;height:100%;object-fit:contain}
-.scan-compare-missing{padding:12px;color:var(--text-muted);font-size:12px;text-align:center}
-@media(max-width:420px){.scan-compare-dialog{padding:12px}.scan-compare-grid{gap:7px}.scan-compare-image-wrap{height:min(52dvh,420px);min-height:150px}.scan-compare-label{font-size:11px}}
-
-.scan-help{grid-column:1/-1;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-raised);padding:9px 11px;margin-bottom:10px;font-size:12px;color:var(--text-muted)}
+/* Справка по обозначениям. Пример собран из тех же классов, что и реальная карточка результата
+   (.scan-card-art, .scan-detected-badge, .scan-inventory-badge, .scan-reference), поэтому выглядит так же, как результат. */
+.scan-help{grid-column:1/-1;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-raised);padding:9px 11px;margin-bottom:10px;font-size:12px;line-height:1.4;color:var(--text-muted)}
 .scan-help summary{color:var(--text);font-weight:700;cursor:pointer;list-style:none}
 .scan-help summary::-webkit-details-marker{display:none}
 .scan-help summary::before{content:'ⓘ ';color:var(--accent)}
 .scan-help[open] summary{margin-bottom:8px}
-.scan-help-list{display:grid;gap:7px;line-height:1.4}
-.scan-help-item{display:flex;align-items:flex-start;gap:8px}
-.scan-help-symbol{flex:0 0 auto;min-width:38px;text-align:center;padding:2px 5px;border:1px solid var(--border);border-radius:5px;background:#10151b;color:#fff;font-weight:800}
+.scan-help-intro{margin:0 0 10px}
+.scan-help-example{display:grid;grid-template-columns:minmax(104px,124px) minmax(0,1fr);gap:12px;align-items:start}
+.scan-help-art{pointer-events:none;-webkit-user-select:none;user-select:none}
+.scan-help-art .scan-reference{cursor:default}
+.scan-help-game-counter{position:absolute;top:5px;right:5px;z-index:3;min-width:32%;padding:1px 5px;border-radius:5px;background:rgba(170,170,170,.72);color:#fff;font-size:15px;font-weight:900;line-height:1.25;text-align:center;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.scan-help-legend,.scan-help-controls{list-style:none;margin:0;padding:0;max-width:64ch;min-width:0}
+.scan-help-legend{display:grid;gap:9px}
+.scan-help-legend li,.scan-help-controls li{min-width:0;overflow-wrap:anywhere}
+.scan-help-legend b{color:var(--text);font-weight:750}
+.scan-help-dir{display:inline-block;width:1.3em;color:var(--accent);font-weight:800}
+.scan-help-controls{display:grid;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.scan-help-controls li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:start}
+.scan-help-controls b{color:var(--text);font-weight:750}
+.scan-help-key{justify-self:center;min-width:24px;padding:2px 7px;border:1px solid var(--border);border-radius:6px;background:#10151b;color:#fff;font-size:12px;font-weight:800;line-height:1.3;text-align:center;white-space:nowrap}
+.scan-help-key.is-check{width:20px;height:20px;min-width:0;padding:0;border:0;border-radius:4px;background:#8bbcf5;color:#102033;font-weight:900;line-height:20px}
+@media(min-width:600px){.scan-help-example{grid-template-columns:150px minmax(0,1fr)}}
 .scan-row{display:flex;gap:8px;align-items:center;margin-top:8px}
 .scan-row label{display:flex;align-items:center;gap:6px;font-size:12px;color:#c9cdd1;cursor:pointer}
 .scan-row input[type=checkbox]{width:18px;height:18px}
@@ -465,31 +447,6 @@ button.trade.saving{background:linear-gradient(90deg,#1f6f3f,#2d8748,#1f6f3f);ba
 .modal-btn-cancel{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:9px;border-radius:8px;font-weight:700;cursor:pointer}
 .modal-btn-save{background:var(--accent);border:none;color:#fff;padding:9px;border-radius:8px;font-weight:700;cursor:pointer}
 
-/* Toast Notifications */
-.toast{
-  position:fixed;
-  top:14px;
-  left:50%;
-  transform:translateX(-50%) translateY(-40px);
-  background:#1e2631;
-  border:1px solid var(--border-focus);
-  box-shadow:0 8px 24px rgba(0,0,0,0.6);
-  border-radius:24px;
-  padding:8px 16px;
-  font-size:13px;
-  font-weight:700;
-  color:#fff;
-  z-index:1200;
-  opacity:0;
-  pointer-events:none;
-  transition:all .25s ease;
-  white-space:normal;
-  width:max-content;
-  max-width:calc(100vw - 28px);
-  text-align:center;
-}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
 .empty{color:var(--text-muted);text-align:center;padding:24px 8px;font-size:13px}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--border-focus)!important;outline-offset:2px}
 @media(max-width:600px){
@@ -546,31 +503,29 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     <div class="hint">Проверьте распознанные карты и количество. Сохранение обновит только выбранные карты.</div>
     <details class="scan-help">
       <summary>Справка по обозначениям</summary>
-      <p class="scan-help-intro">На примере показано, где именно находятся обозначения на карточке после сканирования.</p>
+      <p class="scan-help-intro">Так выглядит карточка в результатах сканирования.</p>
       <div class="scan-help-example">
-        <div class="scan-help-art" aria-label="Пример карточки Керамбит с обозначениями">
-          <img src="/static/cards/card_53.webp" alt="Карта Керамбит">
-          <span class="scan-help-badge detected">×4</span>
-          <span class="scan-help-badge counter">×3</span>
-          <span class="scan-help-badge owned">✓ ×2</span>
-          <img class="scan-help-reference" src="/static/cards/card_53.webp" alt="Миниатюра эталона карты">
+        <div class="scan-card-art scan-help-art" role="img" aria-label="Пример карточки: слева сверху ×4, справа сверху счётчик из игры ×4, слева снизу ✓ ×2, справа снизу миниатюра эталона">
+          <img class="scan-card-image" src="/static/cards/card_53.webp" alt="" loading="lazy">
+          <span class="scan-help-game-counter" aria-hidden="true">×4</span>
+          <span class="scan-detected-badge" aria-hidden="true">×4</span>
+          <span class="scan-inventory-badge owned" aria-hidden="true">✓ ×2</span>
+          <img class="scan-reference" src="/static/cards/card_53.webp" alt="" aria-hidden="true" loading="lazy">
         </div>
-        <div class="scan-help-callouts">
-          <div class="scan-help-callout"><span class="scan-help-dot"></span><span><b>Слева сверху — ×4</b><br>Сколько копий этой карты распознано на загруженном скриншоте.</span></div>
-          <div class="scan-help-callout"><span class="scan-help-dot green"></span><span><b>Слева снизу — ✓ ×2</b><br>Карта уже есть в вашем инвентаре. Число — сколько копий сохранено у вас.</span></div>
-          <div class="scan-help-callout"><span class="scan-help-dot"></span><span><b>Справа сверху — ×3</b><br>Счётчик количества копий карты для сохранения. Его значение можно изменить вручную в поле «Количество» под карточкой.</span></div>
-          <div class="scan-help-callout"><span class="scan-help-dot gold"></span><span><b>Справа снизу — миниатюра</b><br>Эталон карты. Нажмите на него, чтобы сравнить с распознанным изображением.</span></div>
-        </div>
+        <ul class="scan-help-legend">
+          <li><b><span class="scan-help-dir" aria-hidden="true">↖</span>Слева сверху</b> — количество для сохранения. Сначала равно числу со скриншота; при ручной правке меняется.</li>
+          <li><b><span class="scan-help-dir" aria-hidden="true">↗</span>Справа сверху</b> — счётчик из самой игры, по нему сканер определил количество. Нет счётчика — слева будет ×1.</li>
+          <li><b><span class="scan-help-dir" aria-hidden="true">↙</span>Слева снизу</b> — сколько копий уже в инвентаре. ×0 — карты нет, «?» — не распознана и не сохранится.</li>
+          <li><b><span class="scan-help-dir" aria-hidden="true">↘</span>Справа снизу</b> — эталон из каталога. Нажмите, чтобы сравнить со скриншотом.</li>
+        </ul>
       </div>
-      <div class="scan-help-controls">
-        <span class="demo-check" aria-hidden="true">✓</span><b>Выбрать</b><span>— сохранить эту карту в инвентарь.</span>
-        <span class="demo-qty">4</span><span>— количество можно исправить вручную.</span>
-      </div>
-      <div class="scan-help-list" style="margin-top:8px">
-        <div class="scan-help-item"><span class="scan-help-symbol">×0</span><span>Если карты ещё нет в инвентаре, справа сверху будет ×0 без галочки.</span></div>
-        <div class="scan-help-item"><span class="scan-help-symbol">дубл.: 3</span><span>Количество лишних копий сверх одной. Например, при ×4 у вас 3 дубликата.</span></div>
-      </div>
+      <ul class="scan-help-controls">
+        <li><span class="scan-help-key is-check" aria-hidden="true">✓</span><span><b>Выбрать</b> — сохранить карту в инвентарь. Сохраняются только отмеченные.</span></li>
+        <li><span class="scan-help-key" aria-hidden="true">4</span><span><b>Число рядом</b> — сколько копий сохранить. Исправьте, если сканер ошибся: оно заменит текущее количество, а не прибавится.</span></li>
+        <li><span class="scan-help-key" aria-hidden="true">дубл.</span><span><b>После: ×4 · дубл.: 3</b> — итог после сохранения; дубликаты — копии сверх одной.</span></li>
+      </ul>
     </details>
+
     <div id="scanSummary" class="summary"></div>
     <div id="cardsList" class="grid"></div>
     <button id="confirmBtn" class="trade" style="display:none">Подтвердить и сохранить выбранные</button>
@@ -773,24 +728,17 @@ tg?.expand();
 
 const API = '';
 
-// Keep notifications inside the actually visible area of mobile WebViews.
+// Toasts are pinned to the top of the *visible* viewport (see .toast-container in the CSS):
+// the bottom edge of the WebView can be off-screen (collapsed Telegram sheet, keyboard, bottom bars), the top never is.
+// visualViewport.offsetTop is non-zero when the page is panned/zoomed or the on-screen keyboard shifts the viewport.
 function updateToastPosition() {
-  if (!toastContainer) return;
-  const viewport = window.visualViewport;
-  const viewportTop = viewport ? viewport.offsetTop : 0;
-  const viewportHeight = viewport ? viewport.height : window.innerHeight;
-  const telegramSafeArea = Math.max(
-    Number(tg?.safeAreaInset?.bottom) || 0,
-    Number(tg?.contentSafeAreaInset?.bottom) || 0
-  );
-  const safeArea = Math.max(telegramSafeArea, 0);
-  const top = Math.max(8, viewportTop + viewportHeight - toastContainer.offsetHeight - safeArea - 16);
-  toastContainer.style.setProperty('--toast-top', top + 'px');
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const offsetTop = Math.max(0, Number(window.visualViewport?.offsetTop) || 0);
+  container.style.setProperty('--toast-viewport-top', offsetTop + 'px');
 }
 window.visualViewport?.addEventListener('resize', updateToastPosition);
 window.visualViewport?.addEventListener('scroll', updateToastPosition);
-window.addEventListener('resize', updateToastPosition);
-tg?.onEvent?.('viewportChanged', updateToastPosition);
 
 const telegramInitData = tg?.initData || '';
 if (telegramInitData) document.getElementById('feedbackPanel')?.style.setProperty('display', 'block');
