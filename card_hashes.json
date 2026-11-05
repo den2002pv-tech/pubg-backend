@@ -1329,6 +1329,71 @@
       "hash": "3cbcb6322efee88e",
       "rarity": 2,
       "icon": "/static/cards/card_118.webp"
+    },
+    "card_119": {
+      "name": "Pumpkini Pumpkina",
+      "hashes": {
+        "full_phash": "b528989f77e048cd",
+        "full_dhash": "3cb8924e5e7ee88e",
+        "visual_phash": "a3589e37e0c96d98",
+        "visual_dhash": "7c7c13874e5f7ffe",
+        "frame_colorhash": "07007000000"
+      },
+      "hash": "3cb8924e5e7ee88e",
+      "rarity": 2,
+      "icon": "/static/cards/card_119.webp"
+    },
+    "card_120": {
+      "name": "Серия Зомби 1",
+      "hashes": {
+        "full_phash": "b51a82bd7fc260c3",
+        "full_dhash": "38bc972f3e16da8e",
+        "visual_phash": "bad6913fd06949a4",
+        "visual_dhash": "786c17172d3f1317",
+        "frame_colorhash": "07007000000"
+      },
+      "hash": "38bc972f3e16da8e",
+      "rarity": 2,
+      "icon": "/static/cards/card_120.webp"
+    },
+    "card_121": {
+      "name": "Подарок Тыква",
+      "hashes": {
+        "full_phash": "953aa09ddbde60c2",
+        "full_dhash": "38acac7858b2ea8e",
+        "visual_phash": "bb36ad9b953840cc",
+        "visual_dhash": "7c4ea52c54593bf3",
+        "frame_colorhash": "07007000000"
+      },
+      "hash": "38acac7858b2ea8e",
+      "rarity": 2,
+      "icon": "/static/cards/card_121.webp"
+    },
+    "card_122": {
+      "name": "Magixx",
+      "hashes": {
+        "full_phash": "fe1e812af56d43c0",
+        "full_dhash": "3175300c2565338e",
+        "visual_phash": "df99086a6b4b698c",
+        "visual_dhash": "5174724a25256455",
+        "frame_colorhash": "06e00000000"
+      },
+      "hash": "3175300c2565338e",
+      "rarity": 3,
+      "icon": "/static/cards/card_122.webp"
+    },
+    "card_123": {
+      "name": "Кубок PMGO Пакистана",
+      "hashes": {
+        "full_phash": "e4f4810f59d76499",
+        "full_dhash": "8c8e84043365c78e",
+        "visual_phash": "e4a5825ad0d77999",
+        "visual_dhash": "ac4e0644543364c6",
+        "frame_colorhash": "06e00000000"
+      },
+      "hash": "8c8e84043365c78e",
+      "rarity": 3,
+      "icon": "/static/cards/card_123.webp"
     }
   }
 }
