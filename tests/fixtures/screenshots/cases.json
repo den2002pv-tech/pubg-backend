@@ -2534,6 +2534,170 @@
         }
       ],
       "image_sha256": "e6db0d73ab48c19b79f886760bdc5001225513fc7242e6019fb87d7d1e7a68d2"
+    },
+    {
+      "id": "inventory-20261105195427",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261105195427.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            154,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Pumpkini Pumpkina",
+          "card_id": "card_119",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 145.376,
+            "luminance_median": 147.0,
+            "luminance_stddev": 39.989,
+            "saturation_mean": 62.925,
+            "saturation_median": 61.0,
+            "saturated_pixel_ratio": 0.4005,
+            "frame_luminance_mean": 153.585,
+            "frame_saturation_mean": 41.405,
+            "center_luminance_mean": 130.402,
+            "center_luminance_median": 135.0,
+            "center_luminance_stddev": 43.363,
+            "center_saturation_mean": 82.696,
+            "title_luminance_mean": 149.945,
+            "title_luminance_median": 156.0,
+            "title_luminance_stddev": 24.532,
+            "title_saturation_mean": 47.543,
+            "bottom_luminance_mean": 168.584,
+            "bottom_luminance_median": 180.0,
+            "bottom_luminance_stddev": 37.111,
+            "bottom_saturation_mean": 36.296
+          }
+        },
+        {
+          "box": [
+            474,
+            154,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Серия Зомби 1",
+          "card_id": "card_120",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 131.717,
+            "luminance_median": 136.0,
+            "luminance_stddev": 49.98,
+            "saturation_mean": 58.023,
+            "saturation_median": 58.0,
+            "saturated_pixel_ratio": 0.3409,
+            "frame_luminance_mean": 156.247,
+            "frame_saturation_mean": 41.76,
+            "center_luminance_mean": 100.068,
+            "center_luminance_median": 112.0,
+            "center_luminance_stddev": 47.283,
+            "center_saturation_mean": 71.682,
+            "title_luminance_mean": 150.293,
+            "title_luminance_median": 156.0,
+            "title_luminance_stddev": 24.851,
+            "title_saturation_mean": 47.368,
+            "bottom_luminance_mean": 169.975,
+            "bottom_luminance_median": 181.0,
+            "bottom_luminance_stddev": 38.242,
+            "bottom_saturation_mean": 37.221
+          }
+        },
+        {
+          "box": [
+            743,
+            154,
+            240,
+            352
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Серия Вампир 1",
+          "card_id": "card_70",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 132.741,
+            "luminance_median": 137.0,
+            "luminance_stddev": 51.751,
+            "saturation_mean": 69.632,
+            "saturation_median": 63.0,
+            "saturated_pixel_ratio": 0.441,
+            "frame_luminance_mean": 157.324,
+            "frame_saturation_mean": 41.013,
+            "center_luminance_mean": 101.873,
+            "center_luminance_median": 115.0,
+            "center_luminance_stddev": 51.286,
+            "center_saturation_mean": 97.427,
+            "title_luminance_mean": 150.227,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 26.631,
+            "title_saturation_mean": 43.446,
+            "bottom_luminance_mean": 170.804,
+            "bottom_luminance_median": 182.0,
+            "bottom_luminance_stddev": 38.634,
+            "bottom_saturation_mean": 37.132
+          }
+        },
+        {
+          "box": [
+            1012,
+            154,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Мистическая Аврора",
+          "card_id": "card_124",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 120.864,
+            "luminance_median": 124.0,
+            "luminance_stddev": 38.973,
+            "saturation_mean": 53.322,
+            "saturation_median": 14.0,
+            "saturated_pixel_ratio": 0.2801,
+            "frame_luminance_mean": 140.886,
+            "frame_saturation_mean": 9.485,
+            "center_luminance_mean": 111.898,
+            "center_luminance_median": 122.0,
+            "center_luminance_stddev": 36.452,
+            "center_saturation_mean": 91.859,
+            "title_luminance_mean": 124.112,
+            "title_luminance_median": 119.0,
+            "title_luminance_stddev": 24.032,
+            "title_saturation_mean": 26.096,
+            "bottom_luminance_mean": 124.925,
+            "bottom_luminance_median": 122.0,
+            "bottom_luminance_stddev": 42.07,
+            "bottom_saturation_mean": 9.044
+          }
+        }
+      ],
+      "image_sha256": "557c577563d818a361a170f546e386997f964ef9d98abc0aef94440bd44f7017"
     }
   ]
 }
