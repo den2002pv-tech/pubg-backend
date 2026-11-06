@@ -4194,6 +4194,10 @@ def _github_commit_branch() -> str:
     return "feature/card-counter"
 
 
+def _git_blob_sha(content: bytes) -> str:
+    return hashlib.sha1(f"blob {len(content)}\0".encode("ascii") + content).hexdigest()
+
+
 def _github_commit() -> dict[str, Any]:
     token = os.getenv("GITHUB_TOKEN", "")
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
@@ -4216,6 +4220,8 @@ def _github_commit() -> dict[str, Any]:
         f"{api}/git/trees/{head_sha}?recursive=1",
         token,
     )
+    if tree_data.get("truncated"):
+        raise HTTPException(status_code=502, detail="GitHub API вернул неполное дерево файлов")
     existing = {
         item["path"]: item["sha"]
         for item in tree_data.get("tree", [])
@@ -4238,6 +4244,8 @@ def _github_commit() -> dict[str, Any]:
     tree_entries: list[dict[str, Any]] = []
 
     for path, content in blobs:
+        if existing.get(path) == _git_blob_sha(content):
+            continue
         blob = _github_request(
             "POST",
             f"{api}/git/blobs",
@@ -4253,6 +4261,16 @@ def _github_commit() -> dict[str, Any]:
     for path in existing:
         if path.startswith("static/cards/") and path.endswith(".webp") and path not in local_icons:
             tree_entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+
+    if not tree_entries:
+        return {
+            "status": "no_changes",
+            "commit": head_sha,
+            "url": "",
+            "cards": len(load_db()),
+            "icons": len(local_icons),
+            "branch": branch,
+        }
 
     new_tree = _github_request(
         "POST",
