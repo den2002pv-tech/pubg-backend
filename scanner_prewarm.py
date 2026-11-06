@@ -45,6 +45,7 @@ class ScannerPrewarmController:
         self._warmup = warmup
         self._lock = asyncio.Lock()
         self._task: asyncio.Task[None] | None = None
+        self._worker_task: asyncio.Task[None] | None = None
         self._attempted = False
         self._status = "not_started"
         self._duration_ms: float | None = None
@@ -98,8 +99,19 @@ class ScannerPrewarmController:
         }
 
     async def shutdown(self) -> None:
-        if self._task is not None and not self._task.done():
-            await asyncio.gather(self._task, return_exceptions=True)
+        # A timed-out asyncio wrapper does not stop its underlying worker thread.
+        # Keep shutdown bounded so a stuck warmup cannot hang application shutdown.
+        for task in (self._task, self._worker_task):
+            if task is None or task.done():
+                continue
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(task),
+                    timeout=_WARMUP_TIMEOUT_SECONDS,
+                )
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                if asyncio.current_task() is not None and asyncio.current_task().cancelling():
+                    raise
 
     async def on_application_start(self, active_requests: int = 0) -> dict[str, Any]:
         session_id = uuid.uuid4().hex
@@ -177,6 +189,22 @@ class ScannerPrewarmController:
                 return self._report(
                     session_id, trigger, "running", "warmup_in_progress", active_requests
                 )
+            if self._worker_task is not None:
+                if not self._worker_task.done():
+                    return self._report(
+                        session_id, trigger, self._status,
+                        "warmup_worker_still_running", active_requests,
+                    )
+                # Retrieve a possible late worker exception after a timeout/cancel.
+                try:
+                    self._worker_task.exception()
+                except asyncio.CancelledError:
+                    pass
+                self._worker_task = None
+            if self._status == "completed":
+                return self._report(
+                    session_id, trigger, "completed", "already_warm", active_requests
+                )
             if self._attempted:
                 return self._report(
                     session_id,
@@ -228,13 +256,18 @@ class ScannerPrewarmController:
             "cpu_experiment_requested": _cpu_experiment_requested(),
             "runtime_resources": self.diagnostics.resource_metrics(active_requests),
         })
+        worker_task = asyncio.create_task(asyncio.to_thread(self._warmup))
+        self._worker_task = worker_task
         try:
+            # Shield the thread-backed task: wait_for must not cancel its asyncio
+            # wrapper, because the underlying thread cannot be stopped.
             await asyncio.wait_for(
-                asyncio.to_thread(self._warmup),
+                asyncio.shield(worker_task),
                 timeout=_WARMUP_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
             self._status = "failed"
+            self._attempted = False
             self._duration_ms = round((time.perf_counter() - started) * 1000, 3)
             self.diagnostics.record_event({
                 "event": "warmup_failed",
@@ -246,8 +279,24 @@ class ScannerPrewarmController:
                 "prewarm_mode": "lightweight",
                 "runtime_resources": self.diagnostics.resource_metrics(active_requests),
             })
+        except asyncio.CancelledError:
+            self._status = "cancelled"
+            self._attempted = False
+            self._duration_ms = round((time.perf_counter() - started) * 1000, 3)
+            self.diagnostics.record_event({
+                "event": "warmup_cancelled",
+                "session_id": session_id,
+                "trigger": trigger,
+                "warmup_status": "cancelled",
+                "warmup_duration_ms": self._duration_ms,
+                "failure_type": "CancelledError",
+                "prewarm_mode": "lightweight",
+                "runtime_resources": self.diagnostics.resource_metrics(active_requests),
+            })
+            raise
         except Exception as exc:
             self._status = "failed"
+            self._attempted = False
             self._duration_ms = round((time.perf_counter() - started) * 1000, 3)
             self.diagnostics.record_event({
                 "event": "warmup_failed",
@@ -260,6 +309,7 @@ class ScannerPrewarmController:
                 "runtime_resources": self.diagnostics.resource_metrics(active_requests),
             })
         else:
+            self._worker_task = None
             self._status = "completed"
             self._duration_ms = round((time.perf_counter() - started) * 1000, 3)
             self._completed_at = time.time()
