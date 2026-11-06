@@ -2397,6 +2397,47 @@ def _aggregate_resource_metric(values: list[float]) -> dict[str, float | int | N
     return {key: value for key, value in aggregate.items() if key != "sum" and key != "p95"}
 
 
+def _per_card_scan_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Estimate scan time per detected card by evenly allocating each screenshot's scan time."""
+    per_card_samples: list[float] = []
+    total_scan_ms = 0.0
+    total_cards = 0
+
+    for item in results:
+        timings = item.get("timings")
+        if not isinstance(timings, dict):
+            continue
+        scan_ms = timings.get("scan_ms")
+        card_count = item.get("detected_cards")
+        if (
+            not isinstance(scan_ms, (int, float))
+            or isinstance(scan_ms, bool)
+            or not math.isfinite(float(scan_ms))
+            or scan_ms < 0
+            or not isinstance(card_count, int)
+            or isinstance(card_count, bool)
+            or card_count <= 0
+        ):
+            continue
+        per_card_ms = float(scan_ms) / card_count
+        total_scan_ms += float(scan_ms)
+        total_cards += card_count
+        per_card_samples.extend([per_card_ms] * card_count)
+
+    aggregate = _aggregate_metric(per_card_samples)
+    return {
+        "scanned_cards": total_cards,
+        "scan_time_ms": round(total_scan_ms, 3),
+        "avg_scan_time_per_card_ms": aggregate["avg"],
+        "median_scan_time_per_card_ms": aggregate["median"],
+        "per_card_sample_count": aggregate["count"],
+        "method": (
+            "Each screenshot scan duration is evenly divided by its detected card count; "
+            "median is weighted by the number of detected cards."
+        ),
+    }
+
+
 @app.get("/admin/screenshot-tests")
 def get_screenshot_tests(authorization: str | None = Header(default=None)):
     require_admin(authorization)
@@ -3030,6 +3071,7 @@ def _run_screenshot_tests(
         for item in results
         if isinstance(item.get("timings", {}).get("scan_ms"), (int, float))
     ]
+    per_card_metrics = _per_card_scan_metrics(results)
     error_count = sum(1 for item in results if item.get("status") == "error" or item.get("error"))
     end_time = datetime.fromisoformat(resource_summary["end_time"])
     total_cpu = resource_summary["cpu"]
@@ -3123,6 +3165,7 @@ def _run_screenshot_tests(
             "total_scan_time_ms": round(sum(scan_times), 3),
             "avg_scan_time_ms": round(sum(scan_times) / len(scan_times), 3) if scan_times else None,
             "median_scan_time_ms": _aggregate_metric(scan_times)["median"],
+            **per_card_metrics,
             "max_case_duration_ms": max((float(item.get("timings", {}).get("case_total_ms", 0.0)) for item in results if isinstance(item.get("timings"), dict)), default=0.0),
             "peak_rss": resource_summary["sampled_peak_rss_bytes"],
             "peak_cpu": resource_summary["cpu_peak_percent"],
