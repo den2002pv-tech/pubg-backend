@@ -499,8 +499,12 @@ def extract_visual_area(card: Image.Image) -> Image.Image:
 
 
 def extract_frame_area(card: Image.Image) -> Image.Image:
-    card = _image_from_any(card)
+    """Build the frame hash image while avoiding intermediate PIL crop/canvas objects.
 
+    Keep PIL's BILINEAR resampler for every band: changing the resampling
+    implementation (for example to cv2.resize) can change colorhash results.
+    """
+    card = _image_from_any(card)
     arr = np.asarray(card)
     active = arr.sum(axis=2, dtype=np.uint16) > 24
 
@@ -515,31 +519,50 @@ def extract_frame_area(card: Image.Image) -> Image.Image:
             or x2 < card.width * 0.98
             or y2 < card.height * 0.98
         ):
-            card = card.crop((x1, y1, x2, y2))
+            # A NumPy view is equivalent to the in-bounds PIL crop here.
+            arr = arr[y1:y2, x1:x2]
 
-    w, h = card.size
+    h, w = arr.shape[:2]
     top_h = max(2, int(h * 0.10))
     bottom_h = max(2, int(h * 0.10))
     side_w = max(2, int(w * 0.10))
-
-    top = card.crop((0, 0, w, top_h))
-    bottom = card.crop((0, h - bottom_h, w, h - 1))
-    left = card.crop((0, top_h, side_w, max(top_h + 1, h - bottom_h)))
-    right = card.crop((w - side_w, top_h, w, max(top_h + 1, h - bottom_h)))
-
     target_w = w
     target_h = max(1, int(target_w * 0.18))
-    parts = [
-        top.resize((target_w, target_h), Image.Resampling.BILINEAR),
-        bottom.resize((target_w, target_h), Image.Resampling.BILINEAR),
-        left.resize((target_w, target_h), Image.Resampling.BILINEAR),
-        right.resize((target_w, target_h), Image.Resampling.BILINEAR),
-    ]
 
-    canvas = Image.new("RGB", (target_w, target_h * len(parts)))
-    for index, part in enumerate(parts):
-        canvas.paste(part, (0, index * target_h))
-    return canvas
+    # Preserve PIL crop's padding behavior for unusually small inputs where
+    # one or more historical crop boxes extend beyond the source image.
+    crop_boxes = (
+        (0, 0, w, top_h),
+        (0, h - bottom_h, w, h - 1),
+        (0, top_h, side_w, max(top_h + 1, h - bottom_h)),
+        (w - side_w, top_h, w, max(top_h + 1, h - bottom_h)),
+    )
+    if any(
+        x1 < 0 or y1 < 0 or x2 > w or y2 > h or x2 <= x1 or y2 <= y1
+        for x1, y1, x2, y2 in crop_boxes
+    ):
+        # Rare tiny-card fallback; retain the previous PIL semantics exactly.
+        source = Image.fromarray(np.ascontiguousarray(arr), mode="RGB")
+        parts = [
+            source.crop(box).resize((target_w, target_h), Image.Resampling.BILINEAR)
+            for box in crop_boxes
+        ]
+        canvas = Image.new("RGB", (target_w, target_h * len(parts)))
+        for index, part in enumerate(parts):
+            canvas.paste(part, (0, index * target_h))
+        return canvas
+
+    # Convert only the four source bands to PIL for the exact same BILINEAR
+    # implementation as before. Assemble their resized pixels in NumPy rather
+    # than allocating four crop objects plus an Image.new()/paste canvas.
+    parts = []
+    for x1, y1, x2, y2 in crop_boxes:
+        band = Image.fromarray(np.ascontiguousarray(arr[y1:y2, x1:x2]), mode="RGB")
+        resized = band.resize((target_w, target_h), Image.Resampling.BILINEAR)
+        parts.append(np.asarray(resized))
+
+    canvas = np.concatenate(parts, axis=0)
+    return Image.fromarray(canvas, mode="RGB")
 
 
 _COUNTER_TEMPLATES: dict[int, str] = {
