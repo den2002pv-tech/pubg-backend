@@ -86,6 +86,7 @@ def test_app_commit_falls_back_to_git_when_environment_is_unset(monkeypatch):
 
     for variable in ("APP_COMMIT", "GITHUB_SHA", "RENDER_GIT_COMMIT", "SOURCE_VERSION"):
         monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr(app_config, "_github_head_sha", lambda: "")
     monkeypatch.setattr(
         app_config.subprocess,
         "run",
@@ -317,9 +318,14 @@ def test_checked_in_catalogue_uses_current_version_and_complete_hashes():
     payload = json.loads(main.DB_FILE.read_text(encoding="utf-8"))
 
     assert payload["metadata"] == main.CARD_CATALOG_METADATA
-    assert len(catalog) == 102
-    assert len(set(catalog)) == len(catalog)
-    assert all(set(main.CARD_HASH_KEYS).issubset(record["hashes"].keys()) for record in catalog.values())
+    assert catalog
+    assert set(payload["cards"]) == set(catalog)
+    assert len(catalog) == len(set(catalog))
+    assert all(
+        set(main.CARD_HASH_KEYS).issubset(record["hashes"])
+        and all(str(record["hashes"][key]).strip() for key in main.CARD_HASH_KEYS)
+        for record in catalog.values()
+    )
 
 
 def test_save_db_and_load_db_round_trip(monkeypatch, tmp_path):
