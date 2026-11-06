@@ -1394,6 +1394,18 @@
       "hash": "8c8e84043365c78e",
       "rarity": 3,
       "icon": "/static/cards/card_123.webp"
+    },
+    "card_124": {
+      "name": "Мистическая Аврора",
+      "hashes": {
+        "full_phash": "e7b1386e659f10c2",
+        "full_dhash": "1f9f8e4645617107",
+        "visual_phash": "e2b91e6289f6622d",
+        "visual_dhash": "1f9d8fefc3cdec61",
+        "frame_colorhash": "07013000040"
+      },
+      "hash": "1f9f8e4645617107",
+      "icon": "/static/cards/card_124.webp"
     }
   }
 }
