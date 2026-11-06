@@ -115,7 +115,7 @@ def test_cancelled_warmup_is_reported_and_can_be_retried():
         assert worker is not None
         await asyncio.wait_for(asyncio.shield(worker), timeout=1)
 
-        result = await controller.on_trigger("scanner_open", "session-2", 0)
+        result = await controller.on_application_start()
         assert result["warmup_status"] == "completed"
         assert attempts == 2
         await controller.shutdown()
