@@ -2698,6 +2698,170 @@
         }
       ],
       "image_sha256": "557c577563d818a361a170f546e386997f964ef9d98abc0aef94440bd44f7017"
+    },
+    {
+      "id": "inventory-20261106095200",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261106095200.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            183,
+            240,
+            352
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "Рывок в Мире Чудес",
+          "card_id": "card_71",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 155.528,
+            "luminance_median": 154.0,
+            "luminance_stddev": 43.268,
+            "saturation_mean": 68.285,
+            "saturation_median": 63.0,
+            "saturated_pixel_ratio": 0.437,
+            "frame_luminance_mean": 154.372,
+            "frame_saturation_mean": 40.405,
+            "center_luminance_mean": 152.497,
+            "center_luminance_median": 148.0,
+            "center_luminance_stddev": 49.529,
+            "center_saturation_mean": 93.791,
+            "title_luminance_mean": 152.354,
+            "title_luminance_median": 156.0,
+            "title_luminance_stddev": 28.331,
+            "title_saturation_mean": 53.64,
+            "bottom_luminance_mean": 167.779,
+            "bottom_luminance_median": 182.0,
+            "bottom_luminance_stddev": 41.359,
+            "bottom_saturation_mean": 34.708
+          }
+        },
+        {
+          "box": [
+            474,
+            183,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Подарок Тыква",
+          "card_id": "card_121",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 150.716,
+            "luminance_median": 149.0,
+            "luminance_stddev": 35.93,
+            "saturation_mean": 83.623,
+            "saturation_median": 67.0,
+            "saturated_pixel_ratio": 0.4852,
+            "frame_luminance_mean": 157.178,
+            "frame_saturation_mean": 41.507,
+            "center_luminance_mean": 139.759,
+            "center_luminance_median": 138.0,
+            "center_luminance_stddev": 35.634,
+            "center_saturation_mean": 126.264,
+            "title_luminance_mean": 150.08,
+            "title_luminance_median": 155.0,
+            "title_luminance_stddev": 24.89,
+            "title_saturation_mean": 47.683,
+            "bottom_luminance_mean": 171.695,
+            "bottom_luminance_median": 182.0,
+            "bottom_luminance_stddev": 39.612,
+            "bottom_saturation_mean": 36.741
+          }
+        },
+        {
+          "box": [
+            743,
+            183,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Crocoplan",
+          "card_id": "card_126",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 141.402,
+            "luminance_median": 142.0,
+            "luminance_stddev": 44.088,
+            "saturation_mean": 64.591,
+            "saturation_median": 61.0,
+            "saturated_pixel_ratio": 0.4141,
+            "frame_luminance_mean": 157.458,
+            "frame_saturation_mean": 42.829,
+            "center_luminance_mean": 119.058,
+            "center_luminance_median": 125.0,
+            "center_luminance_stddev": 44.075,
+            "center_saturation_mean": 85.553,
+            "title_luminance_mean": 150.502,
+            "title_luminance_median": 157.0,
+            "title_luminance_stddev": 25.064,
+            "title_saturation_mean": 47.282,
+            "bottom_luminance_mean": 172.36,
+            "bottom_luminance_median": 187.0,
+            "bottom_luminance_stddev": 38.796,
+            "bottom_saturation_mean": 36.388
+          }
+        },
+        {
+          "box": [
+            1012,
+            183,
+            240,
+            352
+          ],
+          "expected_quantity": 3,
+          "state": "owned",
+          "card_name": "Ледяной дракон",
+          "card_id": "card_105",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 156.624,
+            "luminance_median": 152.0,
+            "luminance_stddev": 31.482,
+            "saturation_mean": 57.766,
+            "saturation_median": 60.0,
+            "saturated_pixel_ratio": 0.3492,
+            "frame_luminance_mean": 158.435,
+            "frame_saturation_mean": 40.526,
+            "center_luminance_mean": 151.474,
+            "center_luminance_median": 148.0,
+            "center_luminance_stddev": 27.348,
+            "center_saturation_mean": 72.402,
+            "title_luminance_mean": 150.203,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 26.663,
+            "title_saturation_mean": 43.49,
+            "bottom_luminance_mean": 171.064,
+            "bottom_luminance_median": 182.0,
+            "bottom_luminance_stddev": 39.049,
+            "bottom_saturation_mean": 37.532
+          }
+        }
+      ],
+      "image_sha256": "08a3fb82eff8cdcf0aa2bc276cc7453c34ae277ea32c69a97e290cb4ff6ea852"
     }
   ]
 }
