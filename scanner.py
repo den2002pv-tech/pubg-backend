@@ -502,10 +502,14 @@ def extract_frame_area(card: Image.Image) -> Image.Image:
     card = _image_from_any(card)
 
     arr = np.asarray(card)
-    active = arr.sum(axis=2, dtype=np.uint16) > 24
+    # Avoid an Nx3 reduction and per-active-pixel coordinate arrays.
+    channel_sum = np.add(arr[:, :, 0], arr[:, :, 1], dtype=np.uint16)
+    channel_sum += arr[:, :, 2]
+    active = channel_sum > 24
 
     if active.any():
-        ys, xs = np.where(active)
+        ys = np.flatnonzero(active.any(axis=1))
+        xs = np.flatnonzero(active.any(axis=0))
         x1, x2 = int(xs.min()), int(xs.max()) + 1
         y1, y2 = int(ys.min()), int(ys.max()) + 1
 
@@ -603,6 +607,32 @@ _COUNTER_TEMPLATE_BITS: dict[int, tuple[tuple[np.ndarray, int], ...]] = {
 }
 
 
+def _glyph_bits(mask: np.ndarray) -> int:
+    """Pack the fixed 20x9 glyph canvas for exact intersection counts."""
+    return int.from_bytes(np.packbits(mask, axis=None).tobytes(), "little")
+
+
+def _shifted_digit_templates() -> dict[int, tuple[tuple[int, int], ...]]:
+    templates = {}
+    for digit, variants in _COUNTER_TEMPLATE_BITS.items():
+        shifted = []
+        for target, total in variants:
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    canvas = np.zeros((20, 9), dtype=bool)
+                    canvas[max(0, -dy):min(20, 20 - dy), max(0, -dx):min(9, 9 - dx)] = target[
+                        max(0, dy):min(20, 20 + dy), max(0, dx):min(9, 9 + dx)
+                    ]
+                    # Keep the full template total: clipped pixels still count
+                    # in the original IoU denominator.
+                    shifted.append((_glyph_bits(canvas), total))
+        templates[digit] = tuple(shifted)
+    return templates
+
+
+_COUNTER_SHIFTED_BITS = _shifted_digit_templates()
+
+
 def _multiply_template_bits(thickness: int, offset: int) -> tuple[np.ndarray, int]:
     canvas = np.zeros((15, 15), dtype=np.uint8)
     a, b = offset, 14 - offset
@@ -641,6 +671,7 @@ def _digit_glyph_features(mask: np.ndarray) -> dict[str, Any] | None:
 
     return {
         "candidate": candidate,
+        "candidate_bits": _glyph_bits(candidate),
         "candidate_total": int(candidate.sum()),
         "hole_count": hole_count,
         "aspect": mask.shape[1] / float(mask.shape[0]),
@@ -657,18 +688,15 @@ def _digit_score(mask: np.ndarray, digit: int, features: dict[str, Any] | None =
     hole_count = features["hole_count"]
     aspect = features["aspect"]
 
+    candidate_bits = features.get("candidate_bits")
+    if candidate_bits is None:
+        candidate_bits = _glyph_bits(candidate)
     best = 0.0
-    for target, target_total in _COUNTER_TEMPLATE_BITS[digit]:
-        for dy in (-1, 0, 1):
-            for dx in (-1, 0, 1):
-                sy1, sy2 = max(0, -dy), min(20, 20 - dy)
-                dy1, dy2 = max(0, dy), min(20, 20 + dy)
-                sx1, sx2 = max(0, -dx), min(9, 9 - dx)
-                dx1, dx2 = max(0, dx), min(9, 9 + dx)
-                inter = np.logical_and(candidate[sy1:sy2, sx1:sx2], target[dy1:dy2, dx1:dx2]).sum()
-                union = candidate_total + target_total - inter
-                iou = float(inter / union) if union else 0.0
-                best = max(best, iou)
+    for target_bits, target_total in _COUNTER_SHIFTED_BITS[digit]:
+        inter = (candidate_bits & target_bits).bit_count()
+        union = candidate_total + target_total - inter
+        iou = inter / union if union else 0.0
+        best = max(best, iou)
 
     # PUBG's counter font uses a closed-top 4 in some crops. Its triangular
     # counter can form one enclosed background component, just like a 6.
@@ -1328,7 +1356,10 @@ def calculate_card_hashes(
 ) -> dict[str, str]:
     stage_started = time.perf_counter()
     card = _image_from_any(card)
-    visual = extract_visual_area(card)
+    # Grayscale conversion is pointwise, so cropping it preserves RGB-crop
+    # luminance exactly. Keep RGB for the independent frame color hash.
+    gray = card.convert("L")
+    visual = extract_visual_area(gray)
     preparation_ms = (time.perf_counter() - stage_started) * 1000
 
     stage_started = time.perf_counter()
@@ -1339,8 +1370,8 @@ def calculate_card_hashes(
     # ImageHash downsamples internally; an extra full-card resize adds work and
     # another resampling step without improving fixture identity results.
     hashes = {
-        "full_phash": str(imagehash.phash(card)),
-        "full_dhash": str(imagehash.dhash(card)),
+        "full_phash": str(imagehash.phash(gray)),
+        "full_dhash": str(imagehash.dhash(gray)),
         "visual_phash": str(imagehash.phash(visual)),
         "visual_dhash": str(imagehash.dhash(visual)),
         "frame_colorhash": str(imagehash.colorhash(frame)),
