@@ -1199,6 +1199,7 @@ async function uploadImage(file) {
   pendingCards = [];
   document.getElementById('results').style.display = 'none';
   setScannerStatus('⏳ Подготовка изображения…', 'Готовим выбранный скриншот к отправке.', true);
+  const scanStartedAt = performance.now();
   const formStartedAt = performance.now();
   const fd = new FormData();
   fd.append('file', file);
@@ -1207,7 +1208,6 @@ async function uploadImage(file) {
     client_file_size_bytes: file.size
   };
 
-  const scanStartedAt = performance.now();
   currentScanId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : 'scan-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
