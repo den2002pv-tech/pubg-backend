@@ -1141,128 +1141,184 @@ def _collect_counter_candidates(
     return x_candidates, digit_candidates, threshold_runs, candidate_diagnostics
 
 
+def _unique_counter_multiply_candidates(
+    x_candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    unique: list[dict[str, Any]] = []
+    for candidate in sorted(x_candidates, key=lambda item: item["score"], reverse=True):
+        duplicate = any(
+            abs(existing["x"] - candidate["x"]) <= max(2, int(candidate["w"] * 0.30))
+            and abs(existing["y"] - candidate["y"]) <= max(3, int(candidate["h"] * 0.25))
+            for existing in unique
+        )
+        if not duplicate:
+            unique.append(candidate)
+    return unique
+
+
+def _counter_digit_combinations(
+    first_digit: dict[str, Any],
+    digit_candidates: list[dict[str, Any]],
+) -> list[tuple[list[dict[str, Any]], int]]:
+    combinations: list[tuple[list[dict[str, Any]], int]] = []
+    if first_digit["digit"] >= 2:
+        combinations.append(([first_digit], first_digit["digit"]))
+    elif first_digit["digit"] == 0 and first_digit.get("alt_digit") == 6:
+        # Only a standalone ×0 can use this alternative, never a trailing zero in 10.
+        alternate = {
+            **first_digit,
+            "digit": 6,
+            "score": float(first_digit.get("alt_score") or first_digit["score"]),
+        }
+        combinations.append(([alternate], 6))
+
+    if first_digit["digit"] >= 1:
+        matching = []
+        for second_digit in digit_candidates:
+            if second_digit is first_digit or second_digit["x"] <= first_digit["x"]:
+                continue
+            gap = second_digit["x"] - (first_digit["x"] + first_digit["w"])
+            if gap < 0 or gap > max(4, int(first_digit["h"] * 0.40)):
+                continue
+            if not (0.80 * first_digit["h"] <= second_digit["h"] <= 1.25 * first_digit["h"]):
+                continue
+            if abs(first_digit["y"] - second_digit["y"]) > max(3, int(first_digit["h"] * 0.25)):
+                continue
+            if abs(
+                (first_digit["y"] + first_digit["h"])
+                - (second_digit["y"] + second_digit["h"])
+            ) > max(3, int(first_digit["h"] * 0.25)):
+                continue
+            matching.append(second_digit)
+        if matching:
+            second_digit = min(matching, key=lambda item: item["x"])
+            quantity = first_digit["digit"] * 10 + second_digit["digit"]
+            combinations.append(([first_digit, second_digit], quantity))
+    return combinations
+
+
+def _counter_badge_box(
+    multiply: dict[str, Any],
+    digits: list[dict[str, Any]],
+    width: int,
+    height: int,
+) -> list[int] | None:
+    left = multiply["x"]
+    right = digits[-1]["x"] + digits[-1]["w"]
+    top = min(multiply["y"], min(digit["y"] for digit in digits))
+    bottom = max(
+        multiply["y"] + multiply["h"],
+        max(digit["y"] + digit["h"] for digit in digits),
+    )
+    box_width, box_height = right - left, bottom - top
+    if left < int(width * 0.62) or right > int(width * 0.99):
+        return None
+    if top < int(height * 0.015) or bottom > int(height * 0.20):
+        return None
+    if not (int(height * 0.035) <= box_height <= int(height * 0.12)):
+        return None
+    aspect = box_width / float(box_height)
+    if len(digits) == 1 and not (0.85 <= aspect <= 2.2):
+        return None
+    if len(digits) == 2 and not (1.10 <= aspect <= 3.2):
+        return None
+
+    pad_x, pad_y = max(2, int(box_height * 0.25)), max(2, int(box_height * 0.20))
+    box_left, box_right = max(0, left - pad_x), min(width, right + pad_x)
+    box_top, box_bottom = max(0, top - pad_y), min(height, bottom + pad_y)
+    return [box_left, box_top, box_right - box_left, box_bottom - box_top]
+
+
+def _counter_patch_contrast(
+    arr: np.ndarray,
+    box: list[int],
+) -> tuple[float, float] | None:
+    left, top, box_width, box_height = box
+    patch = arr[top:top + box_height, left:left + box_width]
+    if patch.size == 0:
+        return None
+    patch_gray = cv2.cvtColor(patch, cv2.COLOR_RGB2GRAY)
+    flat = patch_gray.reshape(-1)
+    if flat.size < 16:
+        return None
+    bg_median = float(np.percentile(flat, 25))
+    glyph_mean = float(np.percentile(flat, 90))
+    contrast = glyph_mean - bg_median
+    if contrast < 28.0 or bg_median > 220.0:
+        return None
+    return contrast, bg_median
+
+
+def _counter_badge_confidence(
+    multiply: dict[str, Any],
+    digits: list[dict[str, Any]],
+) -> tuple[float, float, list[float]]:
+    digit_scores = [digit["score"] for digit in digits]
+    confidence = min(multiply["score"], min(digit_scores))
+    average_confidence = (multiply["score"] + sum(digit_scores)) / (1.0 + len(digits))
+    if len(digits) == 1:
+        digit = digits[0]
+        aspect_ratio = digit["w"] / float(digit["h"] or 1)
+        if digit["digit"] == 1 and aspect_ratio > 0.38:
+            confidence *= 0.70
+        if digit["digit"] in (0, 6, 8, 9) and aspect_ratio < 0.24:
+            confidence *= 0.75
+    return confidence, average_confidence, digit_scores
+
+
 def _build_counter_badge_candidates(
-    arr: np.ndarray, w: int, h: int,
-    x_candidates: list[dict[str, Any]], digit_candidates: list[dict[str, Any]],
+    arr: np.ndarray,
+    w: int,
+    h: int,
+    x_candidates: list[dict[str, Any]],
+    digit_candidates: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     badge_candidates: list[dict[str, Any]] = []
-    # Merge overlapping detections of the multiplication sign across threshold
-    # passes, preferring the best visual score for each physical symbol.
-    unique_x_candidates: list[dict[str, Any]] = []
-    for xc in sorted(x_candidates, key=lambda item: item["score"], reverse=True):
-        if any(
-            abs(existing["x"] - xc["x"]) <= max(2, int(xc["w"] * 0.30))
-            and abs(existing["y"] - xc["y"]) <= max(3, int(xc["h"] * 0.25))
-            for existing in unique_x_candidates
-        ):
-            continue
-        unique_x_candidates.append(xc)
-
-    for xc in unique_x_candidates:
+    unique_x_candidates = _unique_counter_multiply_candidates(x_candidates)
+    for multiply in unique_x_candidates:
         # Reject weak diagonal art/noise that resembles × and otherwise turns
         # a card with no count badge into a false positive such as ×7.
-        if xc["score"] < 0.58:
+        if multiply["score"] < 0.58:
             continue
-        for d1 in digit_candidates:
-            if d1["x"] <= xc["x"]:
+        for first_digit in digit_candidates:
+            if first_digit["x"] <= multiply["x"]:
                 continue
-            gap = d1["x"] - (xc["x"] + xc["w"])
-            if gap < 0 or gap > max(5, int(d1["h"] * 0.45)):
+            gap = first_digit["x"] - (multiply["x"] + multiply["w"])
+            if gap < 0 or gap > max(5, int(first_digit["h"] * 0.45)):
                 continue
-            if not (0.35 * d1["h"] <= xc["h"] <= 0.90 * d1["h"]):
+            if not (0.35 * first_digit["h"] <= multiply["h"] <= 0.90 * first_digit["h"]):
                 continue
-            if abs((xc["y"] + xc["h"] / 2.0) - (d1["y"] + d1["h"] / 2.0)) > max(5, int(d1["h"] * 0.40)):
+            if abs(
+                (multiply["y"] + multiply["h"] / 2.0)
+                - (first_digit["y"] + first_digit["h"] / 2.0)
+            ) > max(5, int(first_digit["h"] * 0.40)):
                 continue
 
-            combinations: list[tuple[list[dict[str, Any]], int]] = []
-            if d1["digit"] >= 2:
-                combinations.append(([d1], d1["digit"]))
-            elif d1["digit"] == 0 and d1.get("alt_digit") == 6:
-                # A standalone ×0 is not a valid PUBG count; use the glyph's
-                # 6-shape alternative only here, never for the trailing zero
-                # in a two-digit quantity such as 10.
-                alternate = {**d1, "digit": 6, "score": float(d1.get("alt_score") or d1["score"])}
-                combinations.append(([alternate], 6))
-            if d1["digit"] >= 1:
-                matching = []
-                for d2 in digit_candidates:
-                    if d2 is d1 or d2["x"] <= d1["x"]:
-                        continue
-                    d2_gap = d2["x"] - (d1["x"] + d1["w"])
-                    if d2_gap < 0 or d2_gap > max(4, int(d1["h"] * 0.40)):
-                        continue
-                    if not (0.80 * d1["h"] <= d2["h"] <= 1.25 * d1["h"]):
-                        continue
-                    if abs(d1["y"] - d2["y"]) > max(3, int(d1["h"] * 0.25)):
-                        continue
-                    if abs((d1["y"] + d1["h"]) - (d2["y"] + d2["h"])) > max(3, int(d1["h"] * 0.25)):
-                        continue
-                    matching.append(d2)
-                if matching:
-                    matching.sort(key=lambda d: d["x"])
-                    d2 = matching[0]
-                    combinations.append(([d1, d2], d1["digit"] * 10 + d2["digit"]))
-
-            for digits, quantity in combinations:
+            for digits, quantity in _counter_digit_combinations(first_digit, digit_candidates):
                 if quantity < 2:
                     continue
-                g_left = xc["x"]
-                g_right = digits[-1]["x"] + digits[-1]["w"]
-                g_top = min(xc["y"], min(d["y"] for d in digits))
-                g_bottom = max(xc["y"] + xc["h"], max(d["y"] + d["h"] for d in digits))
-                g_w, g_h = g_right - g_left, g_bottom - g_top
-                if g_left < int(w * 0.62) or g_right > int(w * 0.99):
+                box = _counter_badge_box(multiply, digits, w, h)
+                if box is None:
                     continue
-                if g_top < int(h * 0.015) or g_bottom > int(h * 0.20):
+                contrast_data = _counter_patch_contrast(arr, box)
+                if contrast_data is None:
                     continue
-                if not (int(h * 0.035) <= g_h <= int(h * 0.12)):
-                    continue
-                aspect = g_w / float(g_h)
-                if len(digits) == 1 and not (0.85 <= aspect <= 2.2):
-                    continue
-                if len(digits) == 2 and not (1.10 <= aspect <= 3.2):
-                    continue
-
-                pad_x, pad_y = max(2, int(g_h * 0.25)), max(2, int(g_h * 0.20))
-                b_left, b_right = max(0, g_left - pad_x), min(w, g_right + pad_x)
-                b_top, b_bottom = max(0, g_top - pad_y), min(h, g_bottom + pad_y)
-                patch = arr[b_top:b_bottom, b_left:b_right]
-                if patch.size == 0:
-                    continue
-                patch_gray = cv2.cvtColor(patch, cv2.COLOR_RGB2GRAY)
-                # A fixed dark-pixel cutoff rejected valid badges on gray/gold
-                # backgrounds and at larger crop resolutions. Estimate the
-                # background and glyph from the patch distribution instead;
-                # geometry and the explicit X+digit alignment remain required.
-                flat = patch_gray.reshape(-1)
-                if flat.size < 16:
-                    continue
-                bg_median = float(np.percentile(flat, 25))
-                glyph_mean = float(np.percentile(flat, 90))
-                contrast = glyph_mean - bg_median
-                if contrast < 28.0 or bg_median > 220.0:
-                    continue
-
-                digit_scores = [d["score"] for d in digits]
-                confidence = min(xc["score"], min(digit_scores))
-                avg_confidence = (xc["score"] + sum(digit_scores)) / (1.0 + len(digits))
-                # Penalize a lone glyph that is geometrically suspicious for its
-                # label instead of letting a weak false-positive digit win.
-                if len(digits) == 1:
-                    digit = digits[0]
-                    aspect_ratio = digit["w"] / float(digit["h"] or 1)
-                    if digit["digit"] == 1 and aspect_ratio > 0.38:
-                        confidence *= 0.70
-                    if digit["digit"] in (0, 6, 8, 9) and aspect_ratio < 0.24:
-                        confidence *= 0.75
+                contrast, bg_median = contrast_data
+                confidence, average_confidence, digit_scores = _counter_badge_confidence(
+                    multiply, digits,
+                )
                 badge_candidates.append({
-                    "quantity": quantity, "confidence": confidence, "avg_confidence": avg_confidence,
-                    "xc": xc, "digits": digits,
-                    "box": [b_left, b_top, b_right - b_left, b_bottom - b_top],
-                    "x_score": xc["score"], "digit_scores": digit_scores,
-                    "contrast": round(contrast, 1), "bg_median": round(bg_median, 1),
+                    "quantity": quantity,
+                    "confidence": confidence,
+                    "avg_confidence": average_confidence,
+                    "xc": multiply,
+                    "digits": digits,
+                    "box": box,
+                    "x_score": multiply["score"],
+                    "digit_scores": digit_scores,
+                    "contrast": round(contrast, 1),
+                    "bg_median": round(bg_median, 1),
                 })
-
     return badge_candidates
 
 
