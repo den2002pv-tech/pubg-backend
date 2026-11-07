@@ -160,3 +160,33 @@ def test_clear_scan_performance_removes_only_timing_fields():
     assert "event_name IN ('scan_completed', 'scan_failed')" in query
     assert "RETURNING id" in query
     connection.commit.assert_called_once()
+
+def test_sanitize_event_preserves_profile_bounds_and_rejects_booleans():
+    result = sanitize_event({
+        "name": "scan_completed",
+        "properties": {
+            "cards_detected": True,
+            "profile": {
+                "detection_ms": -1.25,
+                "counter_attempts": 12000,
+                "input_width": 120001,
+                "upload_size_bytes": -5,
+                "upload_format": "HEIC",
+                "client_request_ms": True,
+            },
+        },
+    })
+
+    assert result == (
+        "scan_completed",
+        {
+            "profile": {
+                "detection_ms": 0.0,
+                "counter_attempts": 10000,
+                "input_width": 100000,
+                "upload_size_bytes": 0,
+                "upload_format": "OTHER",
+            },
+        },
+    )
+
