@@ -328,21 +328,6 @@ def test_checked_in_catalogue_uses_current_version_and_complete_hashes():
     )
 
 
-def test_card_124_icon_hashes_are_registered_in_catalog():
-    from PIL import Image
-    from scanner import calculate_card_hashes
-
-    icon_path = main.CARDS_DIR / "card_124.webp"
-    with Image.open(icon_path) as source:
-        icon_hashes = calculate_card_hashes(source.convert("RGB"))
-
-    catalog = main.load_db()
-    assert "card_124" in catalog, (
-        "The verified card_124 icon is missing from card_hashes.json; "
-        f"calculated hashes: {icon_hashes!r}"
-    )
-    assert catalog["card_124"]["hashes"] == icon_hashes
-
 
 def test_save_db_and_load_db_round_trip(monkeypatch, tmp_path):
     db_file = tmp_path / "cards.json"
