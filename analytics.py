@@ -65,17 +65,7 @@ def init_analytics_db() -> None:
         conn.commit()
 
 
-def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
-    """Accept only named events and small, non-identifying, enumerated properties."""
-    if not isinstance(value, dict):
-        return None
-    name = value.get("name")
-    if not isinstance(name, str) or name not in ALLOWED_EVENTS:
-        return None
-    raw = value.get("properties")
-    raw = raw if isinstance(raw, dict) else {}
-    props: dict[str, Any] = {}
-
+def _sanitize_enum_properties(raw: dict[str, Any]) -> dict[str, Any]:
     enum_fields = {
         "tab": ALLOWED_TABS,
         "filter": ALLOWED_FILTERS,
@@ -84,16 +74,27 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
         "action": ALLOWED_TRADE_ACTIONS,
         "category": ALLOWED_FEEDBACK_CATEGORIES,
     }
-    for key, choices in enum_fields.items():
-        value = raw.get(key)
-        if isinstance(value, str) and value in choices:
-            props[key] = value
+    return {
+        key: value
+        for key, choices in enum_fields.items()
+        if isinstance(value := raw.get(key), str) and value in choices
+    }
 
-    for key in ("cards_detected", "matched_count", "added_count", "removed_count", "card_count", "corrected_count"):
-        val = raw.get(key)
-        if isinstance(val, (int, float)) and not isinstance(val, bool):
-            props[key] = max(0, min(int(val), 10000))
 
+def _sanitize_count_properties(raw: dict[str, Any]) -> dict[str, Any]:
+    count_keys = (
+        "cards_detected", "matched_count", "added_count",
+        "removed_count", "card_count", "corrected_count",
+    )
+    return {
+        key: max(0, min(int(value), 10000))
+        for key in count_keys
+        if isinstance(value := raw.get(key), (int, float)) and not isinstance(value, bool)
+    }
+
+
+def _sanitize_scan_metadata(raw: dict[str, Any]) -> dict[str, Any]:
+    props: dict[str, Any] = {}
     scan_id = raw.get("scan_id")
     if (
         isinstance(scan_id, str)
@@ -122,34 +123,52 @@ def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
     rating = raw.get("rating")
     if isinstance(rating, int) and not isinstance(rating, bool) and 1 <= rating <= 5:
         props["rating"] = rating
+    return props
 
-    profile = raw.get("profile")
-    if isinstance(profile, dict):
-        safe_profile = {}
-        for key in PROFILE_TIME_KEYS:
-            val = profile.get(key)
-            if isinstance(val, (int, float)) and not isinstance(val, bool):
-                safe_profile[key] = round(max(0.0, min(float(val), 600000.0)), 1)
-        for key in PROFILE_COUNT_KEYS:
-            val = profile.get(key)
-            if isinstance(val, (int, float)) and not isinstance(val, bool):
-                safe_profile[key] = max(0, min(int(val), 10000))
-        for key in PROFILE_DIMENSION_KEYS:
-            val = profile.get(key)
-            if isinstance(val, (int, float)) and not isinstance(val, bool):
-                safe_profile[key] = max(0, min(int(val), 100000))
-        for key in PROFILE_SIZE_KEYS:
-            val = profile.get(key)
-            if isinstance(val, (int, float)) and not isinstance(val, bool):
-                safe_profile[key] = max(0, min(int(val), 100000000))
-        image_format = profile.get("upload_format")
-        if isinstance(image_format, str):
-            safe_profile["upload_format"] = (
-                image_format if image_format in ALLOWED_IMAGE_FORMATS else "OTHER"
-            )
-        if safe_profile:
-            props["profile"] = safe_profile
 
+def _sanitize_profile(profile: Any) -> dict[str, Any]:
+    if not isinstance(profile, dict):
+        return {}
+
+    safe_profile: dict[str, Any] = {}
+    profile_groups = (
+        (PROFILE_TIME_KEYS, 600000, True),
+        (PROFILE_COUNT_KEYS, 10000, False),
+        (PROFILE_DIMENSION_KEYS, 100000, False),
+        (PROFILE_SIZE_KEYS, 100000000, False),
+    )
+    for keys, maximum, is_duration in profile_groups:
+        for key in keys:
+            value = profile.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                bounded = max(0, min(float(value), maximum)) if is_duration else max(0, min(int(value), maximum))
+                safe_profile[key] = round(bounded, 1) if is_duration else bounded
+
+    image_format = profile.get("upload_format")
+    if isinstance(image_format, str):
+        safe_profile["upload_format"] = (
+            image_format if image_format in ALLOWED_IMAGE_FORMATS else "OTHER"
+        )
+    return safe_profile
+
+
+def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
+    """Accept only named events and small, non-identifying, enumerated properties."""
+    if not isinstance(value, dict):
+        return None
+    name = value.get("name")
+    if not isinstance(name, str) or name not in ALLOWED_EVENTS:
+        return None
+
+    raw = value.get("properties")
+    raw = raw if isinstance(raw, dict) else {}
+    props = _sanitize_enum_properties(raw)
+    props.update(_sanitize_count_properties(raw))
+    props.update(_sanitize_scan_metadata(raw))
+
+    safe_profile = _sanitize_profile(raw.get("profile"))
+    if safe_profile:
+        props["profile"] = safe_profile
     return name, props
 
 
