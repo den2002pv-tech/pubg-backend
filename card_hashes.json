@@ -1432,6 +1432,19 @@
       "hash": "1c3c1d0f4f8e26e8",
       "rarity": 2,
       "icon": "/static/cards/card_126.webp"
+    },
+    "card_127": {
+      "name": "Wakala",
+      "hashes": {
+        "full_phash": "e19e9233df692492",
+        "full_dhash": "3cbc96120ac6938e",
+        "visual_phash": "e994a39a68a5dacc",
+        "visual_dhash": "3c7cb517332b8f8b",
+        "frame_colorhash": "06007000000"
+      },
+      "hash": "3cbc96120ac6938e",
+      "rarity": 2,
+      "icon": "/static/cards/card_127.webp"
     }
   }
 }
