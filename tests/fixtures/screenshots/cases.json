@@ -3152,6 +3152,94 @@
         }
       ],
       "image_sha256": "d1ab8b6c0c9db356bc748ea7005c2c30b30c5d72d07330da96754aaea2e41f73"
+    },
+    {
+      "id": "inventory-20261107005553",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261107005553.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            474,
+            88,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Кубок PMGO Пакистана",
+          "card_id": "card_123",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 143.478,
+            "luminance_median": 151.0,
+            "luminance_stddev": 65.484,
+            "saturation_mean": 65.223,
+            "saturation_median": 52.0,
+            "saturated_pixel_ratio": 0.4064,
+            "frame_luminance_mean": 164.723,
+            "frame_saturation_mean": 60.854,
+            "center_luminance_mean": 116.582,
+            "center_luminance_median": 100.0,
+            "center_luminance_stddev": 67.677,
+            "center_saturation_mean": 78.38,
+            "title_luminance_mean": 187.629,
+            "title_luminance_median": 202.0,
+            "title_luminance_stddev": 36.578,
+            "title_saturation_mean": 34.034,
+            "bottom_luminance_mean": 168.874,
+            "bottom_luminance_median": 190.0,
+            "bottom_luminance_stddev": 57.219,
+            "bottom_saturation_mean": 53.377
+          }
+        },
+        {
+          "box": [
+            1012,
+            87,
+            240,
+            353
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Magixx",
+          "card_id": "card_122",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 108.817,
+            "luminance_median": 91.0,
+            "luminance_stddev": 69.949,
+            "saturation_mean": 71.481,
+            "saturation_median": 67.0,
+            "saturated_pixel_ratio": 0.4676,
+            "frame_luminance_mean": 145.058,
+            "frame_saturation_mean": 69.223,
+            "center_luminance_mean": 85.16,
+            "center_luminance_median": 67.0,
+            "center_luminance_stddev": 61.947,
+            "center_saturation_mean": 77.827,
+            "title_luminance_mean": 84.943,
+            "title_luminance_median": 61.0,
+            "title_luminance_stddev": 58.35,
+            "title_saturation_mean": 70.648,
+            "bottom_luminance_mean": 159.382,
+            "bottom_luminance_median": 177.0,
+            "bottom_luminance_stddev": 67.716,
+            "bottom_saturation_mean": 54.018
+          }
+        }
+      ],
+      "image_sha256": "989aa4466db4148209253ed7fa6964c6488ded280cab34d5bdb2eec2db8ab05f"
     }
   ]
 }
