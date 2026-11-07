@@ -968,6 +968,7 @@ function postScanImage(formData, clientProfile) {
     xhr.timeout = SCAN_TIMEOUT_MS;
     Object.entries(telegramHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
     Object.entries(scannerSessionHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
+    if (currentScanId) xhr.setRequestHeader('X-Scanner-Scan-ID', currentScanId);
 
     xhr.upload.addEventListener('progress', event => {
       if (!event.lengthComputable) return;
@@ -1030,6 +1031,33 @@ function postScanImage(formData, clientProfile) {
     };
     xhr.send(formData);
   });
+}
+
+function recordClientScanResult(scanId, clientProfile, cards) {
+  if (!scanId) return;
+  const payload = {
+    scan_id: scanId,
+    client_form_data_ms: clientProfile.client_form_data_ms,
+    client_wake_ms: clientProfile.client_wake_ms,
+    client_upload_ms: clientProfile.client_upload_ms,
+    client_response_wait_ms: clientProfile.client_response_wait_ms,
+    client_response_parse_ms: clientProfile.client_response_parse_ms,
+    client_request_ms: clientProfile.client_request_ms,
+    client_result_render_ms: clientProfile.client_result_render_ms,
+    client_scan_to_result_ms: clientProfile.client_scan_to_result_ms,
+    cards_displayed: Array.isArray(cards) ? cards.length : 0,
+    matched_count: Array.isArray(cards) ? cards.filter(card => !!card.id).length : 0
+  };
+  fetch(API + '/scan/client-result', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...telegramHeaders(),
+      ...scannerSessionHeaders()
+    },
+    body: JSON.stringify(payload),
+    keepalive: true
+  }).catch(() => {});
 }
 
 function assetUrl(path) {
@@ -1209,6 +1237,7 @@ async function uploadImage(file) {
       duration_ms: performance.now() - scanStartedAt,
       profile: { ...(d.profile || {}), ...clientProfile }
     });
+    const resultRenderStartedAt = performance.now();
     pendingCards = (d.cards || []).filter(c => c.id).map(c => ({
       ...c,
       selected: true,
@@ -1226,6 +1255,10 @@ async function uploadImage(file) {
       showToast('Распознано карт: ' + d.cards.length + '. Проверьте результат.', 'success');
       triggerHaptic('success');
     }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    clientProfile.client_result_render_ms = performance.now() - resultRenderStartedAt;
+    clientProfile.client_scan_to_result_ms = performance.now() - scanStartedAt;
+    recordClientScanResult(currentScanId, clientProfile, d.cards || []);
   } catch (e) {
     trackAnalytics('scan_failed', {
       scan_id: currentScanId,
