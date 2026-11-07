@@ -3946,6 +3946,132 @@
         }
       ],
       "image_sha256": "694c752cd58f94b1fb1b699403db0cf88ac91ba6e14e7e0ef85fcc12c07b848c"
+    },
+    {
+      "id": "inventory-20261107010130",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261107010130.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            474,
+            88,
+            240,
+            352
+          ],
+          "expected_quantity": 1,
+          "state": "owned",
+          "card_name": "Ванпанчмен",
+          "card_id": "card_62",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 134.596,
+            "luminance_median": 135.0,
+            "luminance_stddev": 60.806,
+            "saturation_mean": 58.903,
+            "saturation_median": 43.0,
+            "saturated_pixel_ratio": 0.3478,
+            "frame_luminance_mean": 157.624,
+            "frame_saturation_mean": 62.457,
+            "center_luminance_mean": 112.994,
+            "center_luminance_median": 105.0,
+            "center_luminance_stddev": 59.485,
+            "center_saturation_mean": 68.186,
+            "title_luminance_mean": 141.841,
+            "title_luminance_median": 147.0,
+            "title_luminance_stddev": 54.616,
+            "title_saturation_mean": 45.262,
+            "bottom_luminance_mean": 166.03,
+            "bottom_luminance_median": 183.0,
+            "bottom_luminance_stddev": 59.542,
+            "bottom_saturation_mean": 44.003
+          }
+        },
+        {
+          "box": [
+            743,
+            88,
+            240,
+            352
+          ],
+          "expected_quantity": 2,
+          "state": "owned",
+          "card_name": "Сайтама",
+          "card_id": "card_61",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 133.797,
+            "luminance_median": 130.0,
+            "luminance_stddev": 51.811,
+            "saturation_mean": 100.617,
+            "saturation_median": 105.0,
+            "saturated_pixel_ratio": 0.6672,
+            "frame_luminance_mean": 153.086,
+            "frame_saturation_mean": 67.011,
+            "center_luminance_mean": 115.071,
+            "center_luminance_median": 112.0,
+            "center_luminance_stddev": 45.812,
+            "center_saturation_mean": 132.039,
+            "title_luminance_mean": 127.615,
+            "title_luminance_median": 122.0,
+            "title_luminance_stddev": 44.911,
+            "title_saturation_mean": 88.774,
+            "bottom_luminance_mean": 169.669,
+            "bottom_luminance_median": 183.0,
+            "bottom_luminance_stddev": 53.117,
+            "bottom_saturation_mean": 63.592
+          }
+        },
+        {
+          "box": [
+            1012,
+            88,
+            240,
+            352
+          ],
+          "expected_quantity": 8,
+          "state": "owned",
+          "card_name": "Торнадо Ужаса",
+          "card_id": "card_126",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 352,
+            "luminance_mean": 132.101,
+            "luminance_median": 137.0,
+            "luminance_stddev": 51.795,
+            "saturation_mean": 56.352,
+            "saturation_median": 55.0,
+            "saturated_pixel_ratio": 0.3284,
+            "frame_luminance_mean": 158.459,
+            "frame_saturation_mean": 40.268,
+            "center_luminance_mean": 105.689,
+            "center_luminance_median": 118.0,
+            "center_luminance_stddev": 50.389,
+            "center_saturation_mean": 72.037,
+            "title_luminance_mean": 146.673,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 33.694,
+            "title_saturation_mean": 40.933,
+            "bottom_luminance_mean": 160.313,
+            "bottom_luminance_median": 170.0,
+            "bottom_luminance_stddev": 49.539,
+            "bottom_saturation_mean": 33.326
+          }
+        }
+      ],
+      "image_sha256": "d9231f48d578f536dca223323d9541cd6e0c7f504de451ce36b7a082dae880f7"
     }
   ]
 }
