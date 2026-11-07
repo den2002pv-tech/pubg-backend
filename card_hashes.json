@@ -1419,6 +1419,19 @@
       "hash": "383c860636daec8e",
       "rarity": 2,
       "icon": "/static/cards/card_125.webp"
+    },
+    "card_126": {
+      "name": "Торнадо Ужаса",
+      "hashes": {
+        "full_phash": "b23a9835c76c82db",
+        "full_dhash": "1c3c1d0f4f8e26e8",
+        "visual_phash": "b29b91876d9059e3",
+        "visual_dhash": "1c2cbd0f4f4f8d96",
+        "frame_colorhash": "07007000000"
+      },
+      "hash": "1c3c1d0f4f8e26e8",
+      "rarity": 2,
+      "icon": "/static/cards/card_126.webp"
     }
   }
 }
