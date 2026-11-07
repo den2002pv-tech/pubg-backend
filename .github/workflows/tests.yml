@@ -35,6 +35,8 @@ jobs:
 
       - name: Check inline JavaScript syntax
         run: node scripts/check_inline_js.cjs
+      - name: Check collection save interactions
+        run: node scripts/test_collection_ui.cjs
 
       - name: Set up Python
         uses: actions/setup-python@v5

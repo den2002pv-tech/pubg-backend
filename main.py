@@ -45,7 +45,7 @@ from scanner import (
     scan_screenshot,
 )
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
-from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
+from database import measure_database, add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 from scanner_diagnostics import ScannerDiagnosticStore
 from scanner_prewarm import ScannerPrewarmController
@@ -3807,20 +3807,45 @@ def _normalize_collection_updates(cards: list[Any]) -> list[tuple[str, int]]:
     return list(quantities.items())
 
 
+def _persist_collection(telegram_id, updates):
+    get_or_create_user(telegram_id)
+    set_user_card_quantities(telegram_id, updates)
+    return {"status": "ok", "saved": len(updates), "cards": get_user_cards(telegram_id)}
+
+
+def _record_save_event(event):
+    try:
+        SCANNER_DIAGNOSTICS.record_event(event)
+    except Exception:
+        LOGGER.warning("Save diagnostics unavailable")
+
+
 @app.post("/me/collection/confirm")
 async def confirm_my_collection(
     data: dict[str, Any],
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
+    started = time.perf_counter()
     auth = _validate_telegram_init_data(init_data)
     cards = data.get("cards", [])
     if not isinstance(cards, list):
         raise HTTPException(status_code=400, detail="cards должен быть массивом")
-    get_or_create_user(auth["id"])
     updates = _normalize_collection_updates(cards)
-    set_user_card_quantities(auth["id"], updates)
-    saved = len(updates)
-    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"])}
+    save_id = _scanner_scan_id(data.get("save_id")) or str(uuid.uuid4())
+    metrics = {}
+    outcome = "save_failed"
+    def persist():
+        metrics["worker_wait_ms"] = (time.perf_counter() - queued) * 1000
+        with measure_database(metrics):
+            return _persist_collection(auth["id"], updates)
+    queued = time.perf_counter()
+    try:
+        result = await asyncio.to_thread(persist)
+        outcome = "save_completed"
+        return result
+    finally:
+        metrics["save_api_ms"] = (time.perf_counter() - started) * 1000
+        _record_save_event({"event": outcome, "save_id": save_id, **metrics})
 
 
 @app.post("/me/collection")
@@ -3828,14 +3853,28 @@ async def save_my_collection(
     data: dict[str, Any],
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
-    auth = _validate_telegram_init_data(init_data)
-    cards = data.get("cards", [])
-    if not isinstance(cards, list):
-        raise HTTPException(status_code=400, detail="cards должен быть массивом")
-    get_or_create_user(auth["id"])
-    updates = _normalize_collection_updates(cards)
-    set_user_card_quantities(auth["id"], updates)
-    return {"status": "ok", "saved": len(updates), "cards": get_user_cards(auth["id"]) }
+    return await confirm_my_collection(data, init_data)
+
+
+@app.post("/me/collection/client-result")
+async def record_save_client_result(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    _validate_telegram_init_data(init_data)
+    save_id = _scanner_scan_id(data.get("save_id"))
+    if not save_id:
+        raise HTTPException(status_code=400, detail="Некорректный save_id")
+    metrics = {}
+    for key in ("client_save_request_ms", "client_save_to_confirmation_ms"):
+        value = data.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 600000 and math.isfinite(value):
+            metrics[key] = round(value, 3)
+    if "client_save_to_confirmation_ms" not in metrics:
+        raise HTTPException(status_code=400, detail="Отсутствует время сохранения")
+    _record_save_event({"event": "save_client_result", "save_id": save_id,
+                        "confirmed": data.get("confirmed") is True, **metrics})
+    return {"status": "ok"}
 
 
 @app.post("/scan")
@@ -3965,7 +4004,7 @@ async def scan(
     matching_evaluation_ms = (time.perf_counter() - matching_evaluation_started) * 1000
     matching_ms = (time.perf_counter() - matching_started) * 1000
     if auth:
-        get_or_create_user(auth["id"])
+        await asyncio.to_thread(get_or_create_user, auth["id"])
 
     profile = dict(result.get("profile", {}))
     profile.update(upload_profile)

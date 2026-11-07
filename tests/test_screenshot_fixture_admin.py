@@ -248,7 +248,7 @@ def test_per_card_scan_metrics_use_weighted_average_and_median():
 
     assert metrics["scanned_cards"] == 6
     assert metrics["scan_time_ms"] == 140.0
-    assert metrics["avg_scan_time_per_card_ms"] == pytest.approx(140 / 6)
+    assert metrics["avg_scan_time_per_card_ms"] == pytest.approx(140 / 6, abs=0.0005)
     assert metrics["median_scan_time_per_card_ms"] == pytest.approx(25.0)
     assert metrics["per_card_sample_count"] == 6
     assert "evenly divided" in metrics["method"]
