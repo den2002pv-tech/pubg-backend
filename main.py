@@ -142,9 +142,11 @@ async def scanner_diagnostics_middleware(request: Request, call_next):
 
     started = time.perf_counter()
     session_id = _scanner_session_id(request.headers.get("x-scanner-session-id"))
+    scan_id = _scanner_scan_id(request.headers.get("x-scanner-scan-id"))
     request.state.scanner_session_id = session_id
     request.state.scanner_request_started = started
     request.state.scanner_diagnostics = {
+        "scan_id": scan_id,
         "request_body_read_ms": None,
         "queue_wait_ms": None,
         "image_upload_size_bytes": None,
@@ -183,6 +185,7 @@ async def scanner_diagnostics_middleware(request: Request, call_next):
                     **request.state.scanner_diagnostics,
                     "event": "scan_completed" if status_code < 400 else "scan_failed",
                     "session_id": session_id,
+                    "scan_id": request.state.scanner_diagnostics.get("scan_id"),
                     "app_commit": DIAGNOSTICS_APP_COMMIT,
                     "http_status": status_code,
                     "failure_type": failure_type,
@@ -225,6 +228,15 @@ def _scanner_session_id(value: str | None) -> str:
         except (ValueError, AttributeError):
             pass
     return str(uuid.uuid4())
+
+
+def _scanner_scan_id(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if 1 <= len(value) <= 64 and re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        return value
+    return None
 
 
 STATIC_DIR = Path("static")
@@ -3852,6 +3864,7 @@ async def scan(
         session_id = _scanner_session_id(session_header)
     request.state.scanner_session_id = session_id
     request.state.scanner_request_started = request_started_at
+    request_diag["scan_id"] = _scanner_scan_id(request.headers.get("x-scanner-scan-id"))
     request_diag.setdefault(
         "request_received_ms",
         round((request_started_at - SCANNER_DIAGNOSTICS.started_monotonic) * 1000, 3),
@@ -3961,6 +3974,7 @@ async def scan(
     profile["matching_evaluation_ms"] = round(matching_evaluation_ms, 1)
     profile.update(matching_profile)
     profile["matched_count"] = sum(card.get("id") is not None for card in matches)
+    profile["unknown_count"] = len(matches) - profile["matched_count"]
     profile["request_received_ms"] = request_diag["request_received_ms"]
     profile["request_body_read_ms"] = request_diag["request_body_read_ms"]
     profile["queue_wait_ms"] = request_diag["queue_wait_ms"]
@@ -3997,15 +4011,84 @@ async def scan(
         "raw_hash_ms": profile.get("raw_hash_ms"),
         "clean_hash_ms": profile.get("clean_hash_ms"),
         "hashing_total_ms": profile.get("hashing_total_ms"),
+        "catalog_load_ms": profile.get("catalog_load_ms"),
         "matching_ms": profile.get("matching_ms"),
+        "matching_evaluation_ms": profile.get("matching_evaluation_ms"),
+        "matched_count": profile.get("matched_count"),
+        "unknown_count": profile.get("unknown_count"),
+        "cards_detected": len(matches),
         "quality_check_ms": None,
         "response_build_ms": response_build_ms,
+    })
+    request_diag.update({
+        f"matching_{key}": value
+        for key, value in matching_profile.items()
     })
     profile["response_build_ms"] = response_build_ms
     profile["total_server_ms"] = round((time.perf_counter() - request.state.scanner_request_started) * 1000, 3)
     profile["server_total_ms"] = round((time.perf_counter() - request_started) * 1000, 1)
     request_diag["total_server_ms"] = profile["total_server_ms"]
+    request_diag["server_total_ms"] = profile["server_total_ms"]
     return response_data
+
+
+@app.post("/scan/client-result")
+async def record_scan_client_result(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+    session_header: str | None = Header(default=None, alias="X-Scanner-Session-ID"),
+):
+    """Record browser timings measured when the scan result has been painted."""
+    if init_data:
+        _validate_telegram_init_data(init_data)
+
+    scan_id = _scanner_scan_id(data.get("scan_id"))
+    if scan_id is None:
+        raise HTTPException(status_code=400, detail="Некорректный scan_id")
+
+    metric_names = (
+        "client_form_data_ms",
+        "client_wake_ms",
+        "client_upload_ms",
+        "client_response_wait_ms",
+        "client_response_parse_ms",
+        "client_request_ms",
+        "client_result_render_ms",
+        "client_scan_to_result_ms",
+    )
+    metrics: dict[str, float] = {}
+    for name in metric_names:
+        value = data.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        numeric = float(value)
+        if math.isfinite(numeric) and 0 <= numeric <= 600_000:
+            metrics[name] = round(numeric, 3)
+
+    if "client_scan_to_result_ms" not in metrics:
+        raise HTTPException(status_code=400, detail="Отсутствует client_scan_to_result_ms")
+
+    cards_displayed = data.get("cards_displayed")
+    matched_count = data.get("matched_count")
+    event = {
+        "event": "scan_client_result",
+        "session_id": _scanner_session_id(session_header),
+        "scan_id": scan_id,
+        **metrics,
+        "cards_displayed": (
+            max(0, min(500, int(cards_displayed)))
+            if isinstance(cards_displayed, int) and not isinstance(cards_displayed, bool)
+            else None
+        ),
+        "matched_count": (
+            max(0, min(500, int(matched_count)))
+            if isinstance(matched_count, int) and not isinstance(matched_count, bool)
+            else None
+        ),
+        "result_visible": True,
+    }
+    recorded = SCANNER_DIAGNOSTICS.record_event(event)
+    return {"status": "ok" if recorded else "not_recorded"}
 
 
 @app.post("/admin/save-card")
