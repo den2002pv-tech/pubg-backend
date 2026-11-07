@@ -1009,136 +1009,184 @@ def _finish_counter_detection(
 
 
 
-def _collect_counter_candidates(
-    gray: np.ndarray, x1: int, y1: int, roi_h: int, roi_w: int,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    x_candidates: list[dict[str, Any]] = []
-    digit_candidates: list[dict[str, Any]] = []
-    threshold_runs: list[dict[str, Any]] = []
+def _aligned_counter_digits(
+    x_candidates: list[dict[str, Any]],
+    digit_candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        digit for digit in digit_candidates
+        if any(_counter_digit_aligned(multiply, digit) for multiply in x_candidates)
+    ]
 
 
-    for thresh in (180, 160, 140, 120):
-        pass_started = time.perf_counter()
-        bright = cv2.inRange(gray, thresh, 255)
-        join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
-        contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        x_before, digits_before = len(x_candidates), len(digit_candidates)
-        _process_counter_contours(contours, glyph_mask, roi_h, roi_w, x1, y1, x_candidates, digit_candidates)
-        # Collapse duplicate detections across thresholds, but preserve separate
-        # glyphs in a multi-digit count. Keeping a high-scoring false multiply
-        # mark can otherwise block the actual badge's digit or win by geometry.
-        if x_candidates:
-            digit_candidates = [
-                digit for digit in digit_candidates
-                if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
-            ]
-            deduplicated: list[dict[str, Any]] = []
-            for digit in sorted(digit_candidates, key=lambda item: item["score"], reverse=True):
-                duplicate = next((
-                    existing for existing in deduplicated
-                    if abs(existing["x"] - digit["x"]) <= max(2, int(digit["w"] * 0.35))
-                    and abs(existing["y"] - digit["y"]) <= max(3, int(digit["h"] * 0.20))
-                ), None)
-                if duplicate is None:
-                    deduplicated.append(digit)
-            digit_candidates = deduplicated
-        threshold_runs.append({
-            "threshold": thresh,
-            "contours": len(contours),
-            "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
-            "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
-            "x_candidates_added": len(x_candidates) - x_before,
-            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
-            "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
-        })
-        if x_candidates and digit_candidates:
-            break
+def _deduplicate_counter_digits(
+    digit_candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    deduplicated: list[dict[str, Any]] = []
+    for digit in sorted(digit_candidates, key=lambda item: item["score"], reverse=True):
+        duplicate = next((
+            existing for existing in deduplicated
+            if abs(existing["x"] - digit["x"]) <= max(2, int(digit["w"] * 0.35))
+            and abs(existing["y"] - digit["y"]) <= max(3, int(digit["h"] * 0.20))
+        ), None)
+        if duplicate is None:
+            deduplicated.append(digit)
+    return deduplicated
 
-    if threshold_runs and threshold_runs[-1]["threshold"] == 120:
-        pass_started = time.perf_counter()
-        # The closing pass can merge adjacent × and digit glyphs on small badges.
-        bright = cv2.inRange(gray, 220, 255)
-        glyph_mask = bright
-        contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        x_before, digits_before = len(x_candidates), len(digit_candidates)
-        _process_counter_contours(contours, glyph_mask, roi_h, roi_w, x1, y1, x_candidates, digit_candidates, allow_ambiguous_digits=True)
-        if x_candidates:
-            digit_candidates = [
-                digit for digit in digit_candidates
-                if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
-            ]
-            deduplicated = []
-            for digit in sorted(digit_candidates, key=lambda item: item["score"], reverse=True):
-                duplicate = next((
-                    existing for existing in deduplicated
-                    if abs(existing["x"] - digit["x"]) <= max(2, int(digit["w"] * 0.35))
-                    and abs(existing["y"] - digit["y"]) <= max(3, int(digit["h"] * 0.20))
-                ), None)
-                if duplicate is None:
-                    deduplicated.append(digit)
-            digit_candidates = deduplicated
-        threshold_runs.append({
-            "threshold": "220_unjoined_fallback",
-            "contours": len(contours),
-            "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
-            "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
-            "x_candidates_added": len(x_candidates) - x_before,
-            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
-            "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
-        })
 
-    if x_candidates and not digit_candidates:
-        pass_started = time.perf_counter()
-        # A pale glyph on a mid-tone gray/gold badge may be below every fixed
-        # brightness threshold. Remove the local background and threshold the
-        # residual as a final, bounded fallback.
-        local_background = cv2.GaussianBlur(gray, (0, 0), sigmaX=2.0, sigmaY=2.0)
-        local_contrast = cv2.subtract(gray, local_background)
-        _, local_mask = cv2.threshold(
-            local_contrast, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+def _run_counter_threshold_pass(
+    gray: np.ndarray,
+    threshold: int,
+    x1: int,
+    y1: int,
+    roi_h: int,
+    roi_w: int,
+    x_candidates: list[dict[str, Any]],
+    digit_candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    pass_started = time.perf_counter()
+    bright = cv2.inRange(gray, threshold, 255)
+    join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    glyph_mask = cv2.morphologyEx(bright, cv2.MORPH_CLOSE, join_kernel, iterations=1)
+    contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    x_before, digits_before = len(x_candidates), len(digit_candidates)
+    _process_counter_contours(
+        contours, glyph_mask, roi_h, roi_w, x1, y1, x_candidates, digit_candidates,
+    )
+    if x_candidates:
+        digit_candidates[:] = _deduplicate_counter_digits(
+            _aligned_counter_digits(x_candidates, digit_candidates),
         )
-        join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        glyph_mask = cv2.morphologyEx(local_mask, cv2.MORPH_CLOSE, join_kernel, iterations=1)
-        contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        digits_before = len(digit_candidates)
-        _process_counter_contours(contours, glyph_mask, roi_h, roi_w, x1, y1, x_candidates, digit_candidates)
-        digit_candidates = [
-            digit for digit in digit_candidates
-            if any(_counter_digit_aligned(xc, digit) for xc in x_candidates)
-        ]
-        threshold_runs.append({
-            "threshold": "local_contrast_otsu",
-            "contours": len(contours),
-            "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
-            "bright_pixel_ratio": round(float(np.count_nonzero(local_mask)) / float(local_mask.size or 1), 4),
-            "x_candidates_added": 0,
-            "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
-            "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
-        })
+    return {
+        "threshold": threshold,
+        "contours": len(contours),
+        "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
+        "bright_pixel_ratio": round(float(np.count_nonzero(bright)) / float(bright.size or 1), 4),
+        "x_candidates_added": len(x_candidates) - x_before,
+        "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+        "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
+    }
 
-    candidate_diagnostics = {
+
+def _run_unjoined_counter_fallback(
+    gray: np.ndarray,
+    x1: int,
+    y1: int,
+    roi_h: int,
+    roi_w: int,
+    x_candidates: list[dict[str, Any]],
+    digit_candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    pass_started = time.perf_counter()
+    # The closing pass can merge adjacent × and digit glyphs on small badges.
+    glyph_mask = cv2.inRange(gray, 220, 255)
+    contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    x_before, digits_before = len(x_candidates), len(digit_candidates)
+    _process_counter_contours(
+        contours, glyph_mask, roi_h, roi_w, x1, y1,
+        x_candidates, digit_candidates, allow_ambiguous_digits=True,
+    )
+    if x_candidates:
+        digit_candidates[:] = _deduplicate_counter_digits(
+            _aligned_counter_digits(x_candidates, digit_candidates),
+        )
+    return {
+        "threshold": "220_unjoined_fallback",
+        "contours": len(contours),
+        "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
+        "bright_pixel_ratio": round(float(np.count_nonzero(glyph_mask)) / float(glyph_mask.size or 1), 4),
+        "x_candidates_added": len(x_candidates) - x_before,
+        "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+        "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
+    }
+
+
+def _run_local_contrast_counter_fallback(
+    gray: np.ndarray,
+    x1: int,
+    y1: int,
+    roi_h: int,
+    roi_w: int,
+    x_candidates: list[dict[str, Any]],
+    digit_candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    pass_started = time.perf_counter()
+    # Remove the local background for pale glyphs below every fixed threshold.
+    local_background = cv2.GaussianBlur(gray, (0, 0), sigmaX=2.0, sigmaY=2.0)
+    local_contrast = cv2.subtract(gray, local_background)
+    _, local_mask = cv2.threshold(
+        local_contrast, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )
+    join_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    glyph_mask = cv2.morphologyEx(local_mask, cv2.MORPH_CLOSE, join_kernel, iterations=1)
+    contours, _ = cv2.findContours(glyph_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    digits_before = len(digit_candidates)
+    _process_counter_contours(
+        contours, glyph_mask, roi_h, roi_w, x1, y1, x_candidates, digit_candidates,
+    )
+    digit_candidates[:] = _aligned_counter_digits(x_candidates, digit_candidates)
+    return {
+        "threshold": "local_contrast_otsu",
+        "contours": len(contours),
+        "processed_contours": min(len(contours), COUNTER_MAX_CONTOURS_PER_PASS),
+        "bright_pixel_ratio": round(float(np.count_nonzero(local_mask)) / float(local_mask.size or 1), 4),
+        "x_candidates_added": 0,
+        "digit_candidates_added": max(0, len(digit_candidates) - digits_before),
+        "duration_ms": round((time.perf_counter() - pass_started) * 1000, 3),
+    }
+
+
+def _counter_candidate_diagnostics(
+    x_candidates: list[dict[str, Any]],
+    digit_candidates: list[dict[str, Any]],
+    threshold_runs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
         "threshold_runs": threshold_runs,
         "x_candidates_found": len(x_candidates),
         "digit_candidates_found": len(digit_candidates),
         "x_candidates": [
-            {k: round(float(v), 3) if k == "score" else int(v) for k, v in item.items()}
+            {key: round(float(value), 3) if key == "score" else int(value) for key, value in item.items()}
             for item in sorted(x_candidates, key=lambda item: item["score"], reverse=True)[:5]
         ],
         "digit_candidates": [
             {
-                k: (
-                    round(float(v), 3)
-                    if k in {"score", "alt_score"} and v is not None
-                    else int(v) if v is not None else None
+                key: (
+                    round(float(value), 3)
+                    if key in {"score", "alt_score"} and value is not None
+                    else int(value) if value is not None else None
                 )
-                for k, v in item.items()
+                for key, value in item.items()
             }
             for item in sorted(digit_candidates, key=lambda item: item["score"], reverse=True)[:10]
         ],
     }
 
-    return x_candidates, digit_candidates, threshold_runs, candidate_diagnostics
+
+def _collect_counter_candidates(
+    gray: np.ndarray, x1: int, y1: int, roi_h: int, roi_w: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    x_candidates: list[dict[str, Any]] = []
+    digit_candidates: list[dict[str, Any]] = []
+    threshold_runs = []
+    for threshold in (180, 160, 140, 120):
+        threshold_runs.append(_run_counter_threshold_pass(
+            gray, threshold, x1, y1, roi_h, roi_w, x_candidates, digit_candidates,
+        ))
+        if x_candidates and digit_candidates:
+            break
+    if threshold_runs and threshold_runs[-1]["threshold"] == 120:
+        threshold_runs.append(_run_unjoined_counter_fallback(
+            gray, x1, y1, roi_h, roi_w, x_candidates, digit_candidates,
+        ))
+    if x_candidates and not digit_candidates:
+        threshold_runs.append(_run_local_contrast_counter_fallback(
+            gray, x1, y1, roi_h, roi_w, x_candidates, digit_candidates,
+        ))
+    diagnostics = _counter_candidate_diagnostics(
+        x_candidates, digit_candidates, threshold_runs,
+    )
+    return x_candidates, digit_candidates, threshold_runs, diagnostics
 
 
 def _unique_counter_multiply_candidates(
