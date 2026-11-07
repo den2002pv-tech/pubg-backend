@@ -3782,6 +3782,170 @@
         }
       ],
       "image_sha256": "290301c50e06d18795f476f2480c29ca1330653ca4e0bf3360b25b4e207aac4e"
+    },
+    {
+      "id": "inventory-20261107010044",
+      "title": "",
+      "image_path": "tests/fixtures/screenshots/images/inventory-20261107010044.png",
+      "source_screenshot_size": [
+        1600,
+        720
+      ],
+      "cards": [
+        {
+          "box": [
+            205,
+            145,
+            240,
+            353
+          ],
+          "expected_quantity": 9,
+          "state": "owned",
+          "card_name": "Генос",
+          "card_id": "card_82",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 131.784,
+            "luminance_median": 137.0,
+            "luminance_stddev": 49.026,
+            "saturation_mean": 49.581,
+            "saturation_median": 48.0,
+            "saturated_pixel_ratio": 0.305,
+            "frame_luminance_mean": 154.374,
+            "frame_saturation_mean": 39.031,
+            "center_luminance_mean": 108.479,
+            "center_luminance_median": 119.0,
+            "center_luminance_stddev": 48.433,
+            "center_saturation_mean": 58.816,
+            "title_luminance_mean": 147.963,
+            "title_luminance_median": 151.0,
+            "title_luminance_stddev": 29.854,
+            "title_saturation_mean": 37.799,
+            "bottom_luminance_mean": 156.138,
+            "bottom_luminance_median": 159.0,
+            "bottom_luminance_stddev": 51.017,
+            "bottom_saturation_mean": 34.698
+          }
+        },
+        {
+          "box": [
+            474,
+            145,
+            240,
+            353
+          ],
+          "expected_quantity": 6,
+          "state": "owned",
+          "card_name": "Сторожевой пёс",
+          "card_id": "card_83",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 153.181,
+            "luminance_median": 149.0,
+            "luminance_stddev": 32.439,
+            "saturation_mean": 44.039,
+            "saturation_median": 38.0,
+            "saturated_pixel_ratio": 0.266,
+            "frame_luminance_mean": 156.76,
+            "frame_saturation_mean": 39.452,
+            "center_luminance_mean": 147.115,
+            "center_luminance_median": 143.0,
+            "center_luminance_stddev": 29.212,
+            "center_saturation_mean": 47.761,
+            "title_luminance_mean": 151.064,
+            "title_luminance_median": 150.0,
+            "title_luminance_stddev": 28.815,
+            "title_saturation_mean": 37.154,
+            "bottom_luminance_mean": 166.337,
+            "bottom_luminance_median": 179.0,
+            "bottom_luminance_stddev": 40.712,
+            "bottom_saturation_mean": 32.077
+          }
+        },
+        {
+          "box": [
+            743,
+            145,
+            240,
+            353
+          ],
+          "expected_quantity": 5,
+          "state": "owned",
+          "card_name": "Гаро",
+          "card_id": "card_84",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 138.683,
+            "luminance_median": 141.0,
+            "luminance_stddev": 47.418,
+            "saturation_mean": 50.909,
+            "saturation_median": 49.0,
+            "saturated_pixel_ratio": 0.3027,
+            "frame_luminance_mean": 158.278,
+            "frame_saturation_mean": 39.942,
+            "center_luminance_mean": 116.87,
+            "center_luminance_median": 127.0,
+            "center_luminance_stddev": 49.704,
+            "center_saturation_mean": 61.749,
+            "title_luminance_mean": 152.215,
+            "title_luminance_median": 154.0,
+            "title_luminance_stddev": 29.398,
+            "title_saturation_mean": 35.117,
+            "bottom_luminance_mean": 163.447,
+            "bottom_luminance_median": 162.0,
+            "bottom_luminance_stddev": 42.957,
+            "bottom_saturation_mean": 33.865
+          }
+        },
+        {
+          "box": [
+            1012,
+            145,
+            240,
+            353
+          ],
+          "expected_quantity": 19,
+          "state": "owned",
+          "card_name": "Сильнейшей человек",
+          "card_id": "card_85",
+          "identity_verified": true,
+          "visual_features": {
+            "version": 1,
+            "width": 240,
+            "height": 353,
+            "luminance_mean": 142.395,
+            "luminance_median": 142.0,
+            "luminance_stddev": 42.192,
+            "saturation_mean": 63.508,
+            "saturation_median": 67.0,
+            "saturated_pixel_ratio": 0.48,
+            "frame_luminance_mean": 159.24,
+            "frame_saturation_mean": 39.852,
+            "center_luminance_mean": 124.452,
+            "center_luminance_median": 131.0,
+            "center_luminance_stddev": 38.029,
+            "center_saturation_mean": 85.254,
+            "title_luminance_mean": 151.897,
+            "title_luminance_median": 153.0,
+            "title_luminance_stddev": 29.744,
+            "title_saturation_mean": 41.513,
+            "bottom_luminance_mean": 163.367,
+            "bottom_luminance_median": 180.0,
+            "bottom_luminance_stddev": 49.235,
+            "bottom_saturation_mean": 37.116
+          }
+        }
+      ],
+      "image_sha256": "694c752cd58f94b1fb1b699403db0cf88ac91ba6e14e7e0ef85fcc12c07b848c"
     }
   ]
 }
