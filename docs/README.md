@@ -9,6 +9,7 @@
 - [Журнал разработки и улучшений](development-log.md)
 - [Регрессионное тестирование сканирования скриншотов](scanning-regression.md)
 - [Промт для оптимизации алгоритма сканирования](scanner-optimization-prompt.md)
+- [Исследование методов оптимизации сканера (PDF → Markdown)](reports/pubg-card-optimization-research.md)
 - [Корневые инструкции для ИИ](../AGENTS.md)
 - [Инструкция по развёртыванию](../README_DEPLOY.md)
 - [Регрессионные фикстуры счётчика](../tests/fixtures/counter/README.md)
