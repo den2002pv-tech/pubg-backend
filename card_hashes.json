@@ -1471,6 +1471,19 @@
       "hash": "6155931231716b8e",
       "rarity": 3,
       "icon": "/static/cards/card_129.webp"
+    },
+    "card_130": {
+      "name": "Лазурное сокровище",
+      "hashes": {
+        "full_phash": "9d9a22c57ddb304a",
+        "full_dhash": "71cdb95a32eee807",
+        "visual_phash": "9a16a4cdd99a4ea5",
+        "visual_dhash": "758c7d795373abae",
+        "frame_colorhash": "07007000000"
+      },
+      "hash": "71cdb95a32eee807",
+      "rarity": 1,
+      "icon": "/static/cards/card_130.webp"
     }
   }
 }
