@@ -660,6 +660,15 @@ class ScannerDiagnosticStore:
         )
 
         return {
+            "save_timings": {
+                name: aggregate([r for r in records if r.get("event") == "save_completed"], name)
+                for name in ("save_api_ms", "worker_wait_ms", "db_connection_ms", "db_sql_ms", "db_transaction_ms")
+            },
+            "save_client_timings": {
+                name: aggregate([r for r in records if r.get("event") == "save_client_result" and r.get("confirmed") is True], name)
+                for name in ("client_save_request_ms", "client_save_to_confirmation_ms")
+            },
+            "save_error_count": sum(r.get("event") == "save_failed" for r in records),
             "scan_count": len(scans),
             "successful_scans": len(completed),
             "client_result_count": len(client_results),

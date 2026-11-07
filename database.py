@@ -1,11 +1,41 @@
 from __future__ import annotations
 
 import os
+import time
+from contextvars import ContextVar
 from contextlib import contextmanager
 from typing import Iterator
 
 import psycopg
 from psycopg.rows import dict_row
+
+
+_DB_METRICS: ContextVar[dict | None] = ContextVar("db_metrics", default=None)
+
+
+@contextmanager
+def measure_database(metrics: dict):
+    token = _DB_METRICS.set(metrics)
+    try:
+        yield
+    finally:
+        _DB_METRICS.reset(token)
+
+
+def _add_metric(name: str, value: float):
+    metrics = _DB_METRICS.get()
+    if metrics is not None:
+        metrics[name] = metrics.get(name, 0) + value
+
+
+class _TimedCursor(psycopg.Cursor):
+    def execute(self, *args, **kwargs):
+        started = time.perf_counter()
+        try:
+            return super().execute(*args, **kwargs)
+        finally:
+            _add_metric("db_sql_ms", (time.perf_counter() - started) * 1000)
+            _add_metric("db_sql_count", 1)
 
 
 def _database_url() -> str:
@@ -17,8 +47,20 @@ def _database_url() -> str:
 
 @contextmanager
 def get_connection() -> Iterator[psycopg.Connection]:
-    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
-        yield conn
+    started = time.perf_counter()
+    try:
+        conn = psycopg.connect(_database_url(), row_factory=dict_row,
+                               cursor_factory=_TimedCursor)
+    finally:
+        _add_metric("db_connection_ms", (time.perf_counter() - started) * 1000)
+    _add_metric("db_connection_count", 1)
+    transaction_started = time.perf_counter()
+    try:
+        with conn:
+            yield conn
+    finally:
+        # Includes SQL, commit/rollback and connection context cleanup; nested in API time.
+        _add_metric("db_transaction_ms", (time.perf_counter() - transaction_started) * 1000)
 
 
 def init_db() -> None:

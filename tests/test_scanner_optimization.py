@@ -1,6 +1,7 @@
 """Exact compatibility oracles captured before scanner performance changes."""
 import json
 from pathlib import Path
+from typing import Any
 
 import imagehash
 import numpy as np

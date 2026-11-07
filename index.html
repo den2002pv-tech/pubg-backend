@@ -871,11 +871,13 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = BACKEND_WAKE_TIMEOUT_MS) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = BACKEND_WAKE_TIMEOUT_MS, readJson = false) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (readJson) return {response, data: await response.json()};
+    return response;
   } finally {
     clearTimeout(timeout);
   }
@@ -1458,6 +1460,10 @@ function updateConfirmState() {
 
 async function confirmCollection() {
   if (collectionSaveInProgress || scanInProgress) return;
+  const saveStartedAt = performance.now();
+  const saveId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : 'save-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  let saveRequestMs;
+  let saveConfirmed = false;
   const correctedCount = pendingCards.filter(c => c.selected && c.editQuantity != null && Number(c.editQuantity) !== Number(c.quantity)).length;
   const selected = pendingCards.filter(c => c.selected && c.editQuantity != null).map(c => ({
     ...c,
@@ -1479,12 +1485,12 @@ async function confirmCollection() {
     scanSaveStatusEl.textContent = 'Сервер ещё не подтвердил запись. Продолжаем ожидание…';
   }, 15000);
   try {
-    const r = await fetchWithTimeout(API + '/me/collection/confirm', {
+    const {response: r, data: d} = await fetchWithTimeout(API + '/me/collection/confirm', {
       method: 'POST',
       headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cards: selected })
-    }, BACKEND_WAKE_TIMEOUT_MS);
-    const d = await r.json().catch(() => ({}));
+      body: JSON.stringify({ save_id: saveId, cards: selected.map(({id, quantity}) => ({id, quantity})) })
+    }, BACKEND_WAKE_TIMEOUT_MS, true);
+    saveRequestMs = performance.now() - saveStartedAt;
     if (!r.ok) {
       const error = new Error(d.detail || 'Ошибка сохранения');
       error.httpStatus = r.status;
@@ -1525,9 +1531,10 @@ async function confirmCollection() {
     showToast('✅ Коллекция сохранена — можно сканировать следующий скриншот' + (removedDesired > 0 ? ' (убрано из «Ищу»: ' + removedDesired + ')' : ''), 'success', 3000);
     triggerHaptic('success');
     flashSavedCards(expectedQuantities);
+    saveConfirmed = true;
   } catch (e) {
     const uncertain = e?.uncertain === true || e?.httpStatus >= 500 ||
-      e?.name === 'AbortError' || e instanceof TypeError || navigator.onLine === false;
+      e?.name === 'AbortError' || e instanceof SyntaxError || e instanceof TypeError || navigator.onLine === false;
     const reason = navigator.onLine === false
       ? 'Нет подключения к интернету. Проверьте соединение и попробуйте снова.'
       : e?.name === 'AbortError'
@@ -1544,6 +1551,12 @@ async function confirmCollection() {
     updateConfirmState();
     confirmBtn.textContent = 'Повторить сохранение (' + selected.length + ')';
   } finally {
+    fetch(API + '/me/collection/client-result', {
+      method: 'POST', headers: {...telegramHeaders(), 'Content-Type': 'application/json'},
+      body: JSON.stringify({save_id: saveId, confirmed: saveConfirmed,
+        client_save_request_ms: saveRequestMs ?? performance.now() - saveStartedAt,
+        client_save_to_confirmation_ms: performance.now() - saveStartedAt}), keepalive: true
+    }).catch(() => {});
     clearTimeout(saveWaitTimer);
     collectionSaveInProgress = false;
     confirmBtn.classList.remove('saving');

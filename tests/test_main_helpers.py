@@ -1049,7 +1049,7 @@ def test_health_remains_responsive_while_scan_runs(monkeypatch):
     monkeypatch.setattr(main, "scan_screenshot", blocking_scan)
 
     async def exercise():
-        request = Request({"type": "http", "client": ("192.0.2.10", 12345)})
+        request = Request({"type": "http", "headers": [], "client": ("192.0.2.10", 12345)})
         task = asyncio.create_task(main.scan(request=request, file=object(), init_data=""))
         try:
             assert await asyncio.to_thread(started.wait, 1)
@@ -1098,7 +1098,7 @@ def test_scan_reports_semaphore_queue_wait(monkeypatch):
     monkeypatch.setattr(main, "load_db", lambda: {})
 
     async def exercise():
-        request = Request({"type": "http", "client": ("192.0.2.11", 12345)})
+        request = Request({"type": "http", "headers": [], "client": ("192.0.2.11", 12345)})
         task = asyncio.create_task(main.scan(request=request, file=object(), init_data=""))
         await asyncio.sleep(0.02)
         main.SCAN_SEMAPHORE.release()
@@ -1159,7 +1159,7 @@ def test_scan_skips_matching_second_pass_only_for_equal_hashes(
 
     monkeypatch.setattr(main, "_match_card", match)
 
-    request = Request({"type": "http", "client": ("192.0.2.11", 12345)})
+    request = Request({"type": "http", "headers": [], "client": ("192.0.2.11", 12345)})
     result = asyncio.run(main.scan(request=request, file=object(), init_data=""))
 
     assert len(calls) == expected_calls
