@@ -1152,12 +1152,12 @@
       "name": "Запечатывания лидера",
       "hashes": {
         "full_phash": "b51a92bf7dc700e0",
-        "full_dhash": "3cbc884616fee88e",
-        "visual_phash": "bf12942dcf9079c2",
-        "visual_dhash": "7c7c8907471b2ffc",
+        "full_dhash": "3cbc884616fece8e",
+        "visual_phash": "bf12903dcf9079c2",
+        "visual_dhash": "7c7c8907471b2ffe",
         "frame_colorhash": "06007000000"
       },
-      "hash": "3cbc884616fee88e",
+      "hash": "3cbc884616fece8e",
       "rarity": 2,
       "icon": "/static/cards/card_98.webp"
     },
@@ -1321,45 +1321,45 @@
       "name": "Гильдия охотников",
       "hashes": {
         "full_phash": "951aa09f7fcd60c2",
-        "full_dhash": "3cbcb6322efee88e",
+        "full_dhash": "3cbca6322efee88e",
         "visual_phash": "9e79b19f48e06781",
-        "visual_dhash": "7c7c8531616d6fde",
+        "visual_dhash": "7c5c8531616d2ffe",
         "frame_colorhash": "06007000000"
       },
-      "hash": "3cbcb6322efee88e",
+      "hash": "3cbca6322efee88e",
       "rarity": 2,
       "icon": "/static/cards/card_118.webp"
     },
     "card_119": {
       "name": "Pumpkini Pumpkina",
       "hashes": {
-        "full_phash": "b52a989f77e048c5",
-        "full_dhash": "3cb8924e5e7ee88e",
+        "full_phash": "b528989f77e048cd",
+        "full_dhash": "3cb8924e5e7ae88e",
         "visual_phash": "b3589e37e0c96998",
-        "visual_dhash": "7c7c13874e5f7ffc",
-        "frame_colorhash": "07007000000"
+        "visual_dhash": "7c7c13c74e5f7ffc",
+        "frame_colorhash": "06007000000"
       },
-      "hash": "3cb8924e5e7ee88e",
+      "hash": "3cb8924e5e7ae88e",
       "rarity": 2,
       "icon": "/static/cards/card_119.webp"
     },
     "card_120": {
       "name": "Серия Зомби 1",
       "hashes": {
-        "full_phash": "b51a82bd7fc268c1",
-        "full_dhash": "383c972f3e16ca8e",
+        "full_phash": "b51a82bd7fc260c5",
+        "full_dhash": "383c972f3616ea8e",
         "visual_phash": "bb96913fd4694324",
         "visual_dhash": "786c17172d3b1317",
         "frame_colorhash": "07007000000"
       },
-      "hash": "383c972f3e16ca8e",
+      "hash": "383c972f3616ea8e",
       "rarity": 2,
       "icon": "/static/cards/card_120.webp"
     },
     "card_121": {
       "name": "Подарок Тыква",
       "hashes": {
-        "full_phash": "953a249f5bd660d1",
+        "full_phash": "953a249f5bd660c3",
         "full_dhash": "383cac7858f2ea8e",
         "visual_phash": "bb36ad9b953840cc",
         "visual_dhash": "7c4ea52c5c593be3",
@@ -1372,13 +1372,13 @@
     "card_122": {
       "name": "Magixx",
       "hashes": {
-        "full_phash": "fe1e812e756d43c0",
-        "full_dhash": "3335300c2575338e",
+        "full_phash": "fe1e816e656d43c0",
+        "full_dhash": "3375300c2575338e",
         "visual_phash": "df990a6a6b437984",
         "visual_dhash": "5174724a25256455",
         "frame_colorhash": "03e00000000"
       },
-      "hash": "3335300c2575338e",
+      "hash": "3375300c2575338e",
       "rarity": 3,
       "icon": "/static/cards/card_122.webp"
     },
@@ -1387,7 +1387,7 @@
       "hashes": {
         "full_phash": "e4d4814f5dd72499",
         "full_dhash": "8c8e84043365cf8e",
-        "visual_phash": "e4a58a5ad0d5798b",
+        "visual_phash": "e4a58a5ad0d57999",
         "visual_dhash": "acce0646543364c6",
         "frame_colorhash": "06e00000000"
       },
@@ -1402,7 +1402,7 @@
         "full_dhash": "1f9f8e4645617107",
         "visual_phash": "e2b91e6289f6622d",
         "visual_dhash": "1f9d8fefc3cdec61",
-        "frame_colorhash": "07013000040"
+        "frame_colorhash": "06013000040"
       },
       "hash": "1f9f8e4645617107",
       "icon": "/static/cards/card_124.webp"
@@ -1423,13 +1423,13 @@
     "card_126": {
       "name": "Торнадо Ужаса",
       "hashes": {
-        "full_phash": "b23a98b5c36c22db",
-        "full_dhash": "1d3c1d0f4f9e2ee8",
-        "visual_phash": "b29a98876d9059e7",
-        "visual_dhash": "1c2cbd0f4f4f8d96",
-        "frame_colorhash": "07007000000"
+        "full_phash": "b51a98b74fcc60d2",
+        "full_dhash": "1cbc9c0e4e8e2e8e",
+        "visual_phash": "b29a91876d9059e7",
+        "visual_dhash": "182cbd0f4f4f8d96",
+        "frame_colorhash": "06007000000"
       },
-      "hash": "1d3c1d0f4f9e2ee8",
+      "hash": "1cbc9c0e4e8e2e8e",
       "rarity": 2,
       "icon": "/static/cards/card_126.webp"
     },
@@ -1452,7 +1452,7 @@
         "full_phash": "f14ace365cdb2194",
         "full_dhash": "098cca9a968e4e8e",
         "visual_phash": "f1da273c5a631c8c",
-        "visual_dhash": "0d8ccb9b33969e07",
+        "visual_dhash": "0d8ccb9b33969e17",
         "frame_colorhash": "03e00000000"
       },
       "hash": "098cca9a968e4e8e",
@@ -1465,7 +1465,7 @@
         "full_phash": "f86b878ed4b568c0",
         "full_dhash": "6155931231716b8e",
         "visual_phash": "fb618696a4c9d899",
-        "visual_dhash": "4c45131333317171",
+        "visual_dhash": "4c55131333317171",
         "frame_colorhash": "03c08000000"
       },
       "hash": "6155931231716b8e",
@@ -1476,12 +1476,12 @@
       "name": "Лазурное сокровище",
       "hashes": {
         "full_phash": "9d9a22c57ddb304a",
-        "full_dhash": "71cdb95a32eee807",
-        "visual_phash": "9a16a4cdd99a4ea5",
-        "visual_dhash": "758c7d795373abae",
+        "full_dhash": "71cdb97a32eee807",
+        "visual_phash": "9a16e4cdd99a4ca5",
+        "visual_dhash": "758c3d795333abbe",
         "frame_colorhash": "07007000000"
       },
-      "hash": "71cdb95a32eee807",
+      "hash": "71cdb97a32eee807",
       "rarity": 1,
       "icon": "/static/cards/card_130.webp"
     }
