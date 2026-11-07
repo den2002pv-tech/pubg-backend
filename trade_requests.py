@@ -672,6 +672,207 @@ def _answer_callback(callback_id: str, text: str) -> None:
     _telegram_call("answerCallbackQuery", {"callback_query_id": callback_id, "text": text, "show_alert": False})
 
 
+def _handle_app_command(command: str, chat_id: int) -> None:
+    app_keyboard = {
+        "inline_keyboard": [[{
+            "text": "🎴 Открыть PUBG Mobile",
+            "web_app": {"url": get_public_base_url()},
+        }]]
+    }
+    replies = {
+        "/start": (
+            "Привет! Это бот обмена карт PUBG Mobile. 🎴\\n\\n"
+            "Откройте приложение, чтобы управлять коллекцией и создавать заявки на обмен. "
+            "Уведомления о заявках и кнопки подтверждения будут приходить сюда."
+        ),
+        "/help": (
+            "Как пользоваться обменом карт PUBG Mobile:\\n"
+            "1. Откройте приложение и обновите свою коллекцию.\\n"
+            "2. Найдите подходящий обмен и отправьте предложение.\\n"
+            "3. Ответьте на уведомление здесь с помощью кнопок.\\n4. После согласования автор предложения нажимает «Передать код обмена» и отвечает на сообщение кодом из PUBG Mobile.\\n\\n"
+            "Не завершайте обмен в приложении игры, пока не согласовали детали друг с другом."
+        ),
+        "/app": "Нажмите кнопку ниже, чтобы открыть PUBG Mobile Mini App.",
+    }
+    try:
+        _telegram_call("sendMessage", {
+            "chat_id": chat_id,
+            "text": replies[command],
+            "reply_markup": app_keyboard,
+        })
+    except HTTPException:
+        # A failed reply must not cause Telegram to retry the same update indefinitely.
+        pass
+
+
+def _handle_trade_command(message_text: str, chat_id: int) -> None:
+    arguments = message_text.strip().split()
+    if len(arguments) != 2 or not arguments[1].isdigit():
+        _telegram_call("sendMessage", {
+            "chat_id": chat_id,
+            "text": "Использование: /trade <номер заявки>. Например: /trade 3",
+        })
+        return
+    try:
+        trade_request = get_trade_request(int(arguments[1]), chat_id)
+        _telegram_call("sendMessage", {
+            "chat_id": chat_id,
+            "text": _request_text(trade_request, chat_id),
+            "reply_markup": _keyboard(trade_request, chat_id),
+        })
+    except HTTPException as exc:
+        _telegram_call("sendMessage", {"chat_id": chat_id, "text": str(exc.detail)})
+
+
+def _handle_exchange_code_reply(message: dict[str, Any], message_text: str, chat_id: Any) -> None:
+    reply_to = message.get("reply_to_message")
+    reply_text = str((reply_to or {}).get("text") or "") if isinstance(reply_to, dict) else ""
+    code_prompt = re.fullmatch(
+        r"Введите код обмена для заявки #(\\d+) в ответ на это сообщение\\..*",
+        reply_text,
+        flags=re.DOTALL,
+    )
+    sender_id = (message.get("from") or {}).get("id")
+    if not (
+        code_prompt
+        and message.get("chat", {}).get("type") == "private"
+        and isinstance(chat_id, int)
+        and not isinstance(chat_id, bool)
+        and isinstance(sender_id, int)
+        and sender_id == chat_id
+        and isinstance(message_text, str)
+        and not message_text.strip().startswith("/")
+    ):
+        return
+    try:
+        _deliver_exchange_code(int(code_prompt.group(1)), chat_id, message_text)
+    except HTTPException as exc:
+        try:
+            _telegram_call("sendMessage", {"chat_id": chat_id, "text": str(exc.detail)})
+        except HTTPException:
+            pass
+
+
+def _handle_webhook_message(message: dict[str, Any]) -> None:
+    message_text = message.get("text")
+    chat = message.get("chat")
+    if not isinstance(message_text, str) or not isinstance(chat, dict):
+        return
+    command_token = message_text.strip().split(maxsplit=1)
+    command = command_token[0].split("@", 1)[0].lower() if command_token else ""
+    chat_id = chat.get("id")
+
+    valid_chat_id = isinstance(chat_id, int) and not isinstance(chat_id, bool)
+    if command in {"/start", "/help", "/app"} and valid_chat_id:
+        _handle_app_command(command, chat_id)
+    if command == "/trade" and valid_chat_id and chat.get("type") == "private":
+        _handle_trade_command(message_text, chat_id)
+    _handle_exchange_code_reply(message, message_text, chat_id)
+
+
+def _handle_code_callback(callback_id: str, request_id: int, actor_id: int, request: dict[str, Any]) -> None:
+    if actor_id != int(request["sender_telegram_id"]):
+        raise HTTPException(status_code=403, detail="Передать код может только автор предложения")
+    if request["status"] != "agreed":
+        raise HTTPException(status_code=409, detail="Сначала оба игрока должны согласовать обмен")
+    if request.get("exchange_code_sent_at"):
+        raise HTTPException(status_code=409, detail="Код по этой заявке уже отправлен")
+    _telegram_call("sendMessage", {
+        "chat_id": actor_id,
+        "text": (
+            f"Введите код обмена для заявки #{request_id} в ответ на это сообщение.\\n"
+            "Сначала создайте код в PUBG Mobile. Я передам его второму игроку. "
+            "Сам код не сохраняется в нашей базе."
+        ),
+        "reply_markup": {"force_reply": True, "selective": True},
+    })
+    _answer_callback(callback_id, "Ожидаю код обмена")
+
+
+def _handle_accept_callback(callback_id: str, request_id: int, actor_id: int, request: dict[str, Any]) -> None:
+    if actor_id != int(request["recipient_telegram_id"]) or request["status"] != "pending":
+        raise HTTPException(status_code=403, detail="Принять предложение может только получатель")
+    _telegram_call("sendMessage", {
+        "chat_id": actor_id,
+        "text": "Вы согласны на этот обмен? Проверьте, что у вас есть нужная карта и вы готовы её обменять.",
+        "reply_markup": {"inline_keyboard": [[
+            {"text": "✅ Да, принять", "callback_data": f"tr:{request_id}:accept_confirm"},
+            {"text": "↩️ Назад", "callback_data": f"tr:{request_id}:details"},
+        ]]},
+    })
+    _answer_callback(callback_id, "Подтвердите решение")
+
+
+def _notify_trade_callback_participants(request: dict[str, Any], actor_id: int) -> None:
+    _telegram_call("sendMessage", {
+        "chat_id": actor_id,
+        "text": _request_text(request, actor_id),
+        "reply_markup": _keyboard(request, actor_id),
+    })
+    other_id = int(
+        request["recipient_telegram_id"]
+        if actor_id == int(request["sender_telegram_id"])
+        else request["sender_telegram_id"]
+    )
+    _telegram_call("sendMessage", {
+        "chat_id": other_id,
+        "text": _request_text(request, other_id),
+        "reply_markup": _keyboard(request, other_id),
+    })
+
+
+def _dispatch_trade_callback(
+    callback_id: str,
+    request_id: int,
+    action: str,
+    actor_id: int,
+    request: dict[str, Any],
+) -> None:
+    if action == "details":
+        _notify_request(request, actor_id)
+        _answer_callback(callback_id, "Карты и статус заявки отправлены")
+        return
+    if action == "code":
+        _handle_code_callback(callback_id, request_id, actor_id, request)
+        return
+    if action == "accept":
+        _handle_accept_callback(callback_id, request_id, actor_id, request)
+        return
+
+    if action == "accept_confirm":
+        request = _transition(request_id, actor_id, "accept")
+        _answer_callback(callback_id, "Предложение принято")
+    elif action in {"decline", "agree", "complete", "cancel"}:
+        request = _transition(request_id, actor_id, action)
+        labels = {
+            "decline": "Предложение отклонено",
+            "agree": "Договорённость подтверждена",
+            "complete": "Подтверждение завершения сохранено",
+            "cancel": "Обмен отменён",
+        }
+        _answer_callback(callback_id, labels[action])
+    else:
+        _answer_callback(callback_id, "Неизвестное действие")
+        return
+    _notify_trade_callback_participants(request, actor_id)
+
+
+def _handle_trade_callback(callback: dict[str, Any]) -> None:
+    callback_id = str(callback.get("id") or "")
+    data = str(callback.get("data") or "")
+    parts = data.split(":")
+    if len(parts) != 3 or parts[0] != "tr" or not parts[1].isdigit():
+        _answer_callback(callback_id, "Неизвестное действие")
+        return
+    request_id = int(parts[1])
+    actor_id = _callback_actor(callback)
+    try:
+        request = get_trade_request(request_id, actor_id)
+        _dispatch_trade_callback(callback_id, request_id, parts[2], actor_id, request)
+    except HTTPException as exc:
+        _answer_callback(callback_id, exc.detail[:180])
+
+
 @router.post("/telegram/webhook")
 async def telegram_webhook(
     update: dict[str, Any],
@@ -682,162 +883,15 @@ async def telegram_webhook(
         raise HTTPException(status_code=503, detail="TELEGRAM_WEBHOOK_SECRET не задан на сервере")
     if not secret or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=403, detail="Forbidden")
+
     message = update.get("message")
     if isinstance(message, dict):
-        message_text = message.get("text")
-        chat = message.get("chat")
-        if isinstance(message_text, str) and isinstance(chat, dict):
-            command_token = message_text.strip().split(maxsplit=1)
-            command = command_token[0].split("@", 1)[0].lower() if command_token else ""
-            chat_id = chat.get("id")
-            if command in {"/start", "/help", "/app"} and isinstance(chat_id, int) and not isinstance(chat_id, bool):
-                app_keyboard = {
-                    "inline_keyboard": [[{
-                        "text": "🎴 Открыть PUBG Mobile",
-                        "web_app": {"url": get_public_base_url()},
-                    }]]
-                }
-                if command == "/start":
-                    reply_text = (
-                        "Привет! Это бот обмена карт PUBG Mobile. 🎴\n\n"
-                        "Откройте приложение, чтобы управлять коллекцией и создавать заявки на обмен. "
-                        "Уведомления о заявках и кнопки подтверждения будут приходить сюда."
-                    )
-                elif command == "/help":
-                    reply_text = (
-                        "Как пользоваться обменом карт PUBG Mobile:\n"
-                        "1. Откройте приложение и обновите свою коллекцию.\n"
-                        "2. Найдите подходящий обмен и отправьте предложение.\n"
-                        "3. Ответьте на уведомление здесь с помощью кнопок.\n4. После согласования автор предложения нажимает «Передать код обмена» и отвечает на сообщение кодом из PUBG Mobile.\n\n"
-                        "Не завершайте обмен в приложении игры, пока не согласовали детали друг с другом."
-                    )
-                else:
-                    reply_text = "Нажмите кнопку ниже, чтобы открыть PUBG Mobile Mini App."
-                try:
-                    _telegram_call("sendMessage", {
-                        "chat_id": chat_id,
-                        "text": reply_text,
-                        "reply_markup": app_keyboard,
-                    })
-                except HTTPException:
-                    # A failed reply must not cause Telegram to retry the same update indefinitely.
-                    pass
-
-            if command == "/trade" and isinstance(chat_id, int) and not isinstance(chat_id, bool) and chat.get("type") == "private":
-                arguments = message_text.strip().split()
-                if len(arguments) != 2 or not arguments[1].isdigit():
-                    _telegram_call("sendMessage", {
-                        "chat_id": chat_id,
-                        "text": "Использование: /trade <номер заявки>. Например: /trade 3",
-                    })
-                else:
-                    try:
-                        trade_request = get_trade_request(int(arguments[1]), chat_id)
-                        _telegram_call("sendMessage", {
-                            "chat_id": chat_id,
-                            "text": _request_text(trade_request, chat_id),
-                            "reply_markup": _keyboard(trade_request, chat_id),
-                        })
-                    except HTTPException as exc:
-                        _telegram_call("sendMessage", {
-                            "chat_id": chat_id,
-                            "text": str(exc.detail),
-                        })
-
-            reply_to = message.get("reply_to_message")
-            reply_text = str((reply_to or {}).get("text") or "") if isinstance(reply_to, dict) else ""
-            code_prompt = re.fullmatch(r"Введите код обмена для заявки #(\d+) в ответ на это сообщение\..*", reply_text, flags=re.DOTALL)
-            sender_id = (message.get("from") or {}).get("id")
-            if (
-                code_prompt
-                and chat.get("type") == "private"
-                and isinstance(chat_id, int)
-                and not isinstance(chat_id, bool)
-                and isinstance(sender_id, int)
-                and sender_id == chat_id
-                and isinstance(message_text, str)
-                and not message_text.strip().startswith("/")
-            ):
-                try:
-                    _deliver_exchange_code(int(code_prompt.group(1)), chat_id, message_text)
-                except HTTPException as exc:
-                    try:
-                        _telegram_call("sendMessage", {"chat_id": chat_id, "text": str(exc.detail)})
-                    except HTTPException:
-                        pass
+        _handle_webhook_message(message)
         return {"ok": True}
 
     callback = update.get("callback_query")
-    if not isinstance(callback, dict):
-        return {"ok": True}
-    callback_id = str(callback.get("id") or "")
-    data = str(callback.get("data") or "")
-    parts = data.split(":")
-    if len(parts) != 3 or parts[0] != "tr" or not parts[1].isdigit():
-        _answer_callback(callback_id, "Неизвестное действие")
-        return {"ok": True}
-    request_id = int(parts[1])
-    action = parts[2]
-    actor_id = _callback_actor(callback)
-    try:
-        request = get_trade_request(request_id, actor_id)
-        if action == "details":
-            _notify_request(request, actor_id)
-            _answer_callback(callback_id, "Карты и статус заявки отправлены")
-            return {"ok": True}
-
-        if action == "code":
-            if actor_id != int(request["sender_telegram_id"]):
-                raise HTTPException(status_code=403, detail="Передать код может только автор предложения")
-            if request["status"] != "agreed":
-                raise HTTPException(status_code=409, detail="Сначала оба игрока должны согласовать обмен")
-            if request.get("exchange_code_sent_at"):
-                raise HTTPException(status_code=409, detail="Код по этой заявке уже отправлен")
-            _telegram_call("sendMessage", {
-                "chat_id": actor_id,
-                "text": (
-                    f"Введите код обмена для заявки #{request_id} в ответ на это сообщение.\n"
-                    "Сначала создайте код в PUBG Mobile. Я передам его второму игроку. "
-                    "Сам код не сохраняется в нашей базе."
-                ),
-                "reply_markup": {"force_reply": True, "selective": True},
-            })
-            _answer_callback(callback_id, "Ожидаю код обмена")
-            return {"ok": True}
-        if action == "accept":
-            if actor_id != int(request["recipient_telegram_id"]) or request["status"] != "pending":
-                raise HTTPException(status_code=403, detail="Принять предложение может только получатель")
-            _telegram_call("sendMessage", {
-                "chat_id": actor_id,
-                "text": "Вы согласны на этот обмен? Проверьте, что у вас есть нужная карта и вы готовы её обменять.",
-                "reply_markup": {"inline_keyboard": [[
-                    {"text": "✅ Да, принять", "callback_data": f"tr:{request_id}:accept_confirm"},
-                    {"text": "↩️ Назад", "callback_data": f"tr:{request_id}:details"},
-                ]]},
-            })
-            _answer_callback(callback_id, "Подтвердите решение")
-            return {"ok": True}
-        if action == "accept_confirm":
-            request = _transition(request_id, actor_id, "accept")
-            _answer_callback(callback_id, "Предложение принято")
-        elif action in {"decline", "agree", "complete", "cancel"}:
-            request = _transition(request_id, actor_id, action)
-            labels = {
-                "decline": "Предложение отклонено",
-                "agree": "Договорённость подтверждена",
-                "complete": "Подтверждение завершения сохранено",
-                "cancel": "Обмен отменён",
-            }
-            _answer_callback(callback_id, labels[action])
-        else:
-            _answer_callback(callback_id, "Неизвестное действие")
-            return {"ok": True}
-        text = _request_text(request, actor_id)
-        _telegram_call("sendMessage", {"chat_id": actor_id, "text": text, "reply_markup": _keyboard(request, actor_id)})
-        other_id = int(request["recipient_telegram_id"] if actor_id == int(request["sender_telegram_id"]) else request["sender_telegram_id"])
-        _telegram_call("sendMessage", {"chat_id": other_id, "text": _request_text(request, other_id), "reply_markup": _keyboard(request, other_id)})
-    except HTTPException as exc:
-        _answer_callback(callback_id, exc.detail[:180])
+    if isinstance(callback, dict):
+        _handle_trade_callback(callback)
     return {"ok": True}
 
 
