@@ -1423,28 +1423,54 @@
     "card_126": {
       "name": "Торнадо Ужаса",
       "hashes": {
-        "full_phash": "b23a9835c76c82db",
-        "full_dhash": "1c3c1d0f4f8e26e8",
-        "visual_phash": "b29b91876d9059e3",
+        "full_phash": "b23a98b5c36c22db",
+        "full_dhash": "1d3c1d0f4f9e2ee8",
+        "visual_phash": "b29a98876d9059e7",
         "visual_dhash": "1c2cbd0f4f4f8d96",
         "frame_colorhash": "07007000000"
       },
-      "hash": "1c3c1d0f4f8e26e8",
+      "hash": "1d3c1d0f4f9e2ee8",
       "rarity": 2,
       "icon": "/static/cards/card_126.webp"
     },
     "card_127": {
       "name": "Wakala",
       "hashes": {
-        "full_phash": "e19e9233df692492",
+        "full_phash": "e59e92335f682592",
         "full_dhash": "3cbc96120ac6938e",
         "visual_phash": "e994a39a68a5dacc",
-        "visual_dhash": "3c7cb517332b8f8b",
+        "visual_dhash": "2c7cb517332bcf83",
         "frame_colorhash": "06007000000"
       },
       "hash": "3cbc96120ac6938e",
       "rarity": 2,
       "icon": "/static/cards/card_127.webp"
+    },
+    "card_128": {
+      "name": "Kwee Nay Htoo Naing",
+      "hashes": {
+        "full_phash": "f14ace365cdb2194",
+        "full_dhash": "098cca9a968e4e8e",
+        "visual_phash": "f1da273c5a631c8c",
+        "visual_dhash": "0d8ccb9b33969e07",
+        "frame_colorhash": "03e00000000"
+      },
+      "hash": "098cca9a968e4e8e",
+      "rarity": 3,
+      "icon": "/static/cards/card_128.webp"
+    },
+    "card_129": {
+      "name": "Suzzanna",
+      "hashes": {
+        "full_phash": "f86b878ed4b568c0",
+        "full_dhash": "6155931231716b8e",
+        "visual_phash": "fb618696a4c9d899",
+        "visual_dhash": "4c45131333317171",
+        "frame_colorhash": "03c08000000"
+      },
+      "hash": "6155931231716b8e",
+      "rarity": 3,
+      "icon": "/static/cards/card_129.webp"
     }
   }
 }
