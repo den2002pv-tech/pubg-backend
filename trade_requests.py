@@ -681,7 +681,7 @@ def _handle_app_command(command: str, chat_id: int) -> None:
     }
     replies = {
         "/start": (
-            "Привет! Это бот обмена карт PUBG Mobile. 🎴\\n\\n"
+            "Привет! Это бот обмена карт PUBG Mobile. 🎴\n\n"
             "Откройте приложение, чтобы управлять коллекцией и создавать заявки на обмен. "
             "Уведомления о заявках и кнопки подтверждения будут приходить сюда."
         ),
@@ -728,7 +728,7 @@ def _handle_exchange_code_reply(message: dict[str, Any], message_text: str, chat
     reply_to = message.get("reply_to_message")
     reply_text = str((reply_to or {}).get("text") or "") if isinstance(reply_to, dict) else ""
     code_prompt = re.fullmatch(
-        r"Введите код обмена для заявки #(\\d+) в ответ на это сообщение\\..*",
+        r"Введите код обмена для заявки #(\d+) в ответ на это сообщение\..*",
         reply_text,
         flags=re.DOTALL,
     )

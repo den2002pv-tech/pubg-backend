@@ -3964,12 +3964,16 @@ async def scan(
     matching_evaluation_started = time.perf_counter()
     card_match_threshold = float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
     for card in result["cards"]:
-        best_id, best_distance = _match_card(card["hashes"], db, matching_profile)
+        match = _match_card_detailed(card["hashes"], db, matching_profile)
         raw_hashes = card.get("raw_hashes", {})
         if raw_hashes != card["hashes"]:
-            raw_id, raw_distance = _match_card(raw_hashes, db, matching_profile)
-            if raw_id is not None and raw_distance < best_distance:
-                best_id, best_distance = raw_id, raw_distance
+            raw_match = _match_card_detailed(raw_hashes, db, matching_profile)
+            if raw_match["id"] is not None and (
+                match["id"] is None or raw_match["score"] < match["score"]
+            ):
+                match = raw_match
+        best_id = match["id"]
+        best_distance = match["score"] if best_id is not None else float("inf")
         matched = (
             best_id is not None
             and best_distance <= card_match_threshold
@@ -3981,6 +3985,7 @@ async def scan(
                 "name": info.get("name", best_id),
                 "rarity": info.get("rarity", 1),
                 "distance": round(best_distance, 2),
+                "needs_review": match["strong_count"] < CARD_MATCH_MIN_STRONG_HASHES,
                 "icon": info.get("icon", ""),
                 "preview": card.get("preview", ""),
                 "quantity": int(card.get("quantity", 1) or 1),
@@ -3994,6 +3999,7 @@ async def scan(
                 "name": "Неизвестная карта",
                 "rarity": None,
                 "distance": None,
+                "needs_review": True,
                 "icon": "",
                 "preview": card.get("preview", ""),
                 "quantity": int(card.get("quantity", 1) or 1),
