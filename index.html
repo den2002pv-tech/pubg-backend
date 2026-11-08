@@ -1249,12 +1249,14 @@ async function uploadImage(file) {
     retryScanFile = null;
     statusText.textContent = '📷 Загрузить другой скриншот';
     if (!d.cards.length) {
-      statusEl.textContent = 'Карты на скриншоте не найдены. Попробуйте изображение лучшего качества.';
+      statusEl.textContent = Number(d.profile?.geometric_detected_count) > 0
+        ? scanResultMessage(d)
+        : 'Карты на скриншоте не найдены. Попробуйте изображение лучшего качества.';
       showToast('Карты не найдены. Попробуйте скриншот лучшего качества.', 'error');
       triggerHaptic('warning');
     } else {
-      statusEl.textContent = 'Распознавание завершено. Найдено областей: ' + d.cards.length + '; совпадений с каталогом: ' + pendingCards.length + '. Проверьте результат перед сохранением.';
-      showToast('Распознано карт: ' + d.cards.length + '. Проверьте результат.', 'success');
+      statusEl.textContent = scanResultMessage(d);
+      showToast(statusEl.textContent, pendingCards.length ? 'success' : 'info');
       triggerHaptic('success');
     }
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -1283,6 +1285,15 @@ async function uploadImage(file) {
     setUploadProgress(100);
     updateConfirmState();
   }
+}
+
+function scanResultMessage(result) {
+  const recognized = result.cards.filter(card => !!card.id).length;
+  const detected = Number(result.profile?.geometric_detected_count);
+  const total = Number.isInteger(detected) && detected >= result.cards.length
+    ? detected : result.cards.length;
+  return 'Распознано ' + recognized + (recognized < total ? ' из ' + total : '') +
+    ' карт. Проверьте результат перед сохранением.';
 }
 
 function showResults(cards) {
@@ -1326,7 +1337,7 @@ function showResults(cards) {
           ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '" aria-label="Количество для сохранения" title="Количество для сохранения"></div><div class="tech scan-after">После: ×' + (detected == null ? '—' : detected) + ' · дубл.: ' + duplicates + '</div>'
           : '<div class="tech">Эта карта не изменит инвентарь.</div>'
         ) +
-        '<div class="tech">' + (c.distance != null ? 'Различие: d=' + esc(c.distance) : '') + '</div>' +
+        (c.needs_review || !recognized ? '<div class="tech" role="note">Проверьте карту</div>' : '') +
       '</div>';
 
     const referenceEl = el.querySelector('.scan-reference');
@@ -1649,7 +1660,7 @@ function updateStatsAndCounts() {
   document.getElementById('ownedSummary').textContent = owned;
   document.getElementById('duplicateSummary').textContent = duplicates;
   document.getElementById('desiredSummary').textContent = desiredCount;
-  document.getElementById('inventoryBadge').textContent = desiredCount;
+  document.getElementById('inventoryBadge').textContent = owned;
 
   // Progress Bar
   const pct = total > 0 ? Math.round((owned / total) * 100) : 0;

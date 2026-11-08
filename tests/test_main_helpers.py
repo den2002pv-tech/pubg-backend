@@ -1095,9 +1095,10 @@ def test_scan_reports_semaphore_queue_wait(monkeypatch):
     assert "upload_decode_ms" not in profile
 
 
+@pytest.mark.parametrize(("strong_count", "matched_id", "needs_review"), [(2, "card_1", False), (1, "card_1", True), (0, None, True)])
 @pytest.mark.parametrize(("same_hashes", "expected_calls"), [(True, 1), (False, 2)])
 def test_scan_skips_matching_second_pass_only_for_equal_hashes(
-    monkeypatch, same_hashes, expected_calls,
+    monkeypatch, same_hashes, expected_calls, strong_count, matched_id, needs_review,
 ):
     from copy import deepcopy
 
@@ -1140,12 +1141,13 @@ def test_scan_skips_matching_second_pass_only_for_equal_hashes(
     def match(hashes, db, profile):
         calls.append(hashes)
         profile["matching_calls"] = profile.get("matching_calls", 0) + 1
-        return "card_1", 1.0
+        return {"id": matched_id, "score": 1.0 if matched_id else None, "strong_count": strong_count}
 
-    monkeypatch.setattr(main, "_match_card", match)
+    monkeypatch.setattr(main, "_match_card_detailed", match)
 
     request = Request({"type": "http", "headers": [], "client": ("192.0.2.11", 12345)})
     result = asyncio.run(main.scan(request=request, file=object(), init_data=""))
 
     assert len(calls) == expected_calls
-    assert result["profile"]["matched_count"] == 1
+    assert result["profile"]["matched_count"] == int(matched_id is not None)
+    assert result["cards"][0]["needs_review"] is needs_review

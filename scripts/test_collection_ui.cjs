@@ -45,3 +45,18 @@ async function exercise(mode) {
 (async()=>{for(const mode of ['success','database','network','timeout']) await exercise(mode);
 console.log('Collection UI: success, database error, network failure, body timeout, duplicate click and retry passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+// Recognition totals must exclude unknown catalogue identities and include filtered regions.
+const summarySource = source.slice(source.indexOf('function scanResultMessage('), source.indexOf('function showResults('));
+const summaryContext = vm.createContext({});
+vm.runInContext(summarySource, summaryContext);
+for (const [cards, detected, expected] of [
+  [[{id:'a'},{id:'b'}], 2, 'Распознано 2 карт.'],
+  [[{id:'a'},{id:null}], 3, 'Распознано 1 из 3 карт.'],
+  [[{id:null}], 1, 'Распознано 0 из 1 карт.'],
+  [[{id:'a'}], undefined, 'Распознано 1 карт.'],
+  [[], 2, 'Распознано 0 из 2 карт.'],
+]) {
+  assert.equal(summaryContext.scanResultMessage({cards, profile:{geometric_detected_count:detected}}),
+    expected + ' Проверьте результат перед сохранением.');
+}
