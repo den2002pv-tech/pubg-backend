@@ -10,14 +10,14 @@
 |---|---|---|---|
 | Версия 1 | [`version-1`](https://github.com/den2002pv-tech/pubg-backend/tree/version-1) | Копия `main` | `a566c23a7c623de388b8f422f501fc852e8cd39b` |
 | Версия 2 | [`version-2`](https://github.com/den2002pv-tech/pubg-backend/tree/version-2) | Предыдущая рабочая версия | `0c83d25b6de403e4c92d674b1fe3ed4590e3dbf8` |
-| Версия 3 | [`version-3`](https://github.com/den2002pv-tech/pubg-backend/tree/version-3) | Копия рабочей ветки `feature/card-counter` | `a6f86e43de27e653740f47b5434afbf665f1167c` |
+| Версия 3 | [`version-3`](https://github.com/den2002pv-tech/pubg-backend/tree/version-3) | Копия рабочей ветки `main` | `a6f86e43de27e653740f47b5434afbf665f1167c` |
 
 Дополнительные рабочие ветки:
-- [`main`](https://github.com/den2002pv-tech/pubg-backend/tree/main) — исходная ветка версии 1; не использовать для текущей разработки без отдельного решения.
-- [`feature/card-counter`](https://github.com/den2002pv-tech/pubg-backend/tree/feature/card-counter) — основная рабочая ветка, от которой была создана версия 3.
+- [`main`](https://github.com/den2002pv-tech/pubg-backend/tree/main) — основная ветка текущей разработки.
+- [`main`](https://github.com/den2002pv-tech/pubg-backend/tree/main) — историческая ветка разработки версии 3; не использовать для новых изменений.
 
 **Правила работы с версиями:**
-1. Новые изменения по текущей разработке вносить в `feature/card-counter`, если задача явно не указывает другую ветку.
+1. Новые изменения по текущей разработке вносить в `main`, если задача явно не указывает другую ветку.
 2. `version-1`, `version-2` и `version-3` сохраняют свои независимые линии истории. Не считать их автоматически синхронизированными с исходными ветками.
 3. Не изменять `main` и зафиксированные версии без явного указания.
 4. Перед созданием следующей версии проверить фактический HEAD исходной ветки и записать SHA базового коммита в эту таблицу.
