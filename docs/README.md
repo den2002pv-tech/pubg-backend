@@ -8,13 +8,13 @@
 
 | Версия | Ветка | Откуда создана | Зафиксированный базовый коммит |
 |---|---|---|---|
-| Версия 1 | [`version-1`](https://github.com/den2002pv-tech/pubg-backend/tree/version-1) | Копия `main` | `a566c23a7c623de388b8f422f501fc852e8cd39b` |
-| Версия 2 | [`version-2`](https://github.com/den2002pv-tech/pubg-backend/tree/version-2) | Предыдущая рабочая версия | `0c83d25b6de403e4c92d674b1fe3ed4590e3dbf8` |
-| Версия 3 | [`version-3`](https://github.com/den2002pv-tech/pubg-backend/tree/version-3) | Копия рабочей ветки `feature/card-counter` | `a6f86e43de27e653740f47b5434afbf665f1167c` |
+| Версия 1 | [version-1](https://github.com/den2002pv-tech/pubg-backend/tree/version-1) | Копия `main` | `a566c23a7c623de388b8f422f501fc852e8cd39b` |
+| Версия 2 | [version-2](https://github.com/den2002pv-tech/pubg-backend/tree/version-2) | Предыдущая рабочая версия | `0c83d25b6de403e4c92d674b1fe3ed4590e3dbf8` |
+| Версия 3 | [version-3](https://github.com/den2002pv-tech/pubg-backend/tree/version-3) | Копия рабочей ветки `feature/card-counter` | `a6f86e43de27e653740f47b5434afbf665f1167c` |
 
 Дополнительные рабочие ветки:
-- [`main`](https://github.com/den2002pv-tech/pubg-backend/tree/main) — исходная ветка версии 1; не использовать для текущей разработки без отдельного решения.
-- [`feature/card-counter`](https://github.com/den2002pv-tech/pubg-backend/tree/feature/card-counter) — основная рабочая ветка текущей разработки.
+- [main](https://github.com/den2002pv-tech/pubg-backend/tree/main) — исходная ветка версии 1; не использовать для текущей разработки без отдельного решения.
+- [feature/card-counter](https://github.com/den2002pv-tech/pubg-backend/tree/feature/card-counter) — основная рабочая ветка текущей разработки.
 
 **Правила работы с версиями:**
 1. Новые изменения по текущей разработке вносить в `feature/card-counter`, если задача явно не указывает другую ветку.
@@ -70,4 +70,4 @@
 
 ## Важное примечание об аудите
 
-Отчёт от 2026-11-08 описывает снимок ветки `main` с SHA `97c57e89747e36eeef97407a6deeed417056d727`. Документ размещён в этой ветке по запросу пользователя. Выводы и результаты CI из отчёта не являются проверкой текущего HEAD `feature/card-counter`; дефекты необходимо подтвердить на целевой ветке перед исправлением.
+Отчёт от 2026-11-08 содержит отдельный аудит ветки `feature/card-counter` на SHA `b80d9713863eae4cb3842ea1dc87be7009bdbb07`. CI-результаты и выводы этого отчёта относятся к указанному SHA. Более ранний аудит `main` с SHA `97c57e89747e36eeef97407a6deeed417056d727` является историческим и не должен использоваться как подтверждение состояния feature-ветки.
