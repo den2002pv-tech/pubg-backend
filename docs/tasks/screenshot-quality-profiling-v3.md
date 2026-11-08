@@ -22,7 +22,7 @@ Repository:
 `den2002pv-tech/pubg-backend`
 
 Working branch:
-`feature/card-counter`
+`main`
 
 Хостинг:
 `Enzonic`
@@ -31,7 +31,7 @@ Production URL:
 `https://pubg-card.enzonic.dev`
 
 Работай только в ветке:
-`feature/card-counter`
+`main`
 
 Запрещено:
 
