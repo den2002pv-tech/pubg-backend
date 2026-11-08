@@ -4,7 +4,7 @@
 
 Проверить весь путь от исходного скриншота до списка обнаруженных карточек и распознанного количества. Тесты счётчика на отдельных кропах не проверяют, правильно ли сканер нашёл прямоугольники карточек на полном изображении.
 
-Этот документ сверён с `scanner.py`, `tests/test_screenshot_fixtures.py` и манифестом `tests/fixtures/screenshots/cases.json` в ветке `feature/card-counter`.
+Этот документ сверён с `scanner.py`, `tests/test_screenshot_fixtures.py` и манифестом `tests/fixtures/screenshots/cases.json` в ветке `main`.
 
 ## Уровни тестирования
 
