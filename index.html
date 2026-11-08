@@ -54,7 +54,7 @@ h2{margin:2px 0 4px;text-align:center;font-size:20px;font-weight:800}
 .app-eyebrow{margin:0;color:#79c0ff;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
 .subtitle{color:var(--text-muted);text-align:left;margin:0;font-size:13px}
 
-.feedback-panel{display:none}.feedback-panel summary{cursor:pointer;font-weight:750;min-height:32px;display:flex;align-items:center}.feedback-panel .subtitle{text-align:left;margin:8px 0 12px}.feedback-ratings{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.feedback-ratings button{min-height:42px;border:1px solid var(--border);border-radius:9px;background:var(--surface-raised);color:var(--text);font-weight:800}.feedback-ratings button.active{border-color:var(--accent);background:#223348;color:#fff}.feedback-panel label{font-size:13px;color:var(--text-muted)}
+.feedback-panel{display:block}.feedback-panel[hidden]{display:none}.feedback-panel summary{cursor:pointer;font-weight:750;min-height:32px;display:flex;align-items:center}.feedback-panel .subtitle{text-align:left;margin:8px 0 12px}.feedback-ratings{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.feedback-ratings button{min-height:42px;border:1px solid var(--border);border-radius:9px;background:var(--surface-raised);color:var(--text);font-weight:800}.feedback-ratings button.active{border-color:var(--accent);background:#223348;color:#fff}.feedback-panel label{font-size:13px;color:var(--text-muted)}
 /* Panels & Account */
 .panel{background:linear-gradient(180deg,rgba(24,35,56,.96),rgba(15,23,39,.96));border:1px solid var(--border);border-radius:18px;padding:16px;margin-top:14px;box-shadow:0 14px 32px rgba(2,6,23,.28);backdrop-filter:blur(8px)}
 .account-badge{display:flex;align-items:center;justify-content:space-between;background:rgba(18,26,43,.88);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;font-size:13px;box-shadow:0 8px 20px rgba(2,6,23,.2)}
@@ -480,6 +480,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
 }
+.onboarding-steps{display:flex;flex-wrap:wrap;gap:8px;padding-left:22px;font-size:13px}
+.onboarding-steps li{margin-right:12px}
+#confirmBtn{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:10;width:100%;min-height:48px;box-shadow:0 0 0 8px var(--surface);margin-top:16px}
+#cardsList{padding-bottom:12px}
+#saveSuccess button{width:100%;margin-top:10px;min-height:44px}
+.album-example{width:100%;max-width:360px;height:auto}
 </style>
 </head>
 <body>
@@ -496,6 +502,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   </div>
 </header>
 
+<aside id="onboardingChecklist" class="panel" aria-label="Первые шаги">
+  <b>Начните с трёх шагов</b>
+  <ol class="onboarding-steps"><li>Сканируй</li><li>⭐ «Ищу»</li><li>🔄 Обмены</li></ol>
+</aside>
 <!-- Tabs -->
 <div class="tabs" role="tablist" aria-label="Разделы приложения">
   <button id="scannerTabButton" class="tab active" type="button" role="tab" aria-selected="true" aria-controls="scannerTab" tabindex="0" data-tab="scanner">📷 Сканер</button>
@@ -506,11 +516,19 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <!-- Scanner Tab -->
 <section id="scannerTab" role="tabpanel" aria-labelledby="scannerTabButton" tabindex="0">
   <div class="panel">
-    <p id="scannerInstructions" class="hint">1. Выберите скриншот альбома. 2. Проверьте распознанные карты и количество. 3. Отметьте карты и сохраните их в инвентарь.</p>
+    <p id="scannerInstructions" class="hint">Откройте в PUBG Mobile Коллекцию → Карты → сделайте скриншот альбома</p>
+    <details><summary>Пример скриншота</summary>
+      <svg class="album-example" viewBox="0 0 360 190" role="img" aria-label="Схема альбома: три карты целиком в ряд, со счётчиками в правом верхнем углу">
+        <rect width="360" height="190" rx="8" fill="#172338"/>
+        <text x="16" y="26" fill="white" font-size="14">Коллекция → Карты</text>
+        <g fill="#34496b" stroke="#8bbcf5"><rect x="16" y="42" width="96" height="130"/><rect x="132" y="42" width="96" height="130"/><rect x="248" y="42" width="96" height="130"/></g>
+        <g fill="white" font-size="14"><text x="80" y="62">×2</text><text x="196" y="62">×1</text><text x="312" y="62">×3</text></g>
+      </svg><p class="hint">Это схема. На скриншоте должны быть видны карты целиком и счётчики. Можно выбрать несколько изображений.</p>
+    </details>
     <label class="upload" for="fileInput">
       <span id="scanSpinner" class="scan-spinner" hidden aria-hidden="true"></span>
       <span id="statusText" style="font-weight:700">📷 Загрузить скриншот альбома</span>
-      <input type="file" id="fileInput" accept="image/*">
+      <input type="file" id="fileInput" accept="image/*" multiple aria-describedby="scannerInstructions">
     </label>
     <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></div>
     <div id="uploadProgress" class="upload-progress" aria-hidden="true"><div class="upload-progress-fill"></div></div>
@@ -520,7 +538,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <div id="results" class="panel" style="display:none">
     <h3 style="margin:2px 0 5px">Результаты распознавания</h3>
     <div class="hint">Проверьте распознанные карты и количество. Сохранение обновит только выбранные карты.</div>
-    <details class="scan-help">
+    <details class="scan-help" id="scanHelp">
       <summary>Справка по обозначениям</summary>
       <p class="scan-help-intro">Так выглядит карточка в результатах сканирования.</p>
       <div class="scan-help-example">
@@ -552,6 +570,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   </div>
 </section>
 
+<section id="saveSuccess" class="panel" hidden aria-labelledby="saveSuccessTitle">
+  <h2 id="saveSuccessTitle" tabindex="-1"></h2>
+  <button type="button" id="savedAddMissing">⭐ Добавить недостающие в «Ищу»</button>
+  <button type="button" id="savedFindTrades">🔄 Найти обмены</button>
+</section>
 <!-- Inventory Tab -->
 <section id="inventoryTab" role="tabpanel" aria-labelledby="inventoryTabButton" tabindex="0" hidden>
   <div class="panel">
@@ -713,7 +736,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </div>
 
 <!-- Optional, collapsed product feedback form -->
-<details class="panel feedback-panel" id="feedbackPanel">
+<details class="panel feedback-panel" id="feedbackPanel" hidden>
   <summary>💬 Оценить удобство приложения</summary>
   <p class="subtitle">Короткая оценка поможет понять, что стоит улучшить. Текст и личные данные не собираются.</p>
   <fieldset style="border:0;padding:0;margin:10px 0">
@@ -1147,6 +1170,7 @@ function switchTab(name) {
   if (name === 'scanner') requestScannerPrewarm('scanner_open');
   trackAnalytics('tab_open', { tab: name });
   const isScanner = name === 'scanner';
+  document.getElementById('saveSuccess').hidden = !isScanner || !document.getElementById('saveSuccessTitle').textContent;
   const isInventory = name === 'inventory';
   const isTrades = name === 'trades';
   document.querySelectorAll('.tab[role="tab"]').forEach(tab => {
@@ -1166,6 +1190,7 @@ function switchTab(name) {
     loadTradeMatches();
     loadTradeRequests();
   }
+  checkDesiredChanges();
 }
 
 document.querySelector('[role="tablist"]').addEventListener('keydown', event => {
@@ -1181,14 +1206,62 @@ document.querySelector('[role="tablist"]').addEventListener('keydown', event => 
 });
 
 // Scanner Logic
+let scanQueue = [], queueIndex = 0, queueBusy = false, batchCards = [], batchDetected = 0;
+const onboardingKey = 'pubg:first-save:' + (tg?.initDataUnsafe?.user?.id || 'guest');
+let firstSaveDone = readLocalFlag(onboardingKey);
+let helpSeen = readLocalFlag('pubg:scan-help-seen');
+function readLocalFlag(key) { try { return localStorage.getItem(key) === '1'; } catch (_) { return false; } }
+function writeLocalFlag(key) { try { localStorage.setItem(key, '1'); } catch (_) {} }
+function renderOnboarding() {
+  document.getElementById('onboardingChecklist').hidden = firstSaveDone;
+  document.getElementById('feedbackPanel').hidden = !firstSaveDone;
+}
+function showSaveSuccess(count) {
+  firstSaveDone = true;
+  writeLocalFlag(onboardingKey);
+  renderOnboarding();
+  document.getElementById('saveSuccess').hidden = false;
+  const title = document.getElementById('saveSuccessTitle');
+  title.textContent = 'Сохранено ' + count + ' карт';
+  title.focus();
+}
+renderOnboarding();
+document.getElementById('savedAddMissing').addEventListener('click', () => {
+  switchTab('inventory');
+  document.getElementById('addMissingToDesiredBtn').focus();
+  document.getElementById('addMissingToDesiredBtn').click();
+});
+document.getElementById('savedFindTrades').addEventListener('click', () => {
+  switchTab('trades'); document.getElementById('tradesTabButton').focus();
+});
 fileInput.addEventListener('change', () => {
+  if (queueBusy || collectionSaveInProgress || !fileInput.files.length) return;
   requestScannerPrewarm('image_selected');
   scanSaveStatusEl.textContent = '';
   scanSaveStatusEl.dataset.state = '';
-  retryScanFile = fileInput.files[0] || null;
-  uploadImage(retryScanFile);
+  document.getElementById('saveSuccess').hidden = true;
+  scanQueue = [...fileInput.files]; queueIndex = 0; batchCards = []; batchDetected = 0;
+  pendingCards = [];
+  document.getElementById('results').style.display = 'none';
+  updateConfirmState();
+  processScanQueue();
 });
-retryScanBtn.addEventListener('click', () => uploadImage(retryScanFile));
+async function processScanQueue() {
+  if (queueBusy || collectionSaveInProgress) return;
+  queueBusy = true;
+  try {
+    while (queueIndex < scanQueue.length) {
+      if (!await uploadImage(scanQueue[queueIndex])) break;
+      queueIndex++;
+    }
+  } finally {
+    queueBusy = false;
+    fileInput.disabled = false;
+    updateConfirmState();
+    if (queueIndex === scanQueue.length) scanQueue = [];
+  }
+}
+retryScanBtn.addEventListener('click', processScanQueue);
 confirmBtn.addEventListener('click', confirmCollection);
 
 async function uploadImage(file) {
@@ -1198,9 +1271,8 @@ async function uploadImage(file) {
   fileInput.disabled = true;
   retryScanBtn.hidden = true;
   confirmBtn.disabled = true;
-  pendingCards = [];
-  document.getElementById('results').style.display = 'none';
-  setScannerStatus('⏳ Подготовка изображения…', 'Готовим выбранный скриншот к отправке.', true);
+  document.getElementById('cardsList').inert = true;
+  setScannerStatus('⏳ Подготовка изображения…', 'Скриншот ' + (queueIndex + 1) + ' из ' + scanQueue.length + '. Готовим к отправке.', true);
   const scanStartedAt = performance.now();
   const formStartedAt = performance.now();
   const fd = new FormData();
@@ -1240,27 +1312,34 @@ async function uploadImage(file) {
       profile: { ...(d.profile || {}), ...clientProfile }
     });
     const resultRenderStartedAt = performance.now();
-    pendingCards = (d.cards || []).filter(c => c.id).map(c => ({
+    batchDetected += Number(d.profile?.geometric_detected_count) || (d.cards || []).length;
+    batchCards.push(...(d.cards || []).map(c => ({...c, row: queueIndex + ':' + c.row})));
+    const previous = pendingCards;
+    pendingCards = batchCards.filter(c => c.id).map(c => ({
       ...c,
       selected: true,
-      editQuantity: Math.max(1, num(c.quantity, 1))
+      editQuantity: Math.max(1, num(c.quantity, 1)),
+      ...previous.find(old => old.id === c.id && old.row === c.row && old.col === c.col)
     }));
-    showResults(d.cards || []);
+    showResults(batchCards);
     retryScanFile = null;
     statusText.textContent = '📷 Загрузить другой скриншот';
-    if (!d.cards.length) {
-      statusEl.textContent = 'Карты на скриншоте не найдены. Попробуйте изображение лучшего качества.';
+    if (!d.cards.length && !batchCards.length) {
+      statusEl.textContent = Number(d.profile?.geometric_detected_count) > 0
+        ? scanResultMessage(d)
+        : 'Карты на скриншоте не найдены. Попробуйте изображение лучшего качества.';
       showToast('Карты не найдены. Попробуйте скриншот лучшего качества.', 'error');
       triggerHaptic('warning');
     } else {
-      statusEl.textContent = 'Распознавание завершено. Найдено областей: ' + d.cards.length + '; совпадений с каталогом: ' + pendingCards.length + '. Проверьте результат перед сохранением.';
-      showToast('Распознано карт: ' + d.cards.length + '. Проверьте результат.', 'success');
+      statusEl.textContent = scanResultMessage({cards: batchCards, profile: {geometric_detected_count: batchDetected}});
+      showToast(statusEl.textContent, pendingCards.length ? 'success' : 'info');
       triggerHaptic('success');
     }
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     clientProfile.client_result_render_ms = performance.now() - resultRenderStartedAt;
     clientProfile.client_scan_to_result_ms = performance.now() - scanStartedAt;
     recordClientScanResult(currentScanId, clientProfile, d.cards || []);
+    return true;
   } catch (e) {
     trackAnalytics('scan_failed', {
       scan_id: currentScanId,
@@ -1274,7 +1353,9 @@ async function uploadImage(file) {
     retryScanBtn.hidden = false;
     showToast(scannerErrorMessage(e), 'error');
     triggerHaptic('error');
+    return false;
   } finally {
+    document.getElementById('cardsList').inert = false;
     scanInProgress = false;
     fileInput.disabled = false;
     fileInput.value = '';
@@ -1285,7 +1366,20 @@ async function uploadImage(file) {
   }
 }
 
+function scanResultMessage(result) {
+  const recognized = result.cards.filter(card => !!card.id).length;
+  const detected = Number(result.profile?.geometric_detected_count);
+  const total = Number.isInteger(detected) && detected >= result.cards.length
+    ? detected : result.cards.length;
+  return 'Распознано ' + recognized + (recognized < total ? ' из ' + total : '') +
+    ' карт. Проверьте результат перед сохранением.';
+}
+
 function showResults(cards) {
+  if (!helpSeen) {
+    document.getElementById('scanHelp').open = true;
+    helpSeen = true; writeLocalFlag('pubg:scan-help-seen');
+  }
   const root = document.getElementById('cardsList');
   root.innerHTML = '';
   if (!cards.length) {
@@ -1326,7 +1420,7 @@ function showResults(cards) {
           ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '" aria-label="Количество для сохранения" title="Количество для сохранения"></div><div class="tech scan-after">После: ×' + (detected == null ? '—' : detected) + ' · дубл.: ' + duplicates + '</div>'
           : '<div class="tech">Эта карта не изменит инвентарь.</div>'
         ) +
-        '<div class="tech">' + (c.distance != null ? 'Различие: d=' + esc(c.distance) : '') + '</div>' +
+        (c.needs_review || !recognized ? '<div class="tech" role="note">Проверьте карту</div>' : '') +
       '</div>';
 
     const referenceEl = el.querySelector('.scan-reference');
@@ -1453,13 +1547,13 @@ function renderScanCardQuantity(el, q) {
 function updateConfirmState() {
   const selected = pendingCards.filter(c => c.selected && c.editQuantity != null);
   confirmBtn.style.display = pendingCards.length ? 'block' : 'none';
-  confirmBtn.disabled = !selected.length;
+  confirmBtn.disabled = !selected.length || scanInProgress || queueBusy || collectionSaveInProgress;
   confirmBtn.textContent = selected.length ? 'Подтвердить и сохранить (' + selected.length + ')' : 'Отметьте карты для сохранения';
   document.getElementById('scanSummary').textContent = 'Выбрано к сохранению: ' + selected.length + ' из ' + pendingCards.length + '. Проверьте количество перед сохранением.';
 }
 
 async function confirmCollection() {
-  if (collectionSaveInProgress || scanInProgress) return;
+  if (collectionSaveInProgress || scanInProgress || queueBusy) return;
   const saveStartedAt = performance.now();
   const saveId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : 'save-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   let saveRequestMs;
@@ -1532,6 +1626,7 @@ async function confirmCollection() {
     triggerHaptic('success');
     flashSavedCards(expectedQuantities);
     saveConfirmed = true;
+    showSaveSuccess(savedCount);
   } catch (e) {
     const uncertain = e?.uncertain === true || e?.httpStatus >= 500 ||
       e?.name === 'AbortError' || e instanceof SyntaxError || e instanceof TypeError || navigator.onLine === false;
@@ -1563,6 +1658,7 @@ async function confirmCollection() {
     fileInput.disabled = false;
     document.getElementById('cardsList').inert = false;
     scanSaveStatusEl.setAttribute('aria-busy', 'false');
+    if (!saveConfirmed) updateConfirmState();
   }
 }
 
@@ -1649,7 +1745,7 @@ function updateStatsAndCounts() {
   document.getElementById('ownedSummary').textContent = owned;
   document.getElementById('duplicateSummary').textContent = duplicates;
   document.getElementById('desiredSummary').textContent = desiredCount;
-  document.getElementById('inventoryBadge').textContent = desiredCount;
+  document.getElementById('inventoryBadge').textContent = owned;
 
   // Progress Bar
   const pct = total > 0 ? Math.round((owned / total) * 100) : 0;
@@ -1952,7 +2048,7 @@ function checkDesiredChanges() {
   const floatingBar = document.getElementById('floatingBar');
   const floatingCount = document.getElementById('floatingCount');
   if (floatingCount) floatingCount.textContent = desiredIds.size;
-  if (isDifferent) {
+  if (isDifferent && !document.getElementById('inventoryTab').hidden) {
     if (tg?.MainButton && telegramInitData) {
       tg.MainButton.setText('💾 Сохранить список «Ищу» (' + desiredIds.size + ')');
       tg.MainButton.show();

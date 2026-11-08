@@ -12,12 +12,12 @@ async function exercise(mode) {
   const events = [];
   const ctx = {performance, crypto: require('node:crypto').webcrypto, setTimeout, clearTimeout,
     AbortController, TypeError, SyntaxError, Map, Set, API:'', BACKEND_WAKE_TIMEOUT_MS:10,
-    collectionSaveInProgress:false, scanInProgress:false, currentScanId:'scan-original',
+    collectionSaveInProgress:false, scanInProgress:false, queueBusy:false, currentScanId:'scan-original',
     pendingCards:[{id:'card_1', selected:true, editQuantity:4, quantity:2}],
     fileInput:element(), confirmBtn:element(), scanSaveStatusEl:element(), document:{getElementById:element},
     desiredIds:new Set(['card_1']), savedDesiredIds:new Set(['card_1']), navigator:{onLine:true},
     telegramHeaders:()=>({}), trackAnalytics(){}, triggerHaptic(){}, checkDesiredChanges(){},
-    renderInventory(){}, showToast(){}, flashSavedCards(){}, updateConfirmState(){},
+    showSaveSuccess(count){assert.equal(count,1);events.push({onboarding:true});}, renderInventory(){}, showToast(){}, flashSavedCards(){}, updateConfirmState(){},
     fetch:async (url, options) => {
       if (url.endsWith('client-result')) { events.push(JSON.parse(options.body)); return {}; }
       calls++;
@@ -36,12 +36,47 @@ async function exercise(mode) {
   assert.equal(calls,1,'double click must not send another save');
   release(); await first;
   assert.equal(ctx.collectionSaveInProgress,false);
-  assert.equal(events[0].confirmed, mode === 'success');
-  assert.notEqual(events[0].save_id,ctx.currentScanId);
+  const timing = events.find(e=>e.save_id);
+  assert.equal(events.some(e=>e.onboarding),mode === 'success');
+  assert.equal(timing.confirmed, mode === 'success');
+  assert.notEqual(timing.save_id,ctx.currentScanId);
   if(mode === 'success') {assert.equal(ctx.pendingCards.length,0); assert.equal(ctx.desiredIds.size,0);}
   else {assert.equal(ctx.pendingCards.length,1); assert.equal(ctx.desiredIds.size,1);
     await ctx.confirmCollection(); assert.equal(calls,2,'retry remains available');}
 }
 (async()=>{for(const mode of ['success','database','network','timeout']) await exercise(mode);
 console.log('Collection UI: success, database error, network failure, body timeout, duplicate click and retry passed');
+})().catch(error=>{console.error(error);process.exitCode=1;});
+
+// Recognition totals must exclude unknown catalogue identities and include filtered regions.
+const summarySource = source.slice(source.indexOf('function scanResultMessage('), source.indexOf('function showResults('));
+const summaryContext = vm.createContext({});
+vm.runInContext(summarySource, summaryContext);
+for (const [cards, detected, expected] of [
+  [[{id:'a'},{id:'b'}], 2, 'Распознано 2 карт.'],
+  [[{id:'a'},{id:null}], 3, 'Распознано 1 из 3 карт.'],
+  [[{id:null}], 1, 'Распознано 0 из 1 карт.'],
+  [[{id:'a'}], undefined, 'Распознано 1 карт.'],
+  [[], 2, 'Распознано 0 из 2 карт.'],
+]) {
+  assert.equal(summaryContext.scanResultMessage({cards, profile:{geometric_detected_count:detected}}),
+    expected + ' Проверьте результат перед сохранением.');
+}
+
+// A failed upload pauses the batch; retry resumes without uploading successes again.
+(async()=>{
+  let fail = true, active = 0, peak = 0;
+  const calls = [];
+  const ctx = vm.createContext({scanQueue:['a','b','c'],queueIndex:0,queueBusy:false,
+    collectionSaveInProgress:false,fileInput:{disabled:false},updateConfirmState(){},
+    uploadImage:async file=>{calls.push(file);peak=Math.max(peak,++active);
+      await Promise.resolve();active--;return !(file==='b' && fail);}});
+  vm.runInContext(source.slice(source.indexOf('async function processScanQueue()'),
+    source.indexOf("retryScanBtn.addEventListener('click', processScanQueue)")),ctx);
+  const first=ctx.processScanQueue();await ctx.processScanQueue();await first;
+  assert.deepEqual(calls,['a','b']);assert.equal(ctx.queueIndex,1);
+  fail=false;await ctx.processScanQueue();
+  assert.deepEqual(calls,['a','b','b','c']);assert.equal(peak,1);
+  assert.equal(ctx.queueBusy,false);assert.equal(ctx.scanQueue.length,0);
+  console.log('Scan queue: sequential uploads, pause, retry and duplicate start passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

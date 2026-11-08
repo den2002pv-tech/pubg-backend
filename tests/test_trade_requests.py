@@ -108,6 +108,9 @@ def test_telegram_commands_reply_with_mini_app_button(monkeypatch, text, expecte
     assert method == "sendMessage"
     assert payload["chat_id"] == 12345
     assert expected_fragment in payload["text"]
+    if text.startswith("/start"):
+        assert "\n\n" in payload["text"]
+        assert "\\n" not in payload["text"]
     button = payload["reply_markup"]["inline_keyboard"][0][0]
     assert button["web_app"]["url"] == "https://pubg-card.enzonic.dev"
 
