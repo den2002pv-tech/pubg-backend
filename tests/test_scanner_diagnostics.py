@@ -215,7 +215,10 @@ def test_scan_middleware_records_status_pid_and_first_scan(tmp_path, monkeypatch
             "method": "POST",
             "path": "/scan",
             "query_string": b"",
-            "headers": [(b"x-scanner-session-id", session_id.encode("ascii"))],
+            "headers": [
+                (b"x-scanner-session-id", session_id.encode("ascii")),
+                (b"x-scanner-scan-id", b"scan-middleware-123"),
+            ],
             "scheme": "http",
             "server": ("test", 80),
             "client": ("127.0.0.1", 1234),
@@ -225,6 +228,7 @@ def test_scan_middleware_records_status_pid_and_first_scan(tmp_path, monkeypatch
 
         async def call_next(current):
             current.state.scanner_diagnostics["request_body_read_ms"] = 1.25
+            current.state.scanner_diagnostics["queue_wait_ms"] = 2.5
             current.state.scanner_diagnostics["detection_ms"] = 4.0
             return Response(status_code=200)
 
@@ -234,8 +238,10 @@ def test_scan_middleware_records_status_pid_and_first_scan(tmp_path, monkeypatch
     records = store.read_records()
     scan = next(row for row in records if row.get("event") == "scan_completed")
     assert scan["worker_pid"] == os.getpid()
+    assert scan["scan_id"] == "scan-middleware-123"
     assert scan["first_scan_classifications"] == ["first_after_process_start"]
     assert scan["request_body_read_ms"] == 1.25
+    assert scan["queue_wait_ms"] == 2.5
     assert scan["detection_ms"] == 4.0
     assert scan["http_status"] == 200
 
@@ -307,3 +313,62 @@ def test_user_online_transition_is_process_local_and_private(tmp_path):
         "123456" not in path.read_text(encoding="utf-8")
         for path in store.directory.glob("*.jsonl")
     )
+
+
+def test_client_result_endpoint_records_only_bounded_timing_metrics(tmp_path, monkeypatch):
+    store = _store(tmp_path)
+    monkeypatch.setattr(main, "SCANNER_DIAGNOSTICS", store)
+    session_id = str(uuid.uuid4())
+
+    result = asyncio.run(main.record_scan_client_result(
+        {
+            "scan_id": "scan-test_123",
+            "client_wake_ms": 120.5,
+            "client_upload_ms": 80,
+            "client_response_wait_ms": 950.25,
+            "client_result_render_ms": 16.7,
+            "client_scan_to_result_ms": 1400.2,
+            "client_request_ms": 1100,
+            "telegram_id": 123456,
+            "unexpected": "must not be logged",
+        },
+        init_data="",
+        session_header=session_id,
+    ))
+
+    assert result == {"status": "ok"}
+    event = next(
+        row for row in store.read_records()
+        if row.get("event") == "scan_client_result"
+    )
+    assert event["scan_id"] == "scan-test_123"
+    assert event["session_id"] == session_id
+    assert event["client_scan_to_result_ms"] == 1400.2
+    assert event["client_response_wait_ms"] == 950.25
+    assert "telegram_id" not in event
+    assert "unexpected" not in event
+
+
+def test_client_result_summary_aggregates_time_to_visible_result(tmp_path):
+    store = _store(tmp_path)
+    store.record_event({
+        "event": "scan_client_result",
+        "client_scan_to_result_ms": 1200.0,
+        "client_result_render_ms": 20.0,
+    })
+    store.record_event({
+        "event": "scan_client_result",
+        "client_scan_to_result_ms": 1800.0,
+        "client_result_render_ms": 40.0,
+    })
+
+    summary = store.summary()
+    assert summary["client_result_count"] == 2
+    assert summary["client_result_timings"]["client_scan_to_result_ms"]["median_ms"] == 1500
+    assert summary["client_result_timings"]["client_result_render_ms"]["p95_ms"] == 40
+
+
+def test_scanner_scan_id_validation():
+    assert main._scanner_scan_id("scan-abc_123") == "scan-abc_123"
+    assert main._scanner_scan_id("bad scan id") is None
+    assert main._scanner_scan_id("x" * 65) is None

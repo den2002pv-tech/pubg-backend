@@ -871,11 +871,13 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = BACKEND_WAKE_TIMEOUT_MS) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = BACKEND_WAKE_TIMEOUT_MS, readJson = false) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (readJson) return {response, data: await response.json()};
+    return response;
   } finally {
     clearTimeout(timeout);
   }
@@ -968,6 +970,7 @@ function postScanImage(formData, clientProfile) {
     xhr.timeout = SCAN_TIMEOUT_MS;
     Object.entries(telegramHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
     Object.entries(scannerSessionHeaders()).forEach(([name, value]) => xhr.setRequestHeader(name, value));
+    if (currentScanId) xhr.setRequestHeader('X-Scanner-Scan-ID', currentScanId);
 
     xhr.upload.addEventListener('progress', event => {
       if (!event.lengthComputable) return;
@@ -1030,6 +1033,33 @@ function postScanImage(formData, clientProfile) {
     };
     xhr.send(formData);
   });
+}
+
+function recordClientScanResult(scanId, clientProfile, cards) {
+  if (!scanId) return;
+  const payload = {
+    scan_id: scanId,
+    client_form_data_ms: clientProfile.client_form_data_ms,
+    client_wake_ms: clientProfile.client_wake_ms,
+    client_upload_ms: clientProfile.client_upload_ms,
+    client_response_wait_ms: clientProfile.client_response_wait_ms,
+    client_response_parse_ms: clientProfile.client_response_parse_ms,
+    client_request_ms: clientProfile.client_request_ms,
+    client_result_render_ms: clientProfile.client_result_render_ms,
+    client_scan_to_result_ms: clientProfile.client_scan_to_result_ms,
+    cards_displayed: Array.isArray(cards) ? cards.length : 0,
+    matched_count: Array.isArray(cards) ? cards.filter(card => !!card.id).length : 0
+  };
+  fetch(API + '/scan/client-result', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...telegramHeaders(),
+      ...scannerSessionHeaders()
+    },
+    body: JSON.stringify(payload),
+    keepalive: true
+  }).catch(() => {});
 }
 
 function assetUrl(path) {
@@ -1171,6 +1201,7 @@ async function uploadImage(file) {
   pendingCards = [];
   document.getElementById('results').style.display = 'none';
   setScannerStatus('⏳ Подготовка изображения…', 'Готовим выбранный скриншот к отправке.', true);
+  const scanStartedAt = performance.now();
   const formStartedAt = performance.now();
   const fd = new FormData();
   fd.append('file', file);
@@ -1179,7 +1210,6 @@ async function uploadImage(file) {
     client_file_size_bytes: file.size
   };
 
-  const scanStartedAt = performance.now();
   currentScanId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : 'scan-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -1209,6 +1239,7 @@ async function uploadImage(file) {
       duration_ms: performance.now() - scanStartedAt,
       profile: { ...(d.profile || {}), ...clientProfile }
     });
+    const resultRenderStartedAt = performance.now();
     pendingCards = (d.cards || []).filter(c => c.id).map(c => ({
       ...c,
       selected: true,
@@ -1226,6 +1257,10 @@ async function uploadImage(file) {
       showToast('Распознано карт: ' + d.cards.length + '. Проверьте результат.', 'success');
       triggerHaptic('success');
     }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    clientProfile.client_result_render_ms = performance.now() - resultRenderStartedAt;
+    clientProfile.client_scan_to_result_ms = performance.now() - scanStartedAt;
+    recordClientScanResult(currentScanId, clientProfile, d.cards || []);
   } catch (e) {
     trackAnalytics('scan_failed', {
       scan_id: currentScanId,
@@ -1425,6 +1460,10 @@ function updateConfirmState() {
 
 async function confirmCollection() {
   if (collectionSaveInProgress || scanInProgress) return;
+  const saveStartedAt = performance.now();
+  const saveId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : 'save-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  let saveRequestMs;
+  let saveConfirmed = false;
   const correctedCount = pendingCards.filter(c => c.selected && c.editQuantity != null && Number(c.editQuantity) !== Number(c.quantity)).length;
   const selected = pendingCards.filter(c => c.selected && c.editQuantity != null).map(c => ({
     ...c,
@@ -1446,12 +1485,12 @@ async function confirmCollection() {
     scanSaveStatusEl.textContent = 'Сервер ещё не подтвердил запись. Продолжаем ожидание…';
   }, 15000);
   try {
-    const r = await fetchWithTimeout(API + '/me/collection/confirm', {
+    const {response: r, data: d} = await fetchWithTimeout(API + '/me/collection/confirm', {
       method: 'POST',
       headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cards: selected })
-    }, BACKEND_WAKE_TIMEOUT_MS);
-    const d = await r.json().catch(() => ({}));
+      body: JSON.stringify({ save_id: saveId, cards: selected.map(({id, quantity}) => ({id, quantity})) })
+    }, BACKEND_WAKE_TIMEOUT_MS, true);
+    saveRequestMs = performance.now() - saveStartedAt;
     if (!r.ok) {
       const error = new Error(d.detail || 'Ошибка сохранения');
       error.httpStatus = r.status;
@@ -1492,9 +1531,10 @@ async function confirmCollection() {
     showToast('✅ Коллекция сохранена — можно сканировать следующий скриншот' + (removedDesired > 0 ? ' (убрано из «Ищу»: ' + removedDesired + ')' : ''), 'success', 3000);
     triggerHaptic('success');
     flashSavedCards(expectedQuantities);
+    saveConfirmed = true;
   } catch (e) {
     const uncertain = e?.uncertain === true || e?.httpStatus >= 500 ||
-      e?.name === 'AbortError' || e instanceof TypeError || navigator.onLine === false;
+      e?.name === 'AbortError' || e instanceof SyntaxError || e instanceof TypeError || navigator.onLine === false;
     const reason = navigator.onLine === false
       ? 'Нет подключения к интернету. Проверьте соединение и попробуйте снова.'
       : e?.name === 'AbortError'
@@ -1511,6 +1551,12 @@ async function confirmCollection() {
     updateConfirmState();
     confirmBtn.textContent = 'Повторить сохранение (' + selected.length + ')';
   } finally {
+    fetch(API + '/me/collection/client-result', {
+      method: 'POST', headers: {...telegramHeaders(), 'Content-Type': 'application/json'},
+      body: JSON.stringify({save_id: saveId, confirmed: saveConfirmed,
+        client_save_request_ms: saveRequestMs ?? performance.now() - saveStartedAt,
+        client_save_to_confirmation_ms: performance.now() - saveStartedAt}), keepalive: true
+    }).catch(() => {});
     clearTimeout(saveWaitTimer);
     collectionSaveInProgress = false;
     confirmBtn.classList.remove('saving');

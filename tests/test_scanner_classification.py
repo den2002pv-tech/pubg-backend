@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 import scanner
 from scanner import (
     _counter_digit_aligned,
+    _counter_digit_combinations,
     _refine_digit_prediction,
     _single_digit_alternative,
     _has_counter_evidence,
@@ -172,3 +173,31 @@ def test_refine_digit_prediction_uses_upper_right_stem_for_four():
 
     digit, _ = _refine_digit_prediction(glyph, 6, scores)
     assert digit == 4
+
+
+
+def test_counter_digit_combinations_keep_trailing_zero_in_quantity_ten():
+    first = {"x": 100, "y": 10, "w": 6, "h": 15, "digit": 1, "score": 0.9}
+    trailing_zero = {
+        "x": 108, "y": 10, "w": 6, "h": 15,
+        "digit": 0, "score": 0.8, "alt_digit": 6, "alt_score": 0.8,
+    }
+
+    combinations = _counter_digit_combinations(first, [first, trailing_zero])
+
+    assert [quantity for _, quantity in combinations] == [10]
+
+
+def test_counter_digit_combinations_use_six_alternative_only_for_standalone_zero():
+    zero = {
+        "x": 100, "y": 10, "w": 6, "h": 15,
+        "digit": 0, "score": 0.8, "alt_digit": 6, "alt_score": 0.75,
+    }
+
+    combinations = _counter_digit_combinations(zero, [zero])
+
+    assert len(combinations) == 1
+    digits, quantity = combinations[0]
+    assert quantity == 6
+    assert digits[0]["digit"] == 6
+    assert digits[0]["score"] == 0.75

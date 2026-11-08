@@ -201,6 +201,14 @@ def test_run_screenshot_fixtures_returns_full_report_and_summary_profile(monkeyp
     assert result["run_id"]
     assert result["profile"]["total_duration_ms"] >= 0
     assert result["profile"]["total_scan_time_ms"] >= 0
+    assert result["profile"]["scanned_cards"] == 1
+    assert result["profile"]["avg_scan_time_per_card_ms"] == pytest.approx(
+        result["results"][0]["timings"]["scan_ms"]
+    )
+    assert result["profile"]["median_scan_time_per_card_ms"] == pytest.approx(
+        result["results"][0]["timings"]["scan_ms"]
+    )
+    assert result["report"]["summary"]["per_card_sample_count"] == 1
     assert result["results"][0]["profile"]["total_ms"] == 120.5
     assert result["results"][0]["timings"]["scanner_total_ms"] == 120.5
     assert result["report"]["schema_version"] == 2
@@ -227,6 +235,36 @@ def test_run_screenshot_fixtures_returns_full_report_and_summary_profile(monkeyp
     assert serialized_report["environment"]["memory_limit"] is None
     assert serialized_report["summary"]["peak_rss"] is None
     assert not hasattr(main, "SCREENSHOT_TEST_REPORTS")
+
+
+def test_per_card_scan_metrics_use_weighted_average_and_median():
+    metrics = main._per_card_scan_metrics([
+        {"detected_cards": 1, "timings": {"scan_ms": 10.0}},
+        {"detected_cards": 2, "timings": {"scan_ms": 40.0}},
+        {"detected_cards": 3, "timings": {"scan_ms": 90.0}},
+        {"detected_cards": 0, "timings": {"scan_ms": 500.0}},
+        {"detected_cards": 2, "timings": {"scan_ms": None}},
+    ])
+
+    assert metrics["scanned_cards"] == 6
+    assert metrics["scan_time_ms"] == 140.0
+    assert metrics["avg_scan_time_per_card_ms"] == pytest.approx(140 / 6, abs=0.0005)
+    assert metrics["median_scan_time_per_card_ms"] == pytest.approx(25.0)
+    assert metrics["per_card_sample_count"] == 6
+    assert "evenly divided" in metrics["method"]
+
+
+def test_per_card_scan_metrics_return_empty_values_without_detected_cards():
+    metrics = main._per_card_scan_metrics([
+        {"detected_cards": 0, "timings": {"scan_ms": 25.0}},
+        {"detected_cards": 2, "timings": {"scan_ms": None}},
+    ])
+
+    assert metrics["scanned_cards"] == 0
+    assert metrics["scan_time_ms"] == 0.0
+    assert metrics["avg_scan_time_per_card_ms"] is None
+    assert metrics["median_scan_time_per_card_ms"] is None
+    assert metrics["per_card_sample_count"] == 0
 
 
 def test_resource_monitor_stops_when_test_raises(monkeypatch):

@@ -133,15 +133,22 @@ def test_rgb_inputs_are_not_copied_during_mode_normalization():
     assert converted is not rgba
 
 
-def test_hash_timing_breakdown_covers_normalization_and_hash_operations():
+def test_hashes_skip_pre_resize_and_timing_covers_remaining_stages():
+    import imagehash
+
     image = Image.new("RGB", (60, 100), (40, 50, 60))
     timings = {}
 
     hashes = scanner.calculate_card_hashes(image, timings)
 
     assert len(hashes) == 5
+    visual = scanner.extract_visual_area(image)
+    assert hashes["full_phash"] == str(imagehash.phash(image))
+    assert hashes["full_dhash"] == str(imagehash.dhash(image))
+    assert hashes["visual_phash"] == str(imagehash.phash(visual))
+    assert hashes["visual_dhash"] == str(imagehash.dhash(visual))
     assert set(timings) == {
-        "hash_normalization_ms",
+        "hash_preparation_ms",
         "hash_frame_extract_ms",
         "hash_compute_ms",
     }

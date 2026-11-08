@@ -638,14 +638,44 @@ class ScannerDiagnosticStore:
             for seconds in (5, 10, 30, 60)
         }
         stage_names = (
-            "request_body_read_ms", "image_decode_ms", "image_preprocess_ms",
+            "request_body_read_ms", "queue_wait_ms", "upload_file_read_ms",
+            "image_decode_ms", "upload_rgb_convert_ms", "image_preprocess_ms",
             "detection_ms", "counter_ms", "raw_hash_ms", "clean_hash_ms",
-            "hashing_total_ms", "matching_ms", "quality_check_ms",
-            "response_build_ms", "total_server_ms",
+            "hashing_total_ms", "catalog_load_ms", "matching_ms",
+            "matching_evaluation_ms", "quality_check_ms", "response_build_ms",
+            "server_total_ms", "total_server_ms",
         )
+        client_results = [
+            row for row in records if row.get("event") == "scan_client_result"
+        ]
+        client_timing_names = (
+            "client_form_data_ms",
+            "client_wake_ms",
+            "client_upload_ms",
+            "client_response_wait_ms",
+            "client_response_parse_ms",
+            "client_request_ms",
+            "client_result_render_ms",
+            "client_scan_to_result_ms",
+        )
+
         return {
+            "save_timings": {
+                name: aggregate([r for r in records if r.get("event") == "save_completed"], name)
+                for name in ("save_api_ms", "worker_wait_ms", "db_connection_ms", "db_sql_ms", "db_transaction_ms")
+            },
+            "save_client_timings": {
+                name: aggregate([r for r in records if r.get("event") == "save_client_result" and r.get("confirmed") is True], name)
+                for name in ("client_save_request_ms", "client_save_to_confirmation_ms")
+            },
+            "save_error_count": sum(r.get("event") == "save_failed" for r in records),
             "scan_count": len(scans),
             "successful_scans": len(completed),
+            "client_result_count": len(client_results),
+            "client_result_timings": {
+                name: aggregate(client_results, name)
+                for name in client_timing_names
+            },
             "error_count": len(scans) - len(completed),
             "first_and_subsequent": durations,
             "first_scan_by_trigger": trigger_results,

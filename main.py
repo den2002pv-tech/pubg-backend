@@ -36,9 +36,16 @@ from scanner import _detect_counter, _has_counter_evidence
 
 from pydantic import BaseModel
 
-from scanner import calculate_card_hashes, detect_inventory_cards, diagnose_inventory_cards, scan_screenshot
+from scanner import (
+    CARD_HASH_ALGORITHM_VERSION,
+    CARD_HASH_KEYS,
+    calculate_card_hashes,
+    detect_inventory_cards,
+    diagnose_inventory_cards,
+    scan_screenshot,
+)
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
-from database import add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
+from database import measure_database, add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 from scanner_diagnostics import ScannerDiagnosticStore
 from scanner_prewarm import ScannerPrewarmController
@@ -135,10 +142,13 @@ async def scanner_diagnostics_middleware(request: Request, call_next):
 
     started = time.perf_counter()
     session_id = _scanner_session_id(request.headers.get("x-scanner-session-id"))
+    scan_id = _scanner_scan_id(request.headers.get("x-scanner-scan-id"))
     request.state.scanner_session_id = session_id
     request.state.scanner_request_started = started
     request.state.scanner_diagnostics = {
+        "scan_id": scan_id,
         "request_body_read_ms": None,
+        "queue_wait_ms": None,
         "image_upload_size_bytes": None,
         "image_decode_ms": None,
         "image_width": None,
@@ -175,6 +185,7 @@ async def scanner_diagnostics_middleware(request: Request, call_next):
                     **request.state.scanner_diagnostics,
                     "event": "scan_completed" if status_code < 400 else "scan_failed",
                     "session_id": session_id,
+                    "scan_id": request.state.scanner_diagnostics.get("scan_id"),
                     "app_commit": DIAGNOSTICS_APP_COMMIT,
                     "http_status": status_code,
                     "failure_type": failure_type,
@@ -219,6 +230,15 @@ def _scanner_session_id(value: str | None) -> str:
     return str(uuid.uuid4())
 
 
+def _scanner_scan_id(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if 1 <= len(value) <= 64 and re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        return value
+    return None
+
+
 STATIC_DIR = Path("static")
 CARDS_DIR = STATIC_DIR / "cards"
 CARDS_DIR.mkdir(parents=True, exist_ok=True)
@@ -236,6 +256,11 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/temp-images", StaticFiles(directory=str(TEMP_DIR)), name="temp-images")
 
 DB_FILE = Path("card_hashes.json")
+CARD_CATALOG_FORMAT_VERSION = 2
+CARD_CATALOG_METADATA = {
+    "format_version": CARD_CATALOG_FORMAT_VERSION,
+    "hash_algorithm": CARD_HASH_ALGORITHM_VERSION,
+}
 _DB_CACHE_SIGNATURE: tuple[str, int | None, int | None] | None = None
 _DB_CACHE_DATA: dict[str, Any] | None = None
 _MATCH_INDEX_DB: dict[str, Any] | None = None
@@ -254,6 +279,39 @@ HASH_REGEN_PROGRESS: dict[str, Any] = {
 }
 
 
+class _DuplicateCatalogKeyError(ValueError):
+    pass
+
+
+def _catalog_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateCatalogKeyError(key)
+        result[key] = value
+    return result
+
+
+def _validate_catalog_cards(cards: dict[str, Any]) -> None:
+    if not cards:
+        raise RuntimeError("Card catalogue must contain at least one card")
+    required_hashes = set(CARD_HASH_KEYS)
+    for card_id, record in cards.items():
+        if not isinstance(card_id, str) or not card_id.strip():
+            raise RuntimeError("Card catalogue contains an empty or invalid card ID")
+        if not isinstance(record, dict):
+            raise RuntimeError(f"Card catalogue record is invalid: {card_id}")
+        hashes = record.get("hashes")
+        if not isinstance(hashes, dict):
+            raise RuntimeError(f"Card catalogue record is missing hashes: {card_id}")
+        missing_hashes = required_hashes.difference(hashes)
+        if missing_hashes:
+            missing = ", ".join(sorted(missing_hashes))
+            raise RuntimeError(f"Card catalogue record is missing hash fields ({missing}): {card_id}")
+        for key in CARD_HASH_KEYS:
+            value = hashes.get(key)
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-fA-F]+", value):
+                raise RuntimeError(f"Card catalogue record has an invalid {key}: {card_id}")
 
 
 def load_db() -> dict[str, Any]:
@@ -271,12 +329,36 @@ def load_db() -> dict[str, Any]:
         data: dict[str, Any] = {}
     else:
         try:
-            loaded = json.loads(DB_FILE.read_text(encoding="utf-8"))
+            loaded = json.loads(
+                DB_FILE.read_text(encoding="utf-8"),
+                object_pairs_hook=_catalog_json_object,
+            )
+        except _DuplicateCatalogKeyError as exc:
+            raise RuntimeError(f"Card catalogue contains duplicate object keys: {DB_FILE}") from exc
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"Card catalogue contains invalid JSON: {DB_FILE}") from exc
         if not isinstance(loaded, dict):
             raise RuntimeError(f"Card catalogue must contain a JSON object: {DB_FILE}")
-        data = loaded
+        metadata = loaded.get("metadata")
+        if not isinstance(metadata, dict):
+            raise RuntimeError(f"Card catalogue metadata is missing: {DB_FILE}")
+        if "format_version" not in metadata or "hash_algorithm" not in metadata:
+            raise RuntimeError(f"Card catalogue metadata is missing required fields: {DB_FILE}")
+        if metadata["format_version"] != CARD_CATALOG_FORMAT_VERSION:
+            raise RuntimeError(
+                f"Card catalogue format version {metadata['format_version']} is incompatible; "
+                f"expected {CARD_CATALOG_FORMAT_VERSION}: {DB_FILE}"
+            )
+        if metadata["hash_algorithm"] != CARD_HASH_ALGORITHM_VERSION:
+            raise RuntimeError(
+                f"Card catalogue hash algorithm {metadata['hash_algorithm']!r} is incompatible; "
+                f"expected {CARD_HASH_ALGORITHM_VERSION!r}: {DB_FILE}"
+            )
+        cards = loaded.get("cards")
+        if not isinstance(cards, dict):
+            raise RuntimeError(f"Card catalogue must contain a 'cards' object: {DB_FILE}")
+        _validate_catalog_cards(cards)
+        data = cards
 
     _DB_CACHE_SIGNATURE = signature
     _DB_CACHE_DATA = data
@@ -287,8 +369,10 @@ def load_db() -> dict[str, Any]:
 
 def save_db(data: dict[str, Any]) -> None:
     global _DB_CACHE_SIGNATURE, _DB_CACHE_DATA, _MATCH_INDEX_DB, _MATCH_INDEX
+    _validate_catalog_cards(data)
     tmp = DB_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    payload = {"metadata": CARD_CATALOG_METADATA, "cards": data}
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(DB_FILE)
     _DB_CACHE_SIGNATURE = None
     _DB_CACHE_DATA = None
@@ -2325,6 +2409,47 @@ def _aggregate_resource_metric(values: list[float]) -> dict[str, float | int | N
     return {key: value for key, value in aggregate.items() if key != "sum" and key != "p95"}
 
 
+def _per_card_scan_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Estimate scan time per detected card by evenly allocating each screenshot's scan time."""
+    per_card_samples: list[float] = []
+    total_scan_ms = 0.0
+    total_cards = 0
+
+    for item in results:
+        timings = item.get("timings")
+        if not isinstance(timings, dict):
+            continue
+        scan_ms = timings.get("scan_ms")
+        card_count = item.get("detected_cards")
+        if (
+            not isinstance(scan_ms, (int, float))
+            or isinstance(scan_ms, bool)
+            or not math.isfinite(float(scan_ms))
+            or scan_ms < 0
+            or not isinstance(card_count, int)
+            or isinstance(card_count, bool)
+            or card_count <= 0
+        ):
+            continue
+        per_card_ms = float(scan_ms) / card_count
+        total_scan_ms += float(scan_ms)
+        total_cards += card_count
+        per_card_samples.extend([per_card_ms] * card_count)
+
+    aggregate = _aggregate_metric(per_card_samples)
+    return {
+        "scanned_cards": total_cards,
+        "scan_time_ms": round(total_scan_ms, 3),
+        "avg_scan_time_per_card_ms": aggregate["avg"],
+        "median_scan_time_per_card_ms": aggregate["median"],
+        "per_card_sample_count": aggregate["count"],
+        "method": (
+            "Each screenshot scan duration is evenly divided by its detected card count; "
+            "median is weighted by the number of detected cards."
+        ),
+    }
+
+
 @app.get("/admin/screenshot-tests")
 def get_screenshot_tests(authorization: str | None = Header(default=None)):
     require_admin(authorization)
@@ -2958,6 +3083,7 @@ def _run_screenshot_tests(
         for item in results
         if isinstance(item.get("timings", {}).get("scan_ms"), (int, float))
     ]
+    per_card_metrics = _per_card_scan_metrics(results)
     error_count = sum(1 for item in results if item.get("status") == "error" or item.get("error"))
     end_time = datetime.fromisoformat(resource_summary["end_time"])
     total_cpu = resource_summary["cpu"]
@@ -3051,6 +3177,7 @@ def _run_screenshot_tests(
             "total_scan_time_ms": round(sum(scan_times), 3),
             "avg_scan_time_ms": round(sum(scan_times) / len(scan_times), 3) if scan_times else None,
             "median_scan_time_ms": _aggregate_metric(scan_times)["median"],
+            **per_card_metrics,
             "max_case_duration_ms": max((float(item.get("timings", {}).get("case_total_ms", 0.0)) for item in results if isinstance(item.get("timings"), dict)), default=0.0),
             "peak_rss": resource_summary["sampled_peak_rss_bytes"],
             "peak_cpu": resource_summary["cpu_peak_percent"],
@@ -3680,20 +3807,45 @@ def _normalize_collection_updates(cards: list[Any]) -> list[tuple[str, int]]:
     return list(quantities.items())
 
 
+def _persist_collection(telegram_id, updates):
+    get_or_create_user(telegram_id)
+    set_user_card_quantities(telegram_id, updates)
+    return {"status": "ok", "saved": len(updates), "cards": get_user_cards(telegram_id)}
+
+
+def _record_save_event(event):
+    try:
+        SCANNER_DIAGNOSTICS.record_event(event)
+    except Exception:
+        LOGGER.warning("Save diagnostics unavailable")
+
+
 @app.post("/me/collection/confirm")
 async def confirm_my_collection(
     data: dict[str, Any],
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
+    started = time.perf_counter()
     auth = _validate_telegram_init_data(init_data)
     cards = data.get("cards", [])
     if not isinstance(cards, list):
         raise HTTPException(status_code=400, detail="cards должен быть массивом")
-    get_or_create_user(auth["id"])
     updates = _normalize_collection_updates(cards)
-    set_user_card_quantities(auth["id"], updates)
-    saved = len(updates)
-    return {"status": "ok", "saved": saved, "cards": get_user_cards(auth["id"])}
+    save_id = _scanner_scan_id(data.get("save_id")) or str(uuid.uuid4())
+    metrics = {}
+    outcome = "save_failed"
+    def persist():
+        metrics["worker_wait_ms"] = (time.perf_counter() - queued) * 1000
+        with measure_database(metrics):
+            return _persist_collection(auth["id"], updates)
+    queued = time.perf_counter()
+    try:
+        result = await asyncio.to_thread(persist)
+        outcome = "save_completed"
+        return result
+    finally:
+        metrics["save_api_ms"] = (time.perf_counter() - started) * 1000
+        _record_save_event({"event": outcome, "save_id": save_id, **metrics})
 
 
 @app.post("/me/collection")
@@ -3701,14 +3853,28 @@ async def save_my_collection(
     data: dict[str, Any],
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
-    auth = _validate_telegram_init_data(init_data)
-    cards = data.get("cards", [])
-    if not isinstance(cards, list):
-        raise HTTPException(status_code=400, detail="cards должен быть массивом")
-    get_or_create_user(auth["id"])
-    updates = _normalize_collection_updates(cards)
-    set_user_card_quantities(auth["id"], updates)
-    return {"status": "ok", "saved": len(updates), "cards": get_user_cards(auth["id"]) }
+    return await confirm_my_collection(data, init_data)
+
+
+@app.post("/me/collection/client-result")
+async def record_save_client_result(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    _validate_telegram_init_data(init_data)
+    save_id = _scanner_scan_id(data.get("save_id"))
+    if not save_id:
+        raise HTTPException(status_code=400, detail="Некорректный save_id")
+    metrics = {}
+    for key in ("client_save_request_ms", "client_save_to_confirmation_ms"):
+        value = data.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 600000 and math.isfinite(value):
+            metrics[key] = round(value, 3)
+    if "client_save_to_confirmation_ms" not in metrics:
+        raise HTTPException(status_code=400, detail="Отсутствует время сохранения")
+    _record_save_event({"event": "save_client_result", "save_id": save_id,
+                        "confirmed": data.get("confirmed") is True, **metrics})
+    return {"status": "ok"}
 
 
 @app.post("/scan")
@@ -3737,6 +3903,7 @@ async def scan(
         session_id = _scanner_session_id(session_header)
     request.state.scanner_session_id = session_id
     request.state.scanner_request_started = request_started_at
+    request_diag["scan_id"] = _scanner_scan_id(request.headers.get("x-scanner-scan-id"))
     request_diag.setdefault(
         "request_received_ms",
         round((request_started_at - SCANNER_DIAGNOSTICS.started_monotonic) * 1000, 3),
@@ -3768,11 +3935,13 @@ async def scan(
         "prewarm_check_reason": prewarm.get("reason"),
         "initialization_required": prewarm["warmup_status"] != "completed",
     })
-    decode_started = time.perf_counter()
     upload_profile: dict[str, Any] = {}
+    queue_started = time.perf_counter()
     async with SCAN_SEMAPHORE:
+        request_diag["queue_wait_ms"] = round(
+            (time.perf_counter() - queue_started) * 1000, 3
+        )
         image = await _read_image(file, upload_profile)
-        upload_decode_ms = (time.perf_counter() - decode_started) * 1000
         result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
     image_size = getattr(image, "size", (None, None))
     request_diag.update({
@@ -3835,18 +4004,19 @@ async def scan(
     matching_evaluation_ms = (time.perf_counter() - matching_evaluation_started) * 1000
     matching_ms = (time.perf_counter() - matching_started) * 1000
     if auth:
-        get_or_create_user(auth["id"])
+        await asyncio.to_thread(get_or_create_user, auth["id"])
 
     profile = dict(result.get("profile", {}))
     profile.update(upload_profile)
-    profile["upload_decode_ms"] = round(upload_decode_ms, 1)
     profile["catalog_load_ms"] = round(catalog_load_ms, 1)
     profile["matching_ms"] = round(matching_ms, 1)
     profile["matching_evaluation_ms"] = round(matching_evaluation_ms, 1)
     profile.update(matching_profile)
     profile["matched_count"] = sum(card.get("id") is not None for card in matches)
+    profile["unknown_count"] = len(matches) - profile["matched_count"]
     profile["request_received_ms"] = request_diag["request_received_ms"]
     profile["request_body_read_ms"] = request_diag["request_body_read_ms"]
+    profile["queue_wait_ms"] = request_diag["queue_wait_ms"]
     profile["image_upload_size_bytes"] = request_diag["image_upload_size_bytes"]
     profile["image_decode_ms"] = request_diag["image_decode_ms"]
     profile["image_width"] = request_diag["image_width"]
@@ -3880,15 +4050,84 @@ async def scan(
         "raw_hash_ms": profile.get("raw_hash_ms"),
         "clean_hash_ms": profile.get("clean_hash_ms"),
         "hashing_total_ms": profile.get("hashing_total_ms"),
+        "catalog_load_ms": profile.get("catalog_load_ms"),
         "matching_ms": profile.get("matching_ms"),
+        "matching_evaluation_ms": profile.get("matching_evaluation_ms"),
+        "matched_count": profile.get("matched_count"),
+        "unknown_count": profile.get("unknown_count"),
+        "cards_detected": len(matches),
         "quality_check_ms": None,
         "response_build_ms": response_build_ms,
+    })
+    request_diag.update({
+        f"matching_{key}": value
+        for key, value in matching_profile.items()
     })
     profile["response_build_ms"] = response_build_ms
     profile["total_server_ms"] = round((time.perf_counter() - request.state.scanner_request_started) * 1000, 3)
     profile["server_total_ms"] = round((time.perf_counter() - request_started) * 1000, 1)
     request_diag["total_server_ms"] = profile["total_server_ms"]
+    request_diag["server_total_ms"] = profile["server_total_ms"]
     return response_data
+
+
+@app.post("/scan/client-result")
+async def record_scan_client_result(
+    data: dict[str, Any],
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+    session_header: str | None = Header(default=None, alias="X-Scanner-Session-ID"),
+):
+    """Record browser timings measured when the scan result has been painted."""
+    if init_data:
+        _validate_telegram_init_data(init_data)
+
+    scan_id = _scanner_scan_id(data.get("scan_id"))
+    if scan_id is None:
+        raise HTTPException(status_code=400, detail="Некорректный scan_id")
+
+    metric_names = (
+        "client_form_data_ms",
+        "client_wake_ms",
+        "client_upload_ms",
+        "client_response_wait_ms",
+        "client_response_parse_ms",
+        "client_request_ms",
+        "client_result_render_ms",
+        "client_scan_to_result_ms",
+    )
+    metrics: dict[str, float] = {}
+    for name in metric_names:
+        value = data.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        numeric = float(value)
+        if math.isfinite(numeric) and 0 <= numeric <= 600_000:
+            metrics[name] = round(numeric, 3)
+
+    if "client_scan_to_result_ms" not in metrics:
+        raise HTTPException(status_code=400, detail="Отсутствует client_scan_to_result_ms")
+
+    cards_displayed = data.get("cards_displayed")
+    matched_count = data.get("matched_count")
+    event = {
+        "event": "scan_client_result",
+        "session_id": _scanner_session_id(session_header),
+        "scan_id": scan_id,
+        **metrics,
+        "cards_displayed": (
+            max(0, min(500, int(cards_displayed)))
+            if isinstance(cards_displayed, int) and not isinstance(cards_displayed, bool)
+            else None
+        ),
+        "matched_count": (
+            max(0, min(500, int(matched_count)))
+            if isinstance(matched_count, int) and not isinstance(matched_count, bool)
+            else None
+        ),
+        "result_visible": True,
+    }
+    recorded = SCANNER_DIAGNOSTICS.record_event(event)
+    return {"status": "ok" if recorded else "not_recorded"}
 
 
 @app.post("/admin/save-card")
@@ -3910,6 +4149,12 @@ async def save_card(
     # The scan preview is already cropped to the card. Reuse it as the
     # permanent icon so adding a card never requires uploading the same image twice.
     card_image = _load_admin_preview(data.preview)
+    if not set(CARD_HASH_KEYS).issubset(hashes) or any(
+        not re.fullmatch(r"[0-9a-fA-F]+", hashes[key])
+        for key in CARD_HASH_KEYS
+        if key in hashes
+    ):
+        hashes = calculate_card_hashes(card_image)
 
     db = load_db()
     requested_id = data.id.strip() if data.id else ""
@@ -4114,6 +4359,10 @@ def _github_commit_branch() -> str:
     return "feature/card-counter"
 
 
+def _git_blob_sha(content: bytes) -> str:
+    return hashlib.sha1(f"blob {len(content)}\0".encode("ascii") + content).hexdigest()
+
+
 def _github_commit() -> dict[str, Any]:
     token = os.getenv("GITHUB_TOKEN", "")
     repo = os.getenv("GITHUB_REPO", "den2002pv-tech/pubg-backend")
@@ -4136,6 +4385,8 @@ def _github_commit() -> dict[str, Any]:
         f"{api}/git/trees/{head_sha}?recursive=1",
         token,
     )
+    if tree_data.get("truncated"):
+        raise HTTPException(status_code=502, detail="GitHub API вернул неполное дерево файлов")
     existing = {
         item["path"]: item["sha"]
         for item in tree_data.get("tree", [])
@@ -4158,6 +4409,8 @@ def _github_commit() -> dict[str, Any]:
     tree_entries: list[dict[str, Any]] = []
 
     for path, content in blobs:
+        if existing.get(path) == _git_blob_sha(content):
+            continue
         blob = _github_request(
             "POST",
             f"{api}/git/blobs",
@@ -4173,6 +4426,16 @@ def _github_commit() -> dict[str, Any]:
     for path in existing:
         if path.startswith("static/cards/") and path.endswith(".webp") and path not in local_icons:
             tree_entries.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+
+    if not tree_entries:
+        return {
+            "status": "no_changes",
+            "commit": head_sha,
+            "url": "",
+            "cards": len(load_db()),
+            "icons": len(local_icons),
+            "branch": branch,
+        }
 
     new_tree = _github_request(
         "POST",

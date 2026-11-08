@@ -1,3 +1,9 @@
 .vercel
 .env*
 scanner_diagnostics/
+.base/
+.git_old/
+venv/
+.polydev/
+__pycache__/
+*.pyc
