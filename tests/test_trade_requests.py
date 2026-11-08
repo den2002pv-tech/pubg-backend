@@ -714,3 +714,28 @@ def test_trade_command_resends_completion_keyboard_for_existing_request(monkeypa
         for row in sent[0][1]["reply_markup"]["inline_keyboard"]
         for button in row
     )
+
+def test_telegram_webhook_answers_unknown_callback_without_loading_request(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    answers = []
+    monkeypatch.setattr(
+        trades,
+        "_answer_callback",
+        lambda callback_id, text: answers.append((callback_id, text)),
+    )
+    monkeypatch.setattr(
+        trades,
+        "get_trade_request",
+        lambda *_args: pytest.fail("unknown callback must not load a trade request"),
+    )
+
+    result = asyncio.run(
+        trades.telegram_webhook(
+            {"callback_query": {"id": "callback-unknown", "data": "unknown:1:action"}},
+            secret="test-webhook-secret",
+        )
+    )
+
+    assert result == {"ok": True}
+    assert answers == [("callback-unknown", "Неизвестное действие")]
+
