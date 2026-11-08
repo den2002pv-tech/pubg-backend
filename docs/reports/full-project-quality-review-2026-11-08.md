@@ -547,10 +547,10 @@ Telegram webhook delivery может повторяться, если ответ
     - согласовать срок хранения аналитических событий;
     - реализовать пакетное удаление по `created_at` и тесты границы срока;
     - проверить, что экспорт/агрегаты и индексы корректно работают после очистки.
-17. **F-14:** защитить все GitHub fixture manifest read-modify-write операции от stale updates; добавить concurrency regression tests.
-18. **F-15:** внедрить durable webhook update deduplication и тесты повторной доставки message/callback.
-19. **F-16:** внедрить TTL/size-based cleanup для TEMP_DIR с тестами и защитой активных файлов.
-20. Синхронизировать документацию F-06:
+16. **F-14:** защитить все GitHub fixture manifest read-modify-write операции от stale updates; добавить concurrency regression tests.
+17. **F-15:** внедрить durable webhook update deduplication и тесты повторной доставки message/callback.
+18. **F-16:** внедрить TTL/size-based cleanup для TEMP_DIR с тестами и защитой активных файлов.
+19. Синхронизировать документацию F-06:
     - исправить устаревшие числа в `docs/scanning-regression.md`;
     - исправить утверждения в `docs/development.md` о пустом манифесте и отсутствии проверки `unowned`;
     - явно описать отдельный тест identity matching;
