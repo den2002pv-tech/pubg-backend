@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -21,12 +20,6 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 SQLITE_SCHEMA_SQL = """
--- Metadata proving that a PostgreSQL snapshot was completed before fallback.
-CREATE TABLE IF NOT EXISTS database_metadata (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-
 -- Основные пользователи
 CREATE TABLE IF NOT EXISTS users (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,63 +115,12 @@ CREATE TABLE IF NOT EXISTS processed_telegram_updates (
     processed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
--- Outbox — журнал изменений для синхронизации с PG
-CREATE TABLE IF NOT EXISTS outbox_operations (
-    id            TEXT PRIMARY KEY,
-    transaction_id TEXT,
-    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-    operation_type TEXT NOT NULL,
-    payload       TEXT NOT NULL,
-    sync_status   TEXT NOT NULL DEFAULT 'pending'
-        CHECK (sync_status IN ('pending','synced','failed','superseded')),
-    sync_attempts INTEGER NOT NULL DEFAULT 0,
-    last_attempt_at TEXT,
-    error_message TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox_operations (sync_status, created_at);
-
--- Lock-таблица для защиты от dual-sync при нескольких workers
-CREATE TABLE IF NOT EXISTS sync_lock (
-    lock_key   TEXT PRIMARY KEY,
-    holder_pid INTEGER,
-    acquired_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
-
--- Таблица применённых операций (для idempotency при синхронизации)
-CREATE TABLE IF NOT EXISTS outbox_applied_in_pg (
-    op_id TEXT PRIMARY KEY,
-    applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-);
-
--- Cursor and delivery receipts for PostgreSQL's authoritative Outbox stream.
-CREATE TABLE IF NOT EXISTS replicated_outbox_transactions (
-    transaction_id TEXT PRIMARY KEY,
-    transaction_sequence INTEGER NOT NULL UNIQUE,
-    applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
 """
 
-# Tables whose mutations are part of the PostgreSQL mirror. Trigger payloads
-# contain full row images so deletes and updates can be replayed with conflict
-# detection instead of being approximated as counter increments.
-SYNC_TABLE_PRIMARY_KEYS = {
-    "users": ("id",),
-    "cards": ("id",),
-    "user_cards": ("user_id", "card_id"),
-    "desired_cards": ("user_id", "card_id"),
-    "trades": ("id",),
-    "user_analytics_events": ("id",),
-    "trade_requests": ("id",),
-    "processed_telegram_updates": ("update_id",),
-}
-
-# В PostgreSQL аналогичная таблица для idempotency
-PG_OUTBOX_APPLIED_DDL = """
-CREATE TABLE IF NOT EXISTS outbox_applied (
-    op_id TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-"""
+SNAPSHOT_TABLES = (
+    "users", "cards", "user_cards", "desired_cards", "trades",
+    "user_analytics_events", "trade_requests", "processed_telegram_updates",
+)
 
 
 def ensure_sqlite_schema(db_path: str) -> None:
@@ -189,60 +131,14 @@ def ensure_sqlite_schema(db_path: str) -> None:
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA busy_timeout=5000")
     con.execute("PRAGMA foreign_keys=ON")
-    con.create_function("database_outbox_enabled", 0, lambda: 0)
-    con.create_function("database_transaction_id", 0, lambda: str(uuid.uuid4()))
     con.executescript(SQLITE_SCHEMA_SQL)
-    columns = {row[1] for row in con.execute("PRAGMA table_info(outbox_operations)")}
-    if "transaction_id" not in columns:
-        con.execute("ALTER TABLE outbox_operations ADD COLUMN transaction_id TEXT")
-    # PostgreSQL is an optional snapshot target; request writes never enter an outbox.
-    for table in SYNC_TABLE_PRIMARY_KEYS:
-        for action in ("insert", "update", "delete"):
-            con.execute(f'DROP TRIGGER IF EXISTS "trg_outbox_{table}_{action}"')
+    for table in (
+        "outbox_operations", "sync_lock", "outbox_applied_in_pg",
+        "replicated_outbox_transactions", "outbox_applied", "database_metadata",
+    ):
+        con.execute(f'DROP TABLE IF EXISTS "{table}"')
     con.commit()
     con.close()
-
-
-def install_outbox_triggers(con: sqlite3.Connection) -> None:
-    """Install transactional row-image outbox triggers for all mirrored tables."""
-    for table, primary_key in SYNC_TABLE_PRIMARY_KEYS.items():
-        columns = [row[1] for row in con.execute(f'PRAGMA table_info("{table}")')]
-        if not columns:
-            raise sqlite3.DatabaseError(f"Missing SQLite sync table: {table}")
-        pk_json = lambda prefix: "json_object(" + ", ".join(
-            f"'{key}', {prefix}.\"{key}\"" for key in primary_key
-        ) + ")"
-        row_json = lambda prefix: "json_object(" + ", ".join(
-            f"'{column}', {prefix}.\"{column}\"" for column in columns
-        ) + ")"
-        for action, prefix in (("insert", "NEW"), ("update", "NEW"), ("delete", "OLD")):
-            trigger = f"trg_outbox_{table}_{action}"
-            con.execute(f'DROP TRIGGER IF EXISTS "{trigger}"')
-            old_expr = "NULL" if action == "insert" else row_json("OLD")
-            new_expr = "NULL" if action == "delete" else row_json("NEW")
-            sql = f'''
-                CREATE TRIGGER IF NOT EXISTS "{trigger}"
-                AFTER {action.upper()} ON "{table}"
-                WHEN database_outbox_enabled() = 1
-                BEGIN
-                    INSERT INTO outbox_operations
-                        (id, transaction_id, operation_type, payload, sync_status)
-                    VALUES (
-                        lower(hex(randomblob(16))),
-                        database_transaction_id(),
-                        'sqlite_row_change',
-                        json_object(
-                            'table', '{table}',
-                            'action', '{action}',
-                            'pk', {pk_json(prefix)},
-                            'before', {old_expr},
-                            'after', {new_expr}
-                        ),
-                        'pending'
-                    );
-                END;
-            '''
-            con.execute(sql)
 
 
 # ---------------------------------------------------------------------------
@@ -347,27 +243,10 @@ def _regexp(pattern: str, value: str | None) -> bool:
     return bool(re.search(pattern, str(value)))
 
 
-def setup_sqlite_functions(con: sqlite3.Connection, outbox_enabled: bool = True, transaction_id: str | None = None) -> None:
+def setup_sqlite_functions(con: sqlite3.Connection) -> None:
     """Зарегистрировать пользовательские функции SQLite."""
     con.create_function("regexp", 2, _regexp)
     con.create_function("now_utc", 0, now_sqlite)
-    con.create_function("database_outbox_enabled", 0, lambda: int(outbox_enabled))
-    current_transaction_id = {"value": transaction_id}
-
-    def transaction_id_for_current_transaction() -> str:
-        if current_transaction_id["value"] is None:
-            current_transaction_id["value"] = str(uuid.uuid4())
-        return current_transaction_id["value"]
-
-    def reset_transaction_id(statement: str) -> None:
-        command = statement.strip().split(None, 1)[0].upper() if statement.strip() else ""
-        if command in {"COMMIT", "END"} or statement.strip().upper() == "ROLLBACK":
-            current_transaction_id["value"] = None
-        elif command == "BEGIN":
-            current_transaction_id["value"] = str(uuid.uuid4())
-
-    con.create_function("database_transaction_id", 0, transaction_id_for_current_transaction)
-    con.set_trace_callback(reset_transaction_id)
 
 
 def adapt_sqlite_query(query: str) -> tuple[str, bool]:

@@ -18,7 +18,7 @@ def restore_dump(dump_path: str, db_path: str | None = None) -> dict[str, int]:
     ensure_sqlite_schema(target_db)
 
     con = sqlite3.connect(target_db)
-    setup_sqlite_functions(con, outbox_enabled=False)
+    setup_sqlite_functions(con)
     cur = con.cursor()
 
     current_table = None
@@ -45,8 +45,6 @@ def restore_dump(dump_path: str, db_path: str | None = None) -> dict[str, int]:
                     cur.execute(sql, row)
                     inserted_counts[current_table] += 1
 
-    cur.execute("INSERT OR REPLACE INTO database_metadata (key, value) VALUES ('postgres_snapshot_complete', '1')")
-    cur.execute("INSERT OR REPLACE INTO database_metadata (key, value) VALUES ('pg_outbox_cursor', '0')")
     con.commit()
     con.close()
 

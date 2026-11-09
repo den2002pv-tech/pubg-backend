@@ -20,7 +20,7 @@ def sqlite_fallback(monkeypatch, tmp_path):
     ensure_sqlite_schema(str(db_path))
 
     with sqlite3.connect(db_path) as con:
-        setup_sqlite_functions(con, outbox_enabled=False)
+        setup_sqlite_functions(con)
         con.executemany(
             "INSERT INTO cards (id, name, rarity, icon) VALUES (?, ?, ?, ?)",
             [("card_1", "Card 1", 1, ""), ("card_2", "Card 2", 1, "")],

@@ -11,10 +11,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Iterator
 
-import psycopg
-from psycopg.rows import dict_row
-
-from database_manager import DatabaseMode, get_manager
+from database_manager import get_manager
 from db_sqlite_schema import (
     card_id_order_sql_sqlite,
     desired_cards_order_sql_sqlite,
@@ -32,9 +29,6 @@ from db_sqlite_schema import (
 # ---------------------------------------------------------------------------
 
 _DB_METRICS: ContextVar[dict | None] = ContextVar("db_metrics", default=None)
-_CURRENT_PG_CONNECTION: ContextVar[psycopg.Connection | None] = ContextVar(
-    "current_pg_connection", default=None
-)
 
 
 @contextmanager
@@ -68,44 +62,13 @@ def _sqlite_connection_ctx():
     """Контекст SQLite-соединения с адаптером."""
     mgr = get_manager()
     with mgr.get_sqlite_connection() as con:
-        setup_sqlite_functions(con, outbox_enabled=False)
-        yield _SQLiteConnectionAdapter(con)
+        setup_sqlite_functions(con)
+        yield _SQLiteConnectionAdapter(con, mgr.mark_dirty)
 
 
 # ---------------------------------------------------------------------------
 # Обёртки для совместимости интерфейса psycopg / sqlite3
 # ---------------------------------------------------------------------------
-
-class _PGConnectionWrapper:
-    """Psycopg connection facade that preserves outer transaction boundaries."""
-
-    def __init__(self, conn: psycopg.Connection, mgr, owns_transaction: bool = True) -> None:
-        self._conn = conn
-        self._mgr = mgr
-        self._owns_transaction = owns_transaction
-
-    def cursor(self):
-        return self._conn.cursor()
-
-    def commit(self):
-        if self._owns_transaction:
-            return self._conn.commit()
-        return None
-
-    def rollback(self):
-        if self._owns_transaction:
-            return self._conn.rollback()
-        return None
-
-    def execute(self, *args, **kwargs):
-        return self._conn.execute(*args, **kwargs)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return self._conn.__exit__(*args)
-
 
 class _SQLiteCursor:
     """Курсор-адаптер для sqlite3, совместимый с psycopg Cursor API."""
@@ -157,9 +120,11 @@ class _SQLiteCursor:
 class _SQLiteConnectionAdapter:
     """Адаптер sqlite3.Connection под psycopg.Connection API."""
 
-    def __init__(self, con: sqlite3.Connection) -> None:
+    def __init__(self, con: sqlite3.Connection, on_commit=None) -> None:
         self._con = con
         self._cursor_obj = None
+        self._on_commit = on_commit
+        self._changes_before_transaction = con.total_changes
 
     def cursor(self):
         raw = self._con.cursor()
@@ -168,9 +133,13 @@ class _SQLiteConnectionAdapter:
 
     def commit(self):
         self._con.commit()
+        if self._con.total_changes > self._changes_before_transaction and self._on_commit:
+            self._on_commit()
+        self._changes_before_transaction = self._con.total_changes
 
     def rollback(self):
         self._con.rollback()
+        self._changes_before_transaction = self._con.total_changes
 
     def execute(self, query: str, params=None):
         raw = self._con.cursor()
@@ -183,21 +152,13 @@ class _SQLiteConnectionAdapter:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type:
-            self._con.rollback()
+            self.rollback()
         else:
-            self._con.commit()
+            self.commit()
         return False
 
 
 # ---------------------------------------------------------------------------
-# Outbox-хелпер
-# ---------------------------------------------------------------------------
-
-def _record_outbox(op_type: str, payload: dict, sync_status: str = "pending") -> str:
-    """Legacy compatibility hook; PostgreSQL row triggers own Stage 1 journaling."""
-    return ""
-
-
 # ---------------------------------------------------------------------------
 # init_db
 # ---------------------------------------------------------------------------
@@ -262,9 +223,6 @@ def _init_db_pg() -> None:
                 );
                 """
             )
-        conn.commit()
-        from db_sync import ensure_postgres_outbox_schema
-        ensure_postgres_outbox_schema(conn)
         conn.commit()
 
 
@@ -335,11 +293,6 @@ def _ts_to_str(val) -> str | None:
     if hasattr(val, "strftime"):
         return val.strftime("%Y-%m-%dT%H:%M:%SZ")
     return str(val)
-
-
-def _mark_outbox_synced(op_id: str) -> None:
-    # Kept for callers from the earlier typed-outbox implementation.
-    return None
 
 
 # ---------------------------------------------------------------------------
