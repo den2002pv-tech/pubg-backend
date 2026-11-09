@@ -484,8 +484,42 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .onboarding-steps li{margin-right:12px}
 #confirmBtn{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:10;width:100%;min-height:48px;box-shadow:0 0 0 8px var(--surface);margin-top:16px}
 #cardsList{padding-bottom:12px}
-#saveSuccess button{width:100%;margin-top:10px;min-height:44px}
 .album-example{width:100%;max-width:360px;height:auto}
+
+/* Scroll to top */
+.scroll-top{
+  position:fixed;
+  right:14px;
+  bottom:calc(18px + env(safe-area-inset-bottom,0px));
+  width:46px;
+  height:46px;
+  padding:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#1c232c;
+  border:1px solid var(--gold);
+  border-radius:50%;
+  color:var(--gold);
+  font-size:19px;
+  line-height:1;
+  cursor:pointer;
+  z-index:950;
+  box-shadow:0 6px 18px rgba(0,0,0,.6),0 0 12px var(--gold-glow);
+  opacity:0;
+  transform:translateY(12px) scale(.9);
+  pointer-events:none;
+  transition:opacity .2s ease,transform .24s cubic-bezier(0.16,1,0.3,1),bottom .24s cubic-bezier(0.16,1,0.3,1);
+}
+.scroll-top.visible{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}
+.scroll-top:active{transform:scale(.92)}
+body.floating-bar-open .scroll-top{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+@media(hover:hover){
+  .scroll-top:hover{background:#232c37;border-color:#f0b429}
+}
+@media(prefers-reduced-motion:reduce){
+  .scroll-top{transition:opacity .01ms}
+}
 </style>
 </head>
 <body>
@@ -556,7 +590,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <ul class="scan-help-controls">
         <li><span class="scan-help-key is-check" aria-hidden="true">✓</span><span><b>Выбрать</b> — сохранить карту в инвентарь. Сохраняются только отмеченные.</span></li>
         <li><span class="scan-help-key" aria-hidden="true">4</span><span><b>Число рядом</b> — количество копий, которое вы хотите сохранить. Если сканер определил неверное количество, исправьте его вручную.</span></li>
-        <li><span class="scan-help-key" aria-hidden="true">дубл.</span><span><b>После: ×4 · дубл.: 3</b> — итог после сохранения; дубликаты — копии сверх одной.</span></li>
       </ul>
     </details>
 
@@ -569,8 +602,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 
 <section id="saveSuccess" class="panel" hidden aria-labelledby="saveSuccessTitle">
   <h2 id="saveSuccessTitle" tabindex="-1"></h2>
-  <button type="button" id="savedAddMissing">⭐ Добавить недостающие в «Ищу»</button>
-  <button type="button" id="savedFindTrades">🔄 Найти обмены</button>
 </section>
 <!-- Inventory Tab -->
 <section id="inventoryTab" role="tabpanel" aria-labelledby="inventoryTabButton" tabindex="0" hidden>
@@ -687,6 +718,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   </div>
   <button id="floatingSaveBtn" class="floating-bar-btn">💾 Сохранить</button>
 </div>
+
+<button id="scrollTopBtn" class="scroll-top" type="button" aria-label="Наверх" title="Наверх" tabindex="-1">
+  <span aria-hidden="true">↑</span>
+</button>
 
 <!-- Quick Quantity Input Modal -->
 <div id="qtyModal" class="modal-overlay" aria-hidden="true" inert>
@@ -1223,14 +1258,6 @@ function showSaveSuccess(count) {
   title.focus();
 }
 renderOnboarding();
-document.getElementById('savedAddMissing').addEventListener('click', () => {
-  switchTab('inventory');
-  document.getElementById('addMissingToDesiredBtn').focus();
-  document.getElementById('addMissingToDesiredBtn').click();
-});
-document.getElementById('savedFindTrades').addEventListener('click', () => {
-  switchTab('trades'); document.getElementById('tradesTabButton').focus();
-});
 fileInput.addEventListener('change', () => {
   if (queueBusy || collectionSaveInProgress || !fileInput.files.length) return;
   requestScannerPrewarm('image_selected');
@@ -1414,7 +1441,7 @@ function showResults(cards) {
       '<div class="card-info">' +
         '<div class="card-name">' + esc(c.name || 'Неизвестная карта') + '</div>' +
         (recognized
-          ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '" aria-label="Количество для сохранения" title="Количество для сохранения"></div><div class="tech scan-after">После: ×' + (detected == null ? '—' : detected) + ' · дубл.: ' + duplicates + '</div>'
+          ? '<div class="scan-row"><label><input class="scan-select" type="checkbox" ' + (pending?.selected ? 'checked' : '') + '> Выбрать</label><input class="scan-qty" type="number" min="1" max="999" value="' + (detected == null ? '' : detected) + '" aria-label="Количество для сохранения" title="Количество для сохранения"></div>'
           : '<div class="tech">Эта карта не изменит инвентарь.</div>'
         ) +
         (c.needs_review || !recognized ? '<div class="tech" role="note">Проверьте карту</div>' : '') +
@@ -1534,10 +1561,6 @@ function renderScanCardQuantity(el, q) {
     badge.textContent = '×' + (q == null ? '—' : q);
     badge.setAttribute('aria-label', 'Распознано: ' + (q == null ? 'неизвестно' : q));
     badge.title = 'Количество на скриншоте';
-  }
-  const tech = el.querySelector('.scan-after');
-  if (tech) {
-    tech.textContent = q == null ? 'Введите число' : 'После сохранения: ×' + q + ' · дуб: ' + Math.max(0, q - 1);
   }
 }
 
@@ -2060,6 +2083,7 @@ function checkDesiredChanges() {
       tg.MainButton.offClick(saveDesired);
     }
   }
+  document.body.classList.toggle('floating-bar-open', !!floatingBar && floatingBar.classList.contains('visible'));
 }
 
 async function saveDesired() {
@@ -2585,6 +2609,51 @@ document.getElementById('feedbackSubmit').addEventListener('click', async () => 
     button.disabled = false;
   }
 });
+
+/* ===== Scroll to top ===== */
+(function initScrollTop() {
+  const btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  const THRESHOLD = 480;
+  let ticking = false;
+
+  function setVisible(visible) {
+    btn.classList.toggle('visible', visible);
+    btn.tabIndex = visible ? 0 : -1;
+  }
+
+  function update() {
+    ticking = false;
+    if (document.getElementById('qtyModal')?.classList.contains('open')) {
+      setVisible(false);
+      return;
+    }
+    setVisible(window.scrollY > THRESHOLD);
+  }
+
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(update);
+  }, { passive: true });
+
+  window.addEventListener('resize', update, { passive: true });
+
+  btn.addEventListener('click', () => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    setVisible(false);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Home' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      btn.click();
+    }
+  });
+
+  update();
+})();
 
 </script>
 </body>
