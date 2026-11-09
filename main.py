@@ -70,31 +70,22 @@ if SENTRY_DSN:
     )
 
 def startup_database() -> None:
-    """
-    Отказоустойчивый запуск БД.
-    1. Инициализирует DatabaseManager (выбирает PG или SQLite).
-    2. Создаёт схему активной БД.
-    3. Синхронизирует каталог карточек.
-    4. Инициализирует аналитику и схему заявок на обмен.
-
-    Если PostgreSQL недоступна и SQLite содержит данные — запускается в fallback-режиме.
-    Если обе БД недоступны — выбрасывает RuntimeError с диагностикой.
-    """
+    """Initialize the local primary database and application-owned SQLite tables."""
     _cleanup_temp_dir()
 
-    # Инициализация менеджера (проверка PG, выбор режима, начальная синхронизация)
+    # SQLite is authoritative; the manager may restore one snapshot on first boot.
     mgr = get_manager()
     mgr.initialize()
 
     mode = mgr.mode.value
     LOGGER.info("Запуск в режиме БД: %s", mode)
 
-    # Схема БД (init_db теперь работает с активной БД)
+    # Initialize all application schemas in the local database.
     init_db()
     init_analytics_db()
     _migrate_frame_color_hashes()
 
-    # Синхронизировать каталог карточек в обе БД
+    # Synchronize the local card catalogue.
     sync_cards(load_db())
 
     # Схема заявок на обмен

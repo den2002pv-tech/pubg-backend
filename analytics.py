@@ -213,6 +213,9 @@ def _record_analytics_pg(user_id: int, valid_events: list[tuple[str, dict]]) -> 
                            VALUES (%s, %s, %s::jsonb) RETURNING id, created_at""",
                         (user_id, event_name, json.dumps(properties, ensure_ascii=False)),
                     )
+                    # SQLite keeps a RETURNING statement active until its row is read.
+                    # Consume it before commit; PostgreSQL also supports fetchone().
+                    cur.fetchone()
             conn.commit()
         return len(valid_events)
     except (psycopg.OperationalError, psycopg.InterfaceError):

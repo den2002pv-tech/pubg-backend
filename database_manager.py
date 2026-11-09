@@ -1,4 +1,4 @@
-"""PostgreSQL primary manager with a read-only local SQLite projection."""
+"""Local SQLite connection manager with optional PostgreSQL snapshots."""
 from __future__ import annotations
 
 import logging
@@ -27,7 +27,7 @@ def _sqlite_path() -> str:
         return path
     if os.path.exists("/home/container/data") or os.path.exists("/home/container"):
         return "/home/container/data/pubg_local.db"
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "pubg_local.db")
+    return os.path.join(".", "data", "pubg_local.db")
 
 
 def _pg_url() -> str:
@@ -79,7 +79,7 @@ class DatabaseManager:
         return cls._instance
 
     def __init__(self) -> None:
-        self._mode = DatabaseMode.POSTGRES
+        self._mode = DatabaseMode.SQLITE
         self._mode_lock = threading.RLock()
         self._pg_available = False
         self._last_pg_check: float = 0.0
@@ -96,14 +96,13 @@ class DatabaseManager:
     # ------------------------------------------------------------------
 
     def initialize(self) -> None:
-        """Инициализировать менеджер: SQLite-схема, проверить PG, выбрать режим."""
+        """Initialize local SQLite; restore one PostgreSQL snapshot only for a new DB."""
         from db_sqlite_schema import ensure_sqlite_schema
-        from db_sync import SyncManager
 
         sqlite_db = _sqlite_path()
         logger.info("Инициализация DatabaseManager, SQLite: %s", sqlite_db)
 
-        # Создать схему SQLite (идемпотентно)
+        was_empty = not os.path.exists(sqlite_db) or os.path.getsize(sqlite_db) == 0
         try:
             ensure_sqlite_schema(sqlite_db)
         except (sqlite3.DatabaseError, OSError) as exc:
@@ -111,42 +110,16 @@ class DatabaseManager:
                 f"Локальная SQLite недоступна или повреждена ({sqlite_db}): {exc}"
             ) from exc
 
-        pg_url = _pg_url()
-        if not pg_url:
-            raise RuntimeError("DATABASE_URL не задан: PostgreSQL остаётся единственным источником записей")
-
-        # Проверить доступность PG
-        if self._check_pg_health():
-            _log_event("DATABASE_POSTGRES_CONNECTED")
-            self._pg_available = True
-
-            # Mirror errors are visible and tracked; PG remains authoritative.
+        if was_empty and _pg_url():
             try:
-                # Install every replicated table and its trigger before taking
-                # the snapshot, including analytics and trade webhook tables.
-                import database
-                import analytics
-                import trade_requests
-                database.init_db()
-                analytics.init_analytics_db()
-                trade_requests.init_trade_request_schema()
+                from db_sync import SyncManager
                 sync = SyncManager()
                 sync.initial_sync_pg_to_sqlite()
             except Exception as exc:
-                self._sync_error_count += 1
-                logger.exception("Начальная синхронизация PG→SQLite не выполнена")
-
-            self._set_mode(DatabaseMode.POSTGRES, "PG доступна при старте")
-        else:
-            _log_event("DATABASE_POSTGRES_UNAVAILABLE", reason="startup_check_failed")
-            if self._sqlite_has_schema():
-                logger.warning("PostgreSQL недоступна; активна локальная SQLite-копия (fallback)")
-                self._set_mode(DatabaseMode.SQLITE, "PG недоступна при старте, SQLite копия готова")
-            else:
-                logger.warning("PostgreSQL недоступна; запросы к БД будут завершаться ошибкой")
+                logger.warning("Не удалось восстановить snapshot из PostgreSQL; используем локальную SQLite: %s", exc)
 
         self._initialized = True
-        self._start_monitor()
+        self._set_mode(DatabaseMode.SQLITE, "Локальная SQLite — основная база")
 
     def _sqlite_has_schema(self) -> bool:
         """Проверить целостность SQLite и наличие минимальной локальной копии."""
@@ -171,10 +144,7 @@ class DatabaseManager:
                 }
                 if not required.issubset(tables):
                     return False
-                snapshot = con.execute(
-                    "SELECT value FROM database_metadata WHERE key='postgres_snapshot_complete'"
-                ).fetchone()
-                return snapshot is not None and bool(snapshot[0])
+                return True
             finally:
                 con.close()
         except Exception:
@@ -234,48 +204,15 @@ class DatabaseManager:
     # ------------------------------------------------------------------
 
     def _start_monitor(self) -> None:
-        if self._monitor_thread and self._monitor_thread.is_alive():
-            return
-        self._stop_monitor.clear()
-        self._monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            name="db-failover-monitor",
-            daemon=True,
-        )
-        self._monitor_thread.start()
+        return
 
     def _monitor_loop(self) -> None:
-        interval = _check_interval()
-        while not self._stop_monitor.wait(timeout=interval):
-            try:
-                self._run_health_cycle()
-            except Exception as exc:
-                logger.error("Ошибка в db-monitor: %s", exc)
+        """Legacy entry point retained for callers; failover polling is disabled."""
+        return
 
     def _run_health_cycle(self) -> None:
-        from db_sync import SyncManager
-
-        pg_ok = self._check_pg_health()
-
-        if not pg_ok:
-            _log_event("DATABASE_POSTGRES_UNAVAILABLE", reason="health_check_failed")
-            self._pg_available = False
-            return
-        was_available = self._pg_available
-        self._pg_available = True
-        try:
-            applied = SyncManager().drain_postgres_outbox()
-            self._pending_outbox_count = 0
-            self._last_sync_at = time.monotonic()
-            self._sync_error_count = 0
-            if not was_available or self._mode != DatabaseMode.POSTGRES:
-                _log_event("DATABASE_POSTGRES_RESTORED")
-                self._set_mode(DatabaseMode.POSTGRES, "PostgreSQL восстановлена")
-            _log_event("DATABASE_SYNC_COMPLETED", applied=applied)
-        except Exception as exc:
-            self._sync_error_count += 1
-            _log_event("DATABASE_SYNC_FAILED", error=str(exc)[:200])
-            logger.exception("PostgreSQL доступна, но синхронизация SQLite не выполнена")
+        """No periodic PostgreSQL checks or two-way synchronization are performed."""
+        return
 
     def stop_monitor(self) -> None:
         self._stop_monitor.set()

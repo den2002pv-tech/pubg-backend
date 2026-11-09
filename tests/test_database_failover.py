@@ -271,14 +271,14 @@ def test_isolated_postgres_trade_transfer_replicates_as_one_transaction(isolated
         assert con.execute("SELECT status FROM trade_requests WHERE id=?", (request_id,)).fetchone()[0] == "completed"
 
 
-def test_startup_refuses_empty_sqlite_without_postgres(monkeypatch, tmp_path):
+def test_startup_creates_empty_local_sqlite_without_postgres(monkeypatch, tmp_path):
     manager, _ = _fresh_manager(monkeypatch, tmp_path)
+    manager.initialize()
+    assert manager.mode is DatabaseMode.SQLITE
+    assert manager._sqlite_has_schema()
 
-    with pytest.raises(RuntimeError, match="DATABASE_URL не задан"):
-        manager.initialize()
 
-
-def test_startup_never_promotes_existing_sqlite_when_postgres_url_missing(monkeypatch, tmp_path):
+def test_startup_uses_existing_sqlite_when_postgres_url_missing(monkeypatch, tmp_path):
     manager, db_path = _fresh_manager(monkeypatch, tmp_path)
     ensure_sqlite_schema(str(db_path))
     with sqlite3.connect(db_path) as con:
@@ -289,12 +289,13 @@ def test_startup_never_promotes_existing_sqlite_when_postgres_url_missing(monkey
             "INSERT INTO database_metadata (key, value) VALUES ('postgres_snapshot_complete', 'test-snapshot')"
         )
 
-    with pytest.raises(RuntimeError, match="DATABASE_URL не задан"):
-        manager.initialize()
-    assert manager.mode is DatabaseMode.POSTGRES
+    manager.initialize()
+    assert manager.mode is DatabaseMode.SQLITE
+    with sqlite3.connect(db_path) as con:
+        assert con.execute("SELECT name FROM cards WHERE id='card_1'").fetchone()[0] == "Card 1"
 
 
-def test_postgres_unavailable_never_falls_back_to_sqlite(monkeypatch, tmp_path):
+def test_postgres_is_not_used_for_request_connections(monkeypatch, tmp_path):
     manager, _db_path = _fresh_manager(monkeypatch, tmp_path, database_url="postgresql://unused")
     import database
 
@@ -302,10 +303,10 @@ def test_postgres_unavailable_never_falls_back_to_sqlite(monkeypatch, tmp_path):
         raise psycopg.OperationalError("test PostgreSQL is unavailable")
 
     monkeypatch.setattr(database.psycopg, "connect", unavailable)
-    with pytest.raises(psycopg.OperationalError, match="unavailable"):
-        with database.get_connection():
-            pass
-    assert manager.mode is DatabaseMode.POSTGRES
+    manager.initialize()
+    with database.get_connection() as conn:
+        conn.execute("SELECT 1").fetchone()
+    assert manager.mode is DatabaseMode.SQLITE
 
 
 def test_replicated_tables_reject_truncate_bypass(isolated_pg_and_sqlite):
@@ -427,7 +428,7 @@ def test_sync_lock_is_exclusive_across_processes(tmp_path):
     sync._release_sync_lock()
 
 
-def test_sqlite_transaction_id_is_unique_per_transaction(tmp_path):
+def test_sqlite_schema_does_not_install_sync_outbox_triggers(tmp_path):
     from db_sqlite_schema import setup_sqlite_functions
 
     db_path = tmp_path / "transaction-ids.sqlite3"
@@ -438,10 +439,9 @@ def test_sqlite_transaction_id_is_unique_per_transaction(tmp_path):
     con.commit()
     con.execute("UPDATE cards SET name='Card one' WHERE id='card_1'")
     con.commit()
-    rows = con.execute("SELECT transaction_id FROM outbox_operations ORDER BY rowid").fetchall()
+    rows = con.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'trg_outbox_%'").fetchall()
     con.close()
-    assert len(rows) == 2
-    assert rows[0][0] != rows[1][0]
+    assert rows == []
 
 
 def test_sync_pending_outbox_is_disabled_in_postgres_primary_mode():

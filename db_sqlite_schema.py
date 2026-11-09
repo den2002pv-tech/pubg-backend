@@ -195,7 +195,10 @@ def ensure_sqlite_schema(db_path: str) -> None:
     columns = {row[1] for row in con.execute("PRAGMA table_info(outbox_operations)")}
     if "transaction_id" not in columns:
         con.execute("ALTER TABLE outbox_operations ADD COLUMN transaction_id TEXT")
-    install_outbox_triggers(con)
+    # PostgreSQL is an optional snapshot target; request writes never enter an outbox.
+    for table in SYNC_TABLE_PRIMARY_KEYS:
+        for action in ("insert", "update", "delete"):
+            con.execute(f'DROP TRIGGER IF EXISTS "trg_outbox_{table}_{action}"')
     con.commit()
     con.close()
 

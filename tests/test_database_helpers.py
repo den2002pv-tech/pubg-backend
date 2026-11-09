@@ -44,7 +44,7 @@ def test_set_desired_cards_deduplicates_and_trims_ids(monkeypatch):
         params for query, params in captured["calls"]
         if "INSERT INTO desired_cards" in query
     ]
-    assert insert_calls == [(["card_1", "card_2"], 12345)]
+    assert insert_calls == [("card_1", "card_2", 12345)]
 
 
 def test_set_desired_cards_with_empty_list_only_clears_existing_list(monkeypatch):
@@ -186,10 +186,11 @@ def test_set_user_card_quantities_is_atomic_and_deduplicates_ids(monkeypatch):
         ("card_1", 5),
     ])
 
-    assert captured["calls"][0][1] == (["card_1", "card_2"], [5, 0], 12345)
+    assert [call[1] for call in captured["calls"] if "INSERT INTO user_cards" in call[0]] == [
+        ("card_1", 5, 12345), ("card_2", 0, 12345)
+    ]
     assert "INSERT INTO user_cards" in captured["calls"][0][0]
-    assert captured["calls"][1][1] == (12345, ["card_1"])
-    assert "DELETE FROM desired_cards" in captured["calls"][1][0]
+    assert any("DELETE FROM desired_cards" in query for query, _ in captured["calls"])
     assert captured["committed"] is True
 
 
@@ -243,7 +244,7 @@ def test_sync_cards_upserts_catalog_and_removes_stale_cards(monkeypatch):
         if "DELETE FROM cards" in query
     ]
     assert len(delete_calls) == 1
-    assert delete_calls[0][1] == (["card_1", "card_2"],)
+    assert delete_calls[0][1] == ["card_1", "card_2"]
 
 
 def test_sync_cards_partial_invalid_catalog_does_not_delete_user_card_rows(monkeypatch):

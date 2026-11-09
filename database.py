@@ -1,4 +1,4 @@
-"""PostgreSQL-primary data access; SQLite is updated only by the PG Outbox consumer."""
+"""SQLite-primary data access with an optional PostgreSQL snapshot target."""
 from __future__ import annotations
 
 import json
@@ -58,65 +58,9 @@ def _add_metric(name: str, value: float):
 
 @contextmanager
 def get_connection():
-    """Yield active connection: PostgreSQL if available, or SQLite in fallback mode."""
-    mgr = get_manager()
-    if not mgr.is_postgres:
-        with _sqlite_connection_ctx() as conn:
-            yield conn
-        return
-
-    current = _CURRENT_PG_CONNECTION.get()
-    if current is not None:
-        savepoint = f"nested_{uuid.uuid4().hex}"
-        current.execute(f"SAVEPOINT {savepoint}")
-        try:
-            yield _PGConnectionWrapper(current, mgr, owns_transaction=False)
-        except BaseException:
-            try:
-                current.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
-                current.execute(f"RELEASE SAVEPOINT {savepoint}")
-            except (psycopg.Error, psycopg.InterfaceError):
-                pass
-            raise
-        else:
-            current.execute(f"RELEASE SAVEPOINT {savepoint}")
-        return
-
-    started = time.perf_counter()
-    try:
-        conn = psycopg.connect(
-            os.getenv("DATABASE_URL", ""),
-            row_factory=dict_row,
-            connect_timeout=max(1, int(float(os.getenv("DB_FAILOVER_CONNECT_TIMEOUT", "5")))),
-            options="-c statement_timeout=10000 -c lock_timeout=3000",
-        )
-    except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
-        mgr.notify_pg_write_failed(exc)
-        if mgr._sqlite_has_schema():
-            mgr._set_mode(DatabaseMode.SQLITE, f"PG connection failed: {exc}")
-            with _sqlite_connection_ctx() as fallback_conn:
-                yield fallback_conn
-            return
-        raise
-    _add_metric("db_connection_ms", (time.perf_counter() - started) * 1000)
-    _add_metric("db_connection_count", 1)
-    tx_start = time.perf_counter()
-    token = _CURRENT_PG_CONNECTION.set(conn)
-    try:
-        with conn:
-            yield _PGConnectionWrapper(conn, mgr)
-    except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
-        mgr.notify_pg_write_failed(exc)
-        if mgr._sqlite_has_schema():
-            mgr._set_mode(DatabaseMode.SQLITE, f"PG transaction failed: {exc}")
-            with _sqlite_connection_ctx() as fallback_conn:
-                yield fallback_conn
-            return
-        raise
-    finally:
-        _CURRENT_PG_CONNECTION.reset(token)
-        conn.close()
-        _add_metric("db_transaction_ms", (time.perf_counter() - tx_start) * 1000)
+    """Yield a local SQLite connection; PostgreSQL is never in the request path."""
+    with _sqlite_connection_ctx() as conn:
+        yield conn
 
 
 @contextmanager
@@ -124,7 +68,7 @@ def _sqlite_connection_ctx():
     """Контекст SQLite-соединения с адаптером."""
     mgr = get_manager()
     with mgr.get_sqlite_connection() as con:
-        setup_sqlite_functions(con, outbox_enabled=mgr.mode == DatabaseMode.SQLITE)
+        setup_sqlite_functions(con, outbox_enabled=False)
         yield _SQLiteConnectionAdapter(con)
 
 
@@ -259,10 +203,10 @@ def _record_outbox(op_type: str, payload: dict, sync_status: str = "pending") ->
 # ---------------------------------------------------------------------------
 
 def init_db() -> None:
-    """Создать таблицы если не существуют. Работает с активной БД."""
-    mgr = get_manager()
-    if mgr.is_postgres:
-        _init_db_pg()
+    """Create the local SQLite schema idempotently."""
+    from database_manager import _sqlite_path
+    from db_sqlite_schema import ensure_sqlite_schema
+    ensure_sqlite_schema(_sqlite_path())
 
 
 def _init_db_pg() -> None:
@@ -341,7 +285,22 @@ def get_or_create_user(
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
     }
-    return _get_or_create_user_pg(payload)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO users (telegram_id, username, first_name, last_name, last_seen_at, last_activity_at)
+                   VALUES (?, ?, ?, ?, now_utc(), now_utc())
+                   ON CONFLICT (telegram_id) DO UPDATE SET
+                     username=CASE WHEN excluded.username<>'' THEN excluded.username ELSE users.username END,
+                     first_name=CASE WHEN excluded.first_name<>'' THEN excluded.first_name ELSE users.first_name END,
+                     last_name=CASE WHEN excluded.last_name<>'' THEN excluded.last_name ELSE users.last_name END,
+                     last_seen_at=now_utc(), last_activity_at=now_utc()""",
+                (payload["telegram_id"], payload["username"], payload["first_name"], payload["last_name"]),
+            )
+            cur.execute("SELECT id, telegram_id, username, first_name, last_name, created_at, last_seen_at, last_activity_at FROM users WHERE telegram_id=?", (payload["telegram_id"],))
+            user = cur.fetchone()
+        conn.commit()
+    return dict(user)
 
 
 def _get_or_create_user_pg(payload: dict) -> dict:
@@ -391,11 +350,7 @@ def get_admin_users(search: str = "", online_seconds: int = 90, limit: int = 50,
     search = (search or "").strip()[:200]
     online_seconds = max(30, min(int(online_seconds), 600))
     limit, offset = max(1, min(int(limit), 100)), max(0, int(offset))
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _get_admin_users_pg(search, online_seconds, limit, offset)
-    else:
-        return _get_admin_users_sqlite(search, online_seconds, limit, offset)
+    return _get_admin_users_sqlite(search, online_seconds, limit, offset)
 
 
 def _get_admin_users_pg(search: str, online_seconds: int, limit: int, offset: int) -> dict:
@@ -437,9 +392,7 @@ def _get_admin_users_sqlite(search: str, online_seconds: int, limit: int, offset
     from datetime import datetime, timezone, timedelta
     cutoff = (datetime.now(timezone.utc) - timedelta(seconds=online_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
     pattern = f"%{search}%"
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        setup_sqlite_functions(con)
+    with get_connection() as con:
         # Фильтр поиска
         if search:
             where = "WHERE (CAST(u.telegram_id AS TEXT) LIKE ? OR u.username LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)"
@@ -448,20 +401,17 @@ def _get_admin_users_sqlite(search: str, online_seconds: int, limit: int, offset
             where = ""
             search_params = []
 
-        total_row = con.execute(
-            f"SELECT COUNT(*) AS total FROM users u {where}",
-            search_params,
-        ).fetchone()
-        total = int(total_row["total"]) if total_row else 0
-
-        online_row = con.execute(
-            f"SELECT COUNT(*) AS online FROM users u {where} {'AND' if where else 'WHERE'} u.last_activity_at >= ?",
-            search_params + [cutoff],
-        ).fetchone()
-        online = int(online_row["online"]) if online_row else 0
+        cur = con.cursor()
+        cur.execute(
+            f"SELECT COUNT(*) AS total, SUM(CASE WHEN u.last_activity_at >= ? THEN 1 ELSE 0 END) AS online FROM users u {where}",
+            [cutoff] + search_params,
+        )
+        summary = cur.fetchone()
+        total = int(summary["total"]) if summary else 0
+        online = int(summary["online"] or 0) if summary else 0
 
         order_null = "CASE WHEN u.last_activity_at IS NULL THEN 1 ELSE 0 END"
-        rows = con.execute(
+        cur.execute(
             f"""SELECT u.id, u.telegram_id, u.username, u.first_name, u.last_name,
                        u.created_at, u.last_seen_at, u.last_activity_at,
                        CASE WHEN u.last_activity_at >= ? THEN 1 ELSE 0 END AS is_online,
@@ -479,8 +429,8 @@ def _get_admin_users_sqlite(search: str, online_seconds: int, limit: int, offset
                 ORDER BY {order_null}, u.last_activity_at DESC, u.created_at DESC, u.id DESC
                 LIMIT ? OFFSET ?""",
             [cutoff] + search_params + [limit, offset],
-        ).fetchall()
-        users = rows_to_dicts(rows)
+        )
+        users = cur.fetchall()
     return {"users": users, "total": total, "online": online,
             "limit": limit, "offset": offset, "online_seconds": online_seconds}
 
@@ -490,11 +440,7 @@ def _get_admin_users_sqlite(search: str, online_seconds: int, limit: int, offset
 # ---------------------------------------------------------------------------
 
 def get_admin_user(telegram_id: int) -> dict | None:
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _get_admin_user_pg(telegram_id)
-    else:
-        return _get_admin_user_sqlite(telegram_id)
+    return _get_admin_user_sqlite(telegram_id)
 
 
 def _get_admin_user_pg(telegram_id: int) -> dict | None:
@@ -598,24 +544,44 @@ def _set_user_card_quantities_pg(payload: dict) -> None:
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO user_cards (user_id, card_id, quantity)
-                SELECT u.id, batch.card_id, batch.quantity
-                FROM users u
-                CROSS JOIN unnest(%s::text[], %s::integer[]) AS batch(card_id, quantity)
-                WHERE u.telegram_id = %s
-                ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
-                """,
-                (card_ids, card_quantities, telegram_id),
-            )
-            if owned_card_ids:
+            if get_manager().is_postgres:
                 cur.execute(
-                    """DELETE FROM desired_cards
-                       WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
-                         AND card_id = ANY(%s)""",
-                    (telegram_id, owned_card_ids),
+                    """
+                    INSERT INTO user_cards (user_id, card_id, quantity)
+                    SELECT u.id, batch.card_id, batch.quantity
+                    FROM users u
+                    CROSS JOIN unnest(%s::text[], %s::integer[]) AS batch(card_id, quantity)
+                    WHERE u.telegram_id = %s
+                    ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
+                    """,
+                    (card_ids, card_quantities, telegram_id),
                 )
+            else:
+                for card_id, quantity in quantities.items():
+                    cur.execute(
+                        """
+                        INSERT INTO user_cards (user_id, card_id, quantity)
+                        SELECT id, ?, ? FROM users WHERE telegram_id = ?
+                        ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = excluded.quantity
+                        """,
+                        (card_id, quantity, telegram_id),
+                    )
+            if owned_card_ids:
+                if get_manager().is_postgres:
+                    cur.execute(
+                        """DELETE FROM desired_cards
+                           WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)
+                             AND card_id = ANY(%s)""",
+                        (telegram_id, owned_card_ids),
+                    )
+                else:
+                    placeholders = ", ".join("?" for _ in owned_card_ids)
+                    cur.execute(
+                        f"""DELETE FROM desired_cards
+                            WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)
+                              AND card_id IN ({placeholders})""",
+                        (telegram_id, *owned_card_ids),
+                    )
         conn.commit()
 
 
@@ -648,11 +614,7 @@ def _clear_user_cards_pg(payload: dict) -> int:
 # ---------------------------------------------------------------------------
 
 def get_desired_cards(telegram_id: int) -> list[dict]:
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _get_desired_cards_pg(telegram_id)
-    else:
-        return _get_desired_cards_sqlite(telegram_id)
+    return _get_desired_cards_sqlite(telegram_id)
 
 
 def _get_desired_cards_pg(telegram_id: int) -> list[dict]:
@@ -706,7 +668,7 @@ def _get_desired_cards_sqlite(telegram_id: int) -> list[dict]:
 def set_desired_cards(telegram_id: int, card_ids: list[str]) -> list[dict]:
     unique_ids = list(dict.fromkeys(str(x).strip() for x in card_ids if str(x).strip()))
     payload = {"telegram_id": int(telegram_id), "card_ids": unique_ids}
-    return _set_desired_cards_pg(payload)
+    return _set_desired_cards_sqlite(payload)
 
 
 def _set_desired_cards_pg(payload: dict) -> list[dict]:
@@ -736,16 +698,30 @@ def _set_desired_cards_pg(payload: dict) -> list[dict]:
     return get_desired_cards(telegram_id)
 
 
+def _set_desired_cards_sqlite(payload: dict) -> list[dict]:
+    telegram_id, card_ids = payload["telegram_id"], payload["card_ids"]
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM desired_cards WHERE user_id=(SELECT id FROM users WHERE telegram_id=?)", (telegram_id,))
+            if card_ids:
+                placeholders = ",".join("?" for _ in card_ids)
+                cur.execute(
+                    f"""INSERT INTO desired_cards(user_id, card_id)
+                        SELECT u.id,c.id FROM users u JOIN cards c ON c.id IN ({placeholders})
+                        LEFT JOIN user_cards uc ON uc.user_id=u.id AND uc.card_id=c.id
+                        WHERE u.telegram_id=? AND COALESCE(uc.quantity,0)=0 ON CONFLICT DO NOTHING""",
+                    (*card_ids, telegram_id),
+                )
+        conn.commit()
+    return get_desired_cards(telegram_id)
+
+
 # ---------------------------------------------------------------------------
 # get_user_cards
 # ---------------------------------------------------------------------------
 
 def get_user_cards(telegram_id: int) -> list[dict]:
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _get_user_cards_pg(telegram_id)
-    else:
-        return _get_user_cards_sqlite(telegram_id)
+    return _get_user_cards_sqlite(telegram_id)
 
 
 def _get_user_cards_pg(telegram_id: int) -> list[dict]:
@@ -799,7 +775,7 @@ def add_zero_cards(telegram_id: int, card_ids: list[str]) -> int:
     if not unique_ids:
         return 0
     payload = {"telegram_id": int(telegram_id), "card_ids": unique_ids}
-    return _add_zero_cards_pg(payload)
+    return _add_zero_cards_sqlite(payload)
 
 
 def _add_zero_cards_pg(payload: dict) -> int:
@@ -823,6 +799,44 @@ def _add_zero_cards_pg(payload: dict) -> int:
     return added
 
 
+def _add_zero_cards_sqlite(payload: dict) -> int:
+    telegram_id, card_ids = payload["telegram_id"], payload["card_ids"]
+    placeholders = ",".join("?" for _ in card_ids)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""INSERT INTO user_cards(user_id,card_id,quantity)
+                    SELECT u.id,c.id,0 FROM users u JOIN cards c ON c.id IN ({placeholders})
+                    WHERE u.telegram_id=? ON CONFLICT(user_id,card_id) DO NOTHING""",
+                (*card_ids, telegram_id),
+            )
+            added = cur.rowcount
+        conn.commit()
+    return added
+
+
+def _sync_cards_sqlite(valid_cards, active_ids, catalogue_is_complete: bool) -> int:
+    count = 0
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for card_id, info in valid_cards:
+                try:
+                    rarity = int(info.get("rarity", 1))
+                except (TypeError, ValueError):
+                    rarity = 1
+                cur.execute(
+                    """INSERT INTO cards(id,name,rarity,icon) VALUES(?,?,?,?)
+                       ON CONFLICT(id) DO UPDATE SET name=excluded.name,rarity=excluded.rarity,icon=excluded.icon""",
+                    (card_id, str(info.get("name") or card_id), rarity, str(info.get("icon") or "")),
+                )
+                count += 1
+            if catalogue_is_complete and active_ids:
+                placeholders = ",".join("?" for _ in active_ids)
+                cur.execute(f"DELETE FROM cards WHERE id NOT IN ({placeholders})", active_ids)
+        conn.commit()
+    return count
+
+
 # ---------------------------------------------------------------------------
 # sync_cards
 # ---------------------------------------------------------------------------
@@ -839,8 +853,7 @@ def sync_cards(cards: dict) -> int:
     catalogue_is_complete = len(valid_cards) == len(cards)
     active_ids = [card_id for card_id, _ in valid_cards]
 
-    mgr = get_manager()
-    return _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete)
+    return _sync_cards_sqlite(valid_cards, active_ids, catalogue_is_complete)
 
 
 def _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete: bool) -> int:
@@ -883,11 +896,7 @@ def _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete: bool) -> int:
 
 def get_trade_matches(telegram_id: int, limit: int = 50) -> list[dict]:
     limit = max(1, min(int(limit), 100))
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _get_trade_matches_pg(telegram_id, limit)
-    else:
-        return _get_trade_matches_sqlite(telegram_id, limit)
+    return _get_trade_matches_sqlite(telegram_id, limit)
 
 
 def _get_trade_matches_pg(telegram_id: int, limit: int) -> list[dict]:
@@ -937,9 +946,9 @@ def _get_trade_matches_pg(telegram_id: int, limit: int) -> list[dict]:
 
 def _get_trade_matches_sqlite(telegram_id: int, limit: int) -> list[dict]:
     # SQLite поддерживает CTE, запрос совместим с небольшими изменениями
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        rows = con.execute(
+    with get_connection() as con:
+        with con.cursor() as cur:
+            cur.execute(
             """
             WITH me AS (SELECT id FROM users WHERE telegram_id = ?),
             my_wants AS (
@@ -975,9 +984,10 @@ def _get_trade_matches_sqlite(telegram_id: int, limit: int) -> list[dict]:
             JOIN cards theirs ON theirs.id = other_offer.card_id
             ORDER BY u.username, u.first_name, u.telegram_id, mine.id, theirs.id
             """,
-            (telegram_id,),
-        ).fetchall()
-    return _group_trade_matches(rows_to_dicts(rows), limit)
+                (telegram_id,),
+            )
+            rows = cur.fetchall()
+    return _group_trade_matches(rows, limit)
 
 
 def _group_trade_matches(rows: list[dict], limit: int) -> list[dict]:

@@ -20,9 +20,10 @@ def test_get_admin_users_search_pagination_and_online_summary(monkeypatch):
     result=database.get_admin_users(search=" player ",online_seconds=90,limit=10,offset=20)
     assert (result["total"],result["online"],result["limit"],result["offset"])==(3,1,10,20)
     assert result["users"][0]["telegram_id"]==12345
-    assert calls[0][1]==(90,"player","%player%","%player%","%player%","%player%")
-    assert calls[1][1]==(90,"player","%player%","%player%","%player%","%player%",10,20)
-    assert "SUM(GREATEST(quantity - 1, 0))" in calls[1][0]
+    assert len(calls) == 2
+    assert calls[0][1][1:] == ["%player%"] * 4
+    assert calls[1][1][-2:] == [10, 20]
+    assert "SUM(CASE WHEN quantity > 1" in calls[1][0]
 
 
 def test_get_admin_users_clamps_pagination_and_online_window(monkeypatch):
@@ -40,7 +41,7 @@ def test_get_admin_users_clamps_pagination_and_online_window(monkeypatch):
     monkeypatch.setattr(database,"get_connection",lambda:Conn())
     result=database.get_admin_users(online_seconds=1,limit=1000,offset=-5)
     assert (result["online_seconds"],result["limit"],result["offset"])==(30,100,0)
-    assert calls[1][1][-2:]==(100,0)
+    assert calls[1][1][-2:]==[100,0]
 
 
 def test_get_admin_user_returns_none_when_not_found(monkeypatch):
