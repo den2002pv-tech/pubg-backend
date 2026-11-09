@@ -12,7 +12,7 @@ from typing import Any
 
 import psycopg
 
-from database import get_connection, _SQLiteConnectionAdapter
+from database import get_connection
 from database_manager import get_manager
 from db_sqlite_schema import parse_properties, remove_json_fields
 
@@ -79,6 +79,9 @@ def _init_analytics_db_pg() -> None:
                 CREATE INDEX IF NOT EXISTS idx_user_analytics_user_created
                     ON user_analytics_events (user_id, created_at DESC);
             """)
+        conn.commit()
+        from db_sync import ensure_postgres_outbox_schema
+        ensure_postgres_outbox_schema(conn)
         conn.commit()
 
 
@@ -197,26 +200,12 @@ def record_analytics_events(user_id: int, events: list[dict[str, Any]]) -> int:
     valid = [(name, props) for item in sanitized if item is not None for name, props in [item]]
     if not valid:
         return 0
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _record_analytics_pg(user_id, valid)
-    else:
-        return _record_analytics_sqlite(user_id, valid)
+    return _record_analytics_pg(user_id, valid)
 
 
 def _record_analytics_pg(user_id: int, valid_events: list[tuple[str, dict]]) -> int:
     try:
-        inserted = []
         with get_connection() as conn:
-            if isinstance(conn, _SQLiteConnectionAdapter):
-                with conn.cursor() as cur:
-                    for event_name, properties in valid_events:
-                        cur.execute(
-                            "INSERT INTO user_analytics_events (user_id, event_name, properties) VALUES (%s, %s, %s::jsonb)",
-                            (user_id, event_name, json.dumps(properties, ensure_ascii=False)),
-                        )
-                conn.commit()
-                return len(valid_events)
             with conn.cursor() as cur:
                 for event_name, properties in valid_events:
                     cur.execute(
@@ -224,59 +213,11 @@ def _record_analytics_pg(user_id: int, valid_events: list[tuple[str, dict]]) -> 
                            VALUES (%s, %s, %s::jsonb) RETURNING id, created_at""",
                         (user_id, event_name, json.dumps(properties, ensure_ascii=False)),
                     )
-                    row = cur.fetchone()
-                    inserted.append({"id": row["id"], "created_at": row["created_at"],
-                                     "user_id": user_id, "event_name": event_name,
-                                     "properties": properties})
             conn.commit()
-        _record_analytics_sqlite_shadow(user_id, inserted)
         return len(valid_events)
     except (psycopg.OperationalError, psycopg.InterfaceError):
-        return _record_analytics_sqlite(user_id, valid_events)
-
-
-def _record_analytics_sqlite(user_id: int, valid_events: list[tuple[str, dict]]) -> int:
-    return _record_analytics_sqlite_shadow(user_id, valid_events)
-
-
-def _record_analytics_sqlite_shadow(user_id: int, valid_events: list[tuple[str, dict]] | list[dict]) -> int:
-    try:
-        from database_manager import get_manager
-        from db_sqlite_schema import setup_sqlite_functions
-        mgr = get_manager()
-        with mgr.get_sqlite_connection() as con:
-            setup_sqlite_functions(con, outbox_enabled=mgr.is_postgres is False)
-            for event in valid_events:
-                if isinstance(event, dict):
-                    event_id, event_name = event["id"], event["event_name"]
-                    event_user_id, properties = event["user_id"], event["properties"]
-                    created_at = event["created_at"]
-                else:
-                    event_name, properties = event
-                    event_id, event_user_id = None, user_id
-                    created_at = None
-                props_json = json.dumps(properties, ensure_ascii=False)
-                if event_id is None:
-                    con.execute(
-                        "INSERT INTO user_analytics_events (user_id, event_name, properties) VALUES (?, ?, ?)",
-                        (event_user_id, event_name, props_json),
-                    )
-                else:
-                    con.execute(
-                        """INSERT INTO user_analytics_events (id, user_id, event_name, properties, created_at)
-                           VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET
-                           user_id=excluded.user_id, event_name=excluded.event_name,
-                           properties=excluded.properties, created_at=excluded.created_at""",
-                        (event_id, event_user_id, event_name, props_json,
-                         event["created_at"].isoformat() if hasattr(created_at, "isoformat") else created_at),
-                    )
-            con.commit()
-        return len(valid_events)
-    except Exception as exc:
-        import logging
-        logging.getLogger(__name__).exception("_record_analytics_sqlite_shadow failed")
-        get_manager().invalidate_sqlite_snapshot(f"analytics shadow failed: {exc}")
-        raise RuntimeError("Событие записано в PostgreSQL, но резервная SQLite не обновлена") from exc
+        get_manager().notify_pg_write_failed(RuntimeError("PostgreSQL недоступна при записи аналитики"))
+        raise
 
 
 def get_analytics_summary(days: int = 30) -> dict[str, Any]:
@@ -533,11 +474,7 @@ def _get_analytics_events_sqlite(days: int) -> dict[str, Any]:
 
 def clear_scan_performance_metrics() -> int:
     """Удалить timing-поля из scan-событий. Работает с активной БД."""
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _clear_scan_metrics_pg()
-    else:
-        return _clear_scan_metrics_sqlite()
+    return _clear_scan_metrics_pg()
 
 
 def _clear_scan_metrics_pg() -> int:
@@ -552,31 +489,6 @@ def _clear_scan_metrics_pg() -> int:
             """)
             cleared = len(cur.fetchall())
         conn.commit()
-    # Зеркалим в SQLite
-    try:
-        _clear_scan_metrics_sqlite()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"analytics cleanup mirror failed: {type(exc).__name__}")
-        raise RuntimeError("Аналитика очищена в PostgreSQL, но резервная SQLite не обновлена") from exc
     return cleared
 
 
-def _clear_scan_metrics_sqlite() -> int:
-    """Python-постобработка: удалить duration_ms и profile из JSON-строк."""
-    mgr = get_manager()
-    cleared = 0
-    with mgr.get_sqlite_connection() as con:
-        rows = con.execute(
-            """SELECT id, properties FROM user_analytics_events
-               WHERE event_name IN ('scan_completed', 'scan_failed')
-                 AND (properties LIKE '%duration_ms%' OR properties LIKE '%profile%')"""
-        ).fetchall()
-        for row in rows:
-            new_props = remove_json_fields(row["properties"], "duration_ms", "profile")
-            con.execute(
-                "UPDATE user_analytics_events SET properties=? WHERE id=?",
-                (new_props, row["id"]),
-            )
-            cleared += 1
-        con.commit()
-    return cleared

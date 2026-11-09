@@ -1,21 +1,4 @@
-"""
-db_sync.py — Outbox-менеджер и менеджер синхронизации PostgreSQL ↔ SQLite.
-
-Outbox-паттерн:
-  - Каждая write-операция записывается в таблицу outbox_operations (SQLite)
-  - В нормальном PG-режиме запись сразу помечается synced (после успешной PG-записи)
-  - В fallback SQLite-режиме запись остаётся pending до восстановления PG
-  - При восстановлении PG: sync_pending_outbox() применяет операции к PG идемпотентно
-
-Idempotency:
-  - Каждая операция имеет UUID
-  - Перед применением проверяется таблица outbox_applied в PG
-  - Уже применённые операции пропускаются
-
-Порядок:
-  - Операции применяются в порядке created_at
-  - Абсолютные операции одного типа на ту же пару (user, card) supersede более ранние
-"""
+"""Transactional PostgreSQL Outbox and ordered SQLite projection consumer."""
 from __future__ import annotations
 
 import json
@@ -161,6 +144,16 @@ def ensure_postgres_outbox_schema(pg_conn, install_tables: bool = True) -> None:
         END;
         $$
     """)
+    pg_conn.execute("""
+        CREATE OR REPLACE FUNCTION reject_app_outbox_truncate()
+        RETURNS TRIGGER
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            RAISE EXCEPTION 'TRUNCATE is disabled for Outbox-replicated table %', TG_TABLE_NAME;
+        END;
+        $$
+    """)
 
     if not install_tables:
         return
@@ -174,6 +167,13 @@ def ensure_postgres_outbox_schema(pg_conn, install_tables: bool = True) -> None:
             f'''CREATE TRIGGER "{trigger_name}"
                 AFTER INSERT OR UPDATE OR DELETE ON "{table}"
                 FOR EACH ROW EXECUTE FUNCTION capture_app_outbox_row_change()'''
+        )
+        truncate_trigger_name = f"trg_app_outbox_no_truncate_{table}"
+        pg_conn.execute(f'DROP TRIGGER IF EXISTS "{truncate_trigger_name}" ON "{table}"')
+        pg_conn.execute(
+            f'''CREATE TRIGGER "{truncate_trigger_name}"
+                BEFORE TRUNCATE ON "{table}"
+                FOR EACH STATEMENT EXECUTE FUNCTION reject_app_outbox_truncate()'''
         )
 
 # ---------------------------------------------------------------------------
@@ -405,11 +405,31 @@ class SyncManager:
     def count_pending(self) -> int:
         return self._outbox.count_pending()
 
+    def drain_postgres_outbox(self, batch_size: int = 100) -> int:
+        """Apply batches until the observed PostgreSQL stream is caught up."""
+        batch_size = max(1, int(batch_size))
+        total = 0
+        while True:
+            applied = self.sync_postgres_outbox(batch_size)
+            total += applied
+            if applied < batch_size:
+                return total
+
     def sync_postgres_outbox(self, limit: int = 100) -> int:
         """Apply committed PG transactions to SQLite, preserving each PG commit."""
         from db_sqlite_schema import SYNC_TABLE_PRIMARY_KEYS, ensure_sqlite_schema
 
         ensure_sqlite_schema(self._db_path)
+        with self._sqlite_connection() as sl_conn:
+            snapshot = sl_conn.execute(
+                "SELECT value FROM database_metadata WHERE key='postgres_snapshot_complete'"
+            ).fetchone()
+            cursor = sl_conn.execute(
+                "SELECT value FROM database_metadata WHERE key='pg_outbox_cursor'"
+            ).fetchone()
+        if not snapshot or not cursor:
+            self.initial_sync_pg_to_sqlite()
+            return 0
         applied = 0
         with self._pg_connection() as pg_conn:
             high_water = int(pg_conn.execute(
@@ -445,6 +465,10 @@ class SyncManager:
                     (tx["transaction_id"],),
                 ).fetchall()
                 expected_events = list(range(1, int(tx["event_count"]) + 1))
+                if not expected_events:
+                    raise OutboxGapError(
+                        f"Outbox transaction {tx['transaction_id']} has no events"
+                    )
                 if [int(event["event_sequence"]) for event in events] != expected_events:
                     raise OutboxGapError(
                         f"Outbox transaction {tx['transaction_id']} has missing or reordered events"
@@ -458,7 +482,9 @@ class SyncManager:
                         ).fetchone()
                         current_cursor = int(local_cursor["value"]) if local_cursor else 0
                         if current_cursor != cursor:
-                            raise OutboxGapError("SQLite Outbox cursor changed while applying a transaction")
+                            if current_cursor > cursor:
+                                continue
+                            raise OutboxGapError("SQLite Outbox cursor moved backwards while applying a transaction")
                         receipt = sl_conn.execute(
                             """SELECT 1 FROM replicated_outbox_transactions
                                WHERE transaction_id=? AND transaction_sequence=?""",
@@ -558,6 +584,25 @@ class SyncManager:
         logger.info("Начальная синхронизация PG → SQLite")
         ensure_sqlite_schema(self._db_path)
 
+        has_snapshot = False
+        with self._sqlite_connection() as sl_conn:
+            snapshot = sl_conn.execute(
+                "SELECT value FROM database_metadata WHERE key='postgres_snapshot_complete'"
+            ).fetchone()
+            cursor = sl_conn.execute(
+                "SELECT value FROM database_metadata WHERE key='pg_outbox_cursor'"
+            ).fetchone()
+            if snapshot and cursor:
+                has_snapshot = True
+            pending = sl_conn.execute(
+                "SELECT COUNT(*) AS n FROM outbox_operations WHERE sync_status IN ('pending','failed')"
+            ).fetchone()["n"]
+            if pending and not has_snapshot:
+                raise RuntimeError("Локальный Outbox содержит незавершённые записи; bootstrap остановлен без изменения данных")
+        if has_snapshot:
+            self.drain_postgres_outbox()
+            return
+
         with self._pg_connection() as pg_conn:
             ensure_postgres_outbox_schema(pg_conn)
 
@@ -595,15 +640,10 @@ class SyncManager:
                 self._sync_table_pg_to_sqlite(pg_conn, sl_conn, "processed_telegram_updates",
                     pk="update_id",
                     columns=["update_id", "processed_at"])
-                # Аналитику синхронизируем только если SQLite пустая (экономим время)
-                sl_count = sl_conn.execute(
-                    "SELECT COUNT(*) AS c FROM user_analytics_events"
-                ).fetchone()["c"]
-                if sl_count == 0:
-                    self._sync_table_pg_to_sqlite(pg_conn, sl_conn, "user_analytics_events",
-                        pk="id",
-                        columns=["id", "user_id", "event_name", "properties", "created_at"],
-                        transform_row=self._transform_analytics_row)
+                self._sync_table_pg_to_sqlite(pg_conn, sl_conn, "user_analytics_events",
+                    pk="id",
+                    columns=["id", "user_id", "event_name", "properties", "created_at"],
+                    transform_row=self._transform_analytics_row)
 
                 snapshot_sequence = int(pg_conn.execute(
                     "SELECT last_sequence FROM app_outbox_clock WHERE singleton=TRUE"
@@ -649,7 +689,7 @@ class SyncManager:
         transform_row=None,
         batch_size: int = 1000,
     ) -> None:
-        """Merge a PostgreSQL snapshot without overwriting pending local rows."""
+        """Seed an empty projection; reject local divergence instead of merging it."""
         from db_sqlite_schema import SYNC_TABLE_PRIMARY_KEYS
 
         logger.debug("Синхронизация таблицы %s", table)
@@ -659,7 +699,7 @@ class SyncManager:
         cols_str = ", ".join(columns)
         pg_conn.execute(f"SELECT {cols_str} FROM {table}")
         rows = pg_conn.fetchall()
-        remote_keys = set()
+        remote_rows = {}
         dirty_keys = set()
         for operation in sl_conn.execute(
             "SELECT operation_type, payload FROM outbox_operations WHERE sync_status IN ('pending','failed')"
@@ -697,17 +737,24 @@ class SyncManager:
                         val = val.isoformat()
                     values.append(val)
                 key = tuple(values_row.get(field) for field in primary_key)
-                remote_keys.add(key)
-                if key not in dirty_keys:
-                    sl_conn.execute(insert_sql, values)
+                remote_rows[key] = dict(zip(columns, values))
 
-        # Mirror remote deletions too, preserving local rows that have a queued edit.
+        # Existing local content is never silently overwritten or deleted.
         pk_sql = " AND ".join(f'"{key}"=?' for key in primary_key)
-        local_rows = sl_conn.execute(f'SELECT {conflict_target} FROM "{table}"').fetchall()
+        local_rows = sl_conn.execute(f'SELECT {cols_str} FROM "{table}"').fetchall()
         for local in local_rows:
-            key = tuple(local[index] for index in range(len(primary_key)))
-            if key not in remote_keys and key not in dirty_keys:
-                sl_conn.execute(f'DELETE FROM "{table}" WHERE {pk_sql}', key)
+            local_map = dict(local)
+            key = tuple(local_map[field] for field in primary_key)
+            remote = remote_rows.get(key)
+            if remote is None:
+                raise RowChangeConflict(f"SQLite bootstrap found local-only row in {table} key={key}")
+            if self._normalize_row(local_map) != self._normalize_row(remote):
+                raise RowChangeConflict(f"SQLite bootstrap found divergent row in {table} key={key}")
+
+        for key, remote in remote_rows.items():
+            exists = sl_conn.execute(f'SELECT 1 FROM "{table}" WHERE {pk_sql}', key).fetchone()
+            if exists is None:
+                sl_conn.execute(insert_sql, [remote[col] for col in columns])
 
         logger.debug("Таблица %s: %d строк PostgreSQL объединено", table, len(rows))
 
@@ -716,17 +763,8 @@ class SyncManager:
     # ------------------------------------------------------------------
 
     def sync_pending_outbox(self) -> None:
-        """Применить все pending-операции из Outbox в PostgreSQL."""
-        # Защита от dual-sync при нескольких workers
-        acquired = self._try_acquire_sync_lock()
-        if not acquired:
-            logger.info("Синхронизация уже выполняется другим процессом — пропускаем")
-            raise RuntimeError("Синхронизатор занят другим процессом")
-
-        try:
-            self._do_sync_outbox()
-        finally:
-            self._release_sync_lock()
+        """Stage 1 forbids replaying local writes into the PostgreSQL primary."""
+        raise RuntimeError("SQLite→PostgreSQL replay отключён; локальный режим записи не поддерживается")
 
     def _try_acquire_sync_lock(self) -> bool:
         """Попытаться захватить блокировку синхронизации в SQLite."""

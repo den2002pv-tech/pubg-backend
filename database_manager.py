@@ -1,18 +1,4 @@
-"""
-database_manager.py — Центральный менеджер отказоустойчивой системы БД PostgreSQL + SQLite.
-
-Архитектура dual-write:
-  В нормальном режиме (PG primary):
-    1. Запись в SQLite Outbox (синхронно, до PG)
-    2. Запись в PostgreSQL
-    3. Shadow-update SQLite-таблиц
-    4. Outbox-запись помечается synced
-
-  В резервном режиме (SQLite fallback):
-    1. Запись напрямую в SQLite-таблицы
-    2. Запись в Outbox со статусом pending
-    3. Фоновый поток синхронизирует с PG при восстановлении
-"""
+"""PostgreSQL primary manager with a read-only local SQLite projection."""
 from __future__ import annotations
 
 import logging
@@ -131,6 +117,14 @@ class DatabaseManager:
 
             # Mirror errors are visible and tracked; PG remains authoritative.
             try:
+                # Install every replicated table and its trigger before taking
+                # the snapshot, including analytics and trade webhook tables.
+                import database
+                import analytics
+                import trade_requests
+                database.init_db()
+                analytics.init_analytics_db()
+                trade_requests.init_trade_request_schema()
                 sync = SyncManager()
                 sync.initial_sync_pg_to_sqlite()
             except Exception as exc:
@@ -182,6 +176,8 @@ class DatabaseManager:
     # ------------------------------------------------------------------
 
     def _set_mode(self, mode: DatabaseMode, reason: str) -> None:
+        if mode is not DatabaseMode.POSTGRES:
+            raise RuntimeError("SQLite fallback отключён: PostgreSQL является единственной основной БД")
         with self._mode_lock:
             if self._mode != mode:
                 old = self._mode.value
@@ -261,7 +257,7 @@ class DatabaseManager:
         was_available = self._pg_available
         self._pg_available = True
         try:
-            applied = SyncManager().sync_postgres_outbox()
+            applied = SyncManager().drain_postgres_outbox()
             self._pending_outbox_count = 0
             self._last_sync_at = time.monotonic()
             self._sync_error_count = 0

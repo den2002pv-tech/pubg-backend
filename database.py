@@ -1,14 +1,4 @@
-"""
-database.py — Слой доступа к данным с поддержкой PostgreSQL + SQLite failover.
-
-Каждая публичная функция имеет два пути:
-  - PG-путь: оригинальный SQL для PostgreSQL + запись в Outbox (dual-write)
-  - SQLite-путь: адаптированный SQL для SQLite
-
-Выбор пути определяется DatabaseManager.mode.
-
-Публичный интерфейс (функции) сохранён без изменений.
-"""
+"""PostgreSQL-primary data access; SQLite is updated only by the PG Outbox consumer."""
 from __future__ import annotations
 
 import json
@@ -16,6 +6,7 @@ import os
 import re
 import sqlite3
 import time
+import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Iterator
@@ -71,16 +62,32 @@ def get_connection():
     mgr = get_manager()
     current = _CURRENT_PG_CONNECTION.get()
     if current is not None:
-        yield _PGConnectionWrapper(current, mgr, owns_transaction=False)
+        savepoint = f"nested_{uuid.uuid4().hex}"
+        current.execute(f"SAVEPOINT {savepoint}")
+        try:
+            yield _PGConnectionWrapper(current, mgr, owns_transaction=False)
+        except BaseException:
+            try:
+                current.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                current.execute(f"RELEASE SAVEPOINT {savepoint}")
+            except (psycopg.Error, psycopg.InterfaceError):
+                pass
+            raise
+        else:
+            current.execute(f"RELEASE SAVEPOINT {savepoint}")
         return
 
     started = time.perf_counter()
-    conn = psycopg.connect(
-        os.getenv("DATABASE_URL", ""),
-        row_factory=dict_row,
-        connect_timeout=max(1, int(float(os.getenv("DB_FAILOVER_CONNECT_TIMEOUT", "5")))),
-        options="-c statement_timeout=10000 -c lock_timeout=3000",
-    )
+    try:
+        conn = psycopg.connect(
+            os.getenv("DATABASE_URL", ""),
+            row_factory=dict_row,
+            connect_timeout=max(1, int(float(os.getenv("DB_FAILOVER_CONNECT_TIMEOUT", "5")))),
+            options="-c statement_timeout=10000 -c lock_timeout=3000",
+        )
+    except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
+        mgr.notify_pg_write_failed(exc)
+        raise
     _add_metric("db_connection_ms", (time.perf_counter() - started) * 1000)
     _add_metric("db_connection_count", 1)
     tx_start = time.perf_counter()
@@ -228,7 +235,7 @@ class _SQLiteConnectionAdapter:
 # ---------------------------------------------------------------------------
 
 def _record_outbox(op_type: str, payload: dict, sync_status: str = "pending") -> str:
-    """Legacy hook; row-image triggers now journal active SQLite mutations atomically."""
+    """Legacy compatibility hook; PostgreSQL row triggers own Stage 1 journaling."""
     return ""
 
 
@@ -238,11 +245,7 @@ def _record_outbox(op_type: str, payload: dict, sync_status: str = "pending") ->
 
 def init_db() -> None:
     """Создать таблицы если не существуют. Работает с активной БД."""
-    mgr = get_manager()
-    if mgr.is_postgres:
-        _init_db_pg()
-    else:
-        _init_db_sqlite()
+    _init_db_pg()
 
 
 def _init_db_pg() -> None:
@@ -299,11 +302,9 @@ def _init_db_pg() -> None:
                 """
             )
         conn.commit()
-
-
-def _init_db_sqlite() -> None:
-    from db_sqlite_schema import ensure_sqlite_schema
-    ensure_sqlite_schema(os.getenv("SQLITE_DATABASE_PATH", "/data/pubg_local.db"))
+        from db_sync import ensure_postgres_outbox_schema
+        ensure_postgres_outbox_schema(conn)
+        conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -317,17 +318,13 @@ def get_or_create_user(
     last_name: str = "",
 ) -> dict:
     """Создать/обновить пользователя и вернуть его данные."""
-    mgr = get_manager()
     payload = {
         "telegram_id": int(telegram_id),
         "username": username.strip().lstrip("@"),
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
     }
-    if mgr.is_postgres:
-        return _get_or_create_user_pg(payload)
-    else:
-        return _get_or_create_user_sqlite(payload)
+    return _get_or_create_user_pg(payload)
 
 
 def _get_or_create_user_pg(payload: dict) -> dict:
@@ -352,72 +349,6 @@ def _get_or_create_user_pg(payload: dict) -> dict:
             user = cur.fetchone()
         conn.commit()
     return dict(user)
-
-
-def _get_or_create_user_sqlite(payload: dict) -> dict:
-    _record_outbox("get_or_create_user", payload, sync_status="pending")
-    now = now_sqlite()
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        setup_sqlite_functions(con)
-        cur = con.execute(
-            """
-            INSERT INTO users (telegram_id, username, first_name, last_name, last_seen_at, last_activity_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (telegram_id) DO UPDATE SET
-                username = CASE WHEN EXCLUDED.username <> '' THEN EXCLUDED.username ELSE users.username END,
-                first_name = CASE WHEN EXCLUDED.first_name <> '' THEN EXCLUDED.first_name ELSE users.first_name END,
-                last_name = CASE WHEN EXCLUDED.last_name <> '' THEN EXCLUDED.last_name ELSE users.last_name END,
-                last_seen_at = ?,
-                last_activity_at = ?
-            """,
-            (payload["telegram_id"], payload["username"],
-             payload["first_name"], payload["last_name"],
-             now, now, now, now),
-        )
-        row = con.execute(
-            """SELECT id, telegram_id, username, first_name, last_name,
-                      created_at, last_seen_at, last_activity_at
-               FROM users WHERE telegram_id = ?""",
-            (payload["telegram_id"],),
-        ).fetchone()
-        con.commit()
-    return row_to_dict(row)
-
-
-def _shadow_upsert_user(user: dict) -> None:
-    """Обновить SQLite-копию пользователя (shadow-write)."""
-    try:
-        mgr = get_manager()
-        with mgr.get_sqlite_connection() as con:
-            now = now_sqlite()
-            con.execute(
-                """
-                INSERT INTO users (id, telegram_id, username, first_name, last_name,
-                                   created_at, last_seen_at, last_activity_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (telegram_id) DO UPDATE SET
-                    username = EXCLUDED.username,
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    last_seen_at = EXCLUDED.last_seen_at,
-                    last_activity_at = EXCLUDED.last_activity_at
-                """,
-                (
-                    user.get("id"),
-                    user.get("telegram_id"),
-                    user.get("username", ""),
-                    user.get("first_name", ""),
-                    user.get("last_name", ""),
-                    _ts_to_str(user.get("created_at")) or now,
-                    _ts_to_str(user.get("last_seen_at")) or now,
-                    _ts_to_str(user.get("last_activity_at")) or now,
-                ),
-            )
-            con.commit()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"shadow_upsert_user failed: {exc}")
-        raise RuntimeError("Пользователь сохранён в PostgreSQL, но резервная SQLite не обновлена") from exc
 
 
 def _ts_to_str(val) -> str | None:
@@ -600,11 +531,7 @@ def _get_admin_user_sqlite(telegram_id: int) -> dict | None:
 def set_user_card_quantity(telegram_id: int, card_id: str, quantity: int) -> None:
     quantity = max(0, int(quantity))
     payload = {"telegram_id": int(telegram_id), "card_id": str(card_id), "quantity": quantity}
-    mgr = get_manager()
-    if mgr.is_postgres:
-        _set_user_card_quantity_pg(payload)
-    else:
-        _set_user_card_quantity_sqlite(payload)
+    _set_user_card_quantity_pg(payload)
 
 
 def _set_user_card_quantity_pg(payload: dict) -> None:
@@ -628,55 +555,6 @@ def _set_user_card_quantity_pg(payload: dict) -> None:
         conn.commit()
 
 
-def _set_user_card_quantity_sqlite(payload: dict) -> None:
-    _record_outbox("set_user_card_quantity", payload, sync_status="pending")
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        con.execute(
-            """
-            INSERT INTO user_cards (user_id, card_id, quantity)
-            SELECT id, ?, ? FROM users WHERE telegram_id = ?
-            ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
-            """,
-            (payload["card_id"], payload["quantity"], payload["telegram_id"]),
-        )
-        if payload["quantity"] > 0:
-            con.execute(
-                """
-                DELETE FROM desired_cards
-                WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)
-                  AND card_id = ?
-                """,
-                (payload["telegram_id"], payload["card_id"]),
-            )
-        con.commit()
-
-
-def _shadow_set_user_card_quantity(payload: dict) -> None:
-    try:
-        mgr = get_manager()
-        with mgr.get_sqlite_connection() as con:
-            con.execute(
-                """
-                INSERT INTO user_cards (user_id, card_id, quantity)
-                SELECT id, ?, ? FROM users WHERE telegram_id = ?
-                ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
-                """,
-                (payload["card_id"], payload["quantity"], payload["telegram_id"]),
-            )
-            if payload["quantity"] > 0:
-                con.execute(
-                    """DELETE FROM desired_cards
-                       WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)
-                         AND card_id = ?""",
-                    (payload["telegram_id"], payload["card_id"]),
-                )
-            con.commit()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"shadow_set_user_card_quantity failed: {exc}")
-        raise RuntimeError("Количество сохранено в PostgreSQL, но резервная SQLite не обновлена") from exc
-
-
 # ---------------------------------------------------------------------------
 # set_user_card_quantities
 # ---------------------------------------------------------------------------
@@ -691,11 +569,7 @@ def set_user_card_quantities(telegram_id: int, updates: list[tuple[str, int]]) -
     if not quantities:
         return
     payload = {"telegram_id": int(telegram_id), "quantities": quantities}
-    mgr = get_manager()
-    if mgr.is_postgres:
-        _set_user_card_quantities_pg(payload)
-    else:
-        _set_user_card_quantities_sqlite(payload)
+    _set_user_card_quantities_pg(payload)
 
 
 def _set_user_card_quantities_pg(payload: dict) -> None:
@@ -728,64 +602,6 @@ def _set_user_card_quantities_pg(payload: dict) -> None:
         conn.commit()
 
 
-def _set_user_card_quantities_sqlite(payload: dict) -> None:
-    _record_outbox("set_user_card_quantities", payload, sync_status="pending")
-    quantities = payload["quantities"]
-    telegram_id = payload["telegram_id"]
-    owned_card_ids = [k for k, v in quantities.items() if v > 0]
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        for card_id, quantity in quantities.items():
-            con.execute(
-                """
-                INSERT INTO user_cards (user_id, card_id, quantity)
-                SELECT id, ?, ? FROM users WHERE telegram_id = ?
-                ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
-                """,
-                (card_id, quantity, telegram_id),
-            )
-        if owned_card_ids:
-            placeholders, params = in_placeholders(owned_card_ids)
-            con.execute(
-                f"""DELETE FROM desired_cards
-                    WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)
-                      AND card_id IN ({placeholders})""",
-                [telegram_id] + params,
-            )
-        con.commit()
-
-
-def _shadow_set_user_card_quantities(payload: dict) -> None:
-    try:
-        _set_user_card_quantities_sqlite.__wrapped__ = True
-        quantities = payload["quantities"]
-        telegram_id = payload["telegram_id"]
-        owned_card_ids = [k for k, v in quantities.items() if v > 0]
-        mgr = get_manager()
-        with mgr.get_sqlite_connection() as con:
-            for card_id, quantity in quantities.items():
-                con.execute(
-                    """
-                    INSERT INTO user_cards (user_id, card_id, quantity)
-                    SELECT id, ?, ? FROM users WHERE telegram_id = ?
-                    ON CONFLICT (user_id, card_id) DO UPDATE SET quantity = EXCLUDED.quantity
-                    """,
-                    (card_id, quantity, telegram_id),
-                )
-            if owned_card_ids:
-                placeholders, params = in_placeholders(owned_card_ids)
-                con.execute(
-                    f"""DELETE FROM desired_cards
-                        WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)
-                          AND card_id IN ({placeholders})""",
-                    [telegram_id] + params,
-                )
-            con.commit()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"shadow_set_user_card_quantities failed: {exc}")
-        raise RuntimeError("Количество сохранено в PostgreSQL, но резервная SQLite не обновлена") from exc
-
-
 # ---------------------------------------------------------------------------
 # clear_user_cards
 # ---------------------------------------------------------------------------
@@ -793,11 +609,7 @@ def _shadow_set_user_card_quantities(payload: dict) -> None:
 def clear_user_cards(telegram_id: int) -> int:
     """Обнулить все карточки пользователя."""
     payload = {"telegram_id": int(telegram_id)}
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _clear_user_cards_pg(payload)
-    else:
-        return _clear_user_cards_sqlite(payload)
+    return _clear_user_cards_pg(payload)
 
 
 def _clear_user_cards_pg(payload: dict) -> int:
@@ -812,37 +624,6 @@ def _clear_user_cards_pg(payload: dict) -> int:
             changed = cur.rowcount
         conn.commit()
     return changed
-
-
-def _clear_user_cards_sqlite(payload: dict) -> int:
-    _record_outbox("clear_user_cards", payload, sync_status="pending")
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        cur = con.execute(
-            """UPDATE user_cards SET quantity = 0
-               WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)
-                 AND quantity <> 0""",
-            (payload["telegram_id"],),
-        )
-        changed = cur.rowcount
-        con.commit()
-    return changed
-
-
-def _shadow_clear_user_cards(payload: dict) -> None:
-    try:
-        mgr = get_manager()
-        with mgr.get_sqlite_connection() as con:
-            con.execute(
-                """UPDATE user_cards SET quantity = 0
-                   WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)
-                     AND quantity <> 0""",
-                (payload["telegram_id"],),
-            )
-            con.commit()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"shadow_clear_user_cards failed: {exc}")
-        raise RuntimeError("Инвентарь очищен в PostgreSQL, но резервная SQLite не обновлена") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -908,101 +689,34 @@ def _get_desired_cards_sqlite(telegram_id: int) -> list[dict]:
 def set_desired_cards(telegram_id: int, card_ids: list[str]) -> list[dict]:
     unique_ids = list(dict.fromkeys(str(x).strip() for x in card_ids if str(x).strip()))
     payload = {"telegram_id": int(telegram_id), "card_ids": unique_ids}
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _set_desired_cards_pg(payload)
-    else:
-        return _set_desired_cards_sqlite(payload)
+    return _set_desired_cards_pg(payload)
 
 
 def _set_desired_cards_pg(payload: dict) -> list[dict]:
-    op_id = _record_outbox("set_desired_cards", payload, sync_status="pending")
-    try:
-        telegram_id = payload["telegram_id"]
-        unique_ids = payload["card_ids"]
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "DELETE FROM desired_cards WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)",
-                    (telegram_id,),
-                )
-                if unique_ids:
-                    cur.execute(
-                        """
-                        INSERT INTO desired_cards (user_id, card_id)
-                        SELECT u.id, c.id
-                        FROM users u
-                        JOIN cards c ON c.id = ANY(%s)
-                        LEFT JOIN user_cards uc ON uc.user_id = u.id AND uc.card_id = c.id
-                        WHERE u.telegram_id = %s
-                          AND COALESCE(uc.quantity, 0) = 0
-                        ON CONFLICT DO NOTHING
-                        """,
-                        (unique_ids, telegram_id),
-                    )
-            conn.commit()
-        _shadow_set_desired_cards(payload)
-        _mark_outbox_synced(op_id)
-        return get_desired_cards(telegram_id)
-    except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
-        get_manager().notify_pg_write_failed(exc)
-        return _set_desired_cards_sqlite(payload)
-
-
-def _set_desired_cards_sqlite(payload: dict) -> list[dict]:
-    _record_outbox("set_desired_cards", payload, sync_status="pending")
     telegram_id = payload["telegram_id"]
     unique_ids = payload["card_ids"]
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        con.execute(
-            "DELETE FROM desired_cards WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)",
-            (telegram_id,),
-        )
-        if unique_ids:
-            placeholders, params = in_placeholders(unique_ids)
-            con.execute(
-                f"""INSERT INTO desired_cards (user_id, card_id)
-                    SELECT u.id, c.id
-                    FROM users u
-                    JOIN cards c ON c.id IN ({placeholders})
-                    LEFT JOIN user_cards uc ON uc.user_id = u.id AND uc.card_id = c.id
-                    WHERE u.telegram_id = ?
-                      AND COALESCE(uc.quantity, 0) = 0
-                    ON CONFLICT DO NOTHING""",
-                params + [telegram_id],
-            )
-        con.commit()
-    return get_desired_cards(telegram_id)
-
-
-def _shadow_set_desired_cards(payload: dict) -> None:
-    try:
-        mgr = get_manager()
-        telegram_id = payload["telegram_id"]
-        unique_ids = payload["card_ids"]
-        with mgr.get_sqlite_connection() as con:
-            con.execute(
-                "DELETE FROM desired_cards WHERE user_id = (SELECT id FROM users WHERE telegram_id = ?)",
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM desired_cards WHERE user_id = (SELECT id FROM users WHERE telegram_id = %s)",
                 (telegram_id,),
             )
             if unique_ids:
-                placeholders, params = in_placeholders(unique_ids)
-                con.execute(
-                    f"""INSERT INTO desired_cards (user_id, card_id)
-                        SELECT u.id, c.id
-                        FROM users u
-                        JOIN cards c ON c.id IN ({placeholders})
-                        LEFT JOIN user_cards uc ON uc.user_id = u.id AND uc.card_id = c.id
-                        WHERE u.telegram_id = ?
-                          AND COALESCE(uc.quantity, 0) = 0
-                        ON CONFLICT DO NOTHING""",
-                    params + [telegram_id],
+                cur.execute(
+                    """
+                    INSERT INTO desired_cards (user_id, card_id)
+                    SELECT u.id, c.id
+                    FROM users u
+                    JOIN cards c ON c.id = ANY(%s)
+                    LEFT JOIN user_cards uc ON uc.user_id = u.id AND uc.card_id = c.id
+                    WHERE u.telegram_id = %s
+                      AND COALESCE(uc.quantity, 0) = 0
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (unique_ids, telegram_id),
                 )
-            con.commit()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"shadow_set_desired_cards failed: {exc}")
-        raise RuntimeError("Список сохранён в PostgreSQL, но резервная SQLite не обновлена") from exc
+        conn.commit()
+    return get_desired_cards(telegram_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1068,82 +782,28 @@ def add_zero_cards(telegram_id: int, card_ids: list[str]) -> int:
     if not unique_ids:
         return 0
     payload = {"telegram_id": int(telegram_id), "card_ids": unique_ids}
-    mgr = get_manager()
-    if mgr.is_postgres:
-        return _add_zero_cards_pg(payload)
-    else:
-        return _add_zero_cards_sqlite(payload)
+    return _add_zero_cards_pg(payload)
 
 
 def _add_zero_cards_pg(payload: dict) -> int:
-    op_id = _record_outbox("add_zero_cards", payload, sync_status="pending")
-    try:
-        telegram_id = payload["telegram_id"]
-        unique_ids = payload["card_ids"]
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO user_cards (user_id, card_id, quantity)
-                    SELECT u.id, c.id, 0
-                    FROM users u
-                    JOIN cards c ON c.id = ANY(%s)
-                    WHERE u.telegram_id = %s
-                    ON CONFLICT (user_id, card_id) DO NOTHING
-                    """,
-                    (unique_ids, telegram_id),
-                )
-                added = cur.rowcount
-            conn.commit()
-        _shadow_add_zero_cards(payload)
-        _mark_outbox_synced(op_id)
-        return added
-    except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
-        get_manager().notify_pg_write_failed(exc)
-        return _add_zero_cards_sqlite(payload)
-
-
-def _add_zero_cards_sqlite(payload: dict) -> int:
-    _record_outbox("add_zero_cards", payload, sync_status="pending")
     telegram_id = payload["telegram_id"]
     unique_ids = payload["card_ids"]
-    mgr = get_manager()
-    with mgr.get_sqlite_connection() as con:
-        placeholders, params = in_placeholders(unique_ids)
-        cur = con.execute(
-            f"""INSERT INTO user_cards (user_id, card_id, quantity)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO user_cards (user_id, card_id, quantity)
                 SELECT u.id, c.id, 0
                 FROM users u
-                JOIN cards c ON c.id IN ({placeholders})
-                WHERE u.telegram_id = ?
-                ON CONFLICT (user_id, card_id) DO NOTHING""",
-            params + [telegram_id],
-        )
-        added = cur.rowcount
-        con.commit()
-    return added
-
-
-def _shadow_add_zero_cards(payload: dict) -> None:
-    try:
-        mgr = get_manager()
-        telegram_id = payload["telegram_id"]
-        unique_ids = payload["card_ids"]
-        with mgr.get_sqlite_connection() as con:
-            placeholders, params = in_placeholders(unique_ids)
-            con.execute(
-                f"""INSERT INTO user_cards (user_id, card_id, quantity)
-                    SELECT u.id, c.id, 0
-                    FROM users u
-                    JOIN cards c ON c.id IN ({placeholders})
-                    WHERE u.telegram_id = ?
-                    ON CONFLICT (user_id, card_id) DO NOTHING""",
-                params + [telegram_id],
+                JOIN cards c ON c.id = ANY(%s)
+                WHERE u.telegram_id = %s
+                ON CONFLICT (user_id, card_id) DO NOTHING
+                """,
+                (unique_ids, telegram_id),
             )
-            con.commit()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"shadow_add_zero_cards failed: {exc}")
-        raise RuntimeError("Карты сохранены в PostgreSQL, но резервная SQLite не обновлена") from exc
+            added = cur.rowcount
+        conn.commit()
+    return added
 
 
 # ---------------------------------------------------------------------------
@@ -1163,13 +823,7 @@ def sync_cards(cards: dict) -> int:
     active_ids = [card_id for card_id, _ in valid_cards]
 
     mgr = get_manager()
-    # Синхронизируем в обе БД (каталог — не пользовательские данные, Outbox не нужен)
-    count = 0
-    if mgr.is_postgres:
-        count = _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete)
-    # Всегда обновляем SQLite-каталог (нужен для fallback)
-    _sync_cards_sqlite(valid_cards, active_ids, catalogue_is_complete)
-    return count
+    return _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete)
 
 
 def _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete: bool) -> int:
@@ -1199,32 +853,6 @@ def _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete: bool) -> int:
                 cur.execute("DELETE FROM cards WHERE NOT (id = ANY(%s))", (active_ids,))
         conn.commit()
     return count
-
-
-def _sync_cards_sqlite(valid_cards, active_ids, catalogue_is_complete: bool) -> None:
-    try:
-        mgr = get_manager()
-        with mgr.get_sqlite_connection() as con:
-            for card_id, info in valid_cards:
-                name = str(info.get("name") or card_id)
-                try:
-                    rarity = int(info.get("rarity", 1))
-                except (TypeError, ValueError):
-                    rarity = 1
-                icon = str(info.get("icon") or "")
-                con.execute(
-                    """INSERT INTO cards (id, name, rarity, icon) VALUES (?, ?, ?, ?)
-                       ON CONFLICT (id) DO UPDATE SET
-                           name=EXCLUDED.name, rarity=EXCLUDED.rarity, icon=EXCLUDED.icon""",
-                    (card_id, name, rarity, icon),
-                )
-            if catalogue_is_complete and active_ids:
-                placeholders, params = in_placeholders(active_ids)
-                con.execute(f"DELETE FROM cards WHERE id NOT IN ({placeholders})", params)
-            con.commit()
-    except Exception as exc:
-        get_manager().invalidate_sqlite_snapshot(f"catalog shadow failed: {type(exc).__name__}")
-        raise RuntimeError("Каталог сохранён в PostgreSQL, но резервная SQLite не обновлена") from exc
 
 
 # ---------------------------------------------------------------------------
