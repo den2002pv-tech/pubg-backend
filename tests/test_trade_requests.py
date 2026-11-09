@@ -145,6 +145,53 @@ def test_telegram_webhook_rejects_invalid_secret(monkeypatch):
     assert exc.value.status_code == 403
 
 
+def test_telegram_webhook_deduplicates_replayed_updates(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret")
+    state = {"seen": False}
+    handled = []
+
+    class FakeCursor:
+        rowcount = 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, _query, _params):
+            if state["seen"]:
+                self.rowcount = 0
+            else:
+                self.rowcount = 1
+                state["seen"] = True
+
+    class FakeConnection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(trades, "get_connection", FakeConnection)
+    monkeypatch.setattr(trades, "_handle_webhook_message", lambda message: handled.append(message))
+
+    payload = {
+        "update_id": 42,
+        "message": {"text": "/help", "chat": {"id": 12345, "type": "private"}, "from": {"id": 12345}},
+    }
+
+    assert asyncio.run(trades.telegram_webhook(payload, secret="test-webhook-secret")) == {"ok": True}
+    assert asyncio.run(trades.telegram_webhook(payload, secret="test-webhook-secret")) == {"ok": True}
+    assert len(handled) == 1
+
+
 def test_list_my_trade_requests_qualifies_ambiguous_id_column(monkeypatch):
     captured = {}
 

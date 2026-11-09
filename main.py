@@ -69,6 +69,7 @@ if SENTRY_DSN:
     )
 
 def startup_database() -> None:
+    _cleanup_temp_dir()
     init_db()
     init_analytics_db()
     _migrate_frame_color_hashes()
@@ -246,6 +247,52 @@ CARDS_DIR.mkdir(parents=True, exist_ok=True)
 # Admin workflow previews are temporary runtime files.
 TEMP_DIR = Path("temp_images")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_FILE_TTL_SECONDS = max(60, int(os.getenv("TEMP_FILE_TTL_SECONDS", "3600")))
+TEMP_FILE_MAX_BYTES = max(1024 * 1024, int(os.getenv("TEMP_FILE_MAX_BYTES", str(100 * 1024 * 1024))))
+
+
+def _cleanup_temp_dir() -> int:
+    """Delete stale or oversized runtime files while preserving active scan previews."""
+    if not TEMP_DIR.exists():
+        return 0
+    now = time.time()
+    candidates: list[tuple[float, int, Path]] = []
+    for path in TEMP_DIR.iterdir():
+        if not path.is_file():
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        candidates.append((stat.st_mtime, stat.st_size, path))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+
+    removed = 0
+    total_size = 0
+    for _, size, path in candidates:
+        try:
+            age_seconds = now - path.stat().st_mtime
+        except OSError:
+            continue
+        if age_seconds > TEMP_FILE_TTL_SECONDS:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            else:
+                removed += 1
+            continue
+        total_size += size
+        if total_size > TEMP_FILE_MAX_BYTES:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            else:
+                removed += 1
+                total_size -= size
+    return removed
+
 
 # Keep diagnostic storage bounded in memory.
 # Logs contain detector diagnostics only, never credentials or source images.
@@ -1297,6 +1344,7 @@ def _prepare_icon(image: Image.Image) -> Image.Image:
 
 def _save_counter_fixture(image: Image.Image, box: Any, index: int) -> str:
     """Save the original-resolution card crop used by the detector for regression tests."""
+    _cleanup_temp_dir()
     if not isinstance(box, (list, tuple)) or len(box) != 4:
         return ""
     try:
@@ -1312,6 +1360,7 @@ def _save_counter_fixture(image: Image.Image, box: Any, index: int) -> str:
 
 def _save_admin_preview(data_url: str, index: int) -> str:
     """Persist one temporary admin card preview for the current runtime."""
+    _cleanup_temp_dir()
     if not data_url.startswith("data:image/") or "," not in data_url:
         return data_url
     try:

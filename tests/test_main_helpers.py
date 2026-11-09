@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import threading
 import time
 
@@ -205,6 +206,22 @@ def test_load_db_fails_fast_for_invalid_json(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="invalid JSON"):
         main.load_db()
+
+
+def test_cleanup_temp_dir_prunes_stale_runtime_files(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "TEMP_DIR", tmp_path)
+    monkeypatch.setattr(main, "TEMP_FILE_TTL_SECONDS", 30)
+    monkeypatch.setattr(main, "TEMP_FILE_MAX_BYTES", 10)
+    stale = tmp_path / "stale.tmp"
+    fresh = tmp_path / "fresh.tmp"
+    stale.write_bytes(b"x" * 8)
+    fresh.write_bytes(b"y" * 3)
+    stale_timestamp = time.time() - 31
+    os.utime(stale, (stale_timestamp, stale_timestamp))
+
+    assert main._cleanup_temp_dir() == 1
+    assert not stale.exists()
+    assert fresh.exists()
 
 
 def test_load_db_rejects_non_object_catalogue(monkeypatch, tmp_path):

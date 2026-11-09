@@ -279,6 +279,22 @@ def _notify_request(request: dict[str, Any], recipient_id: int, include_icons: b
         return False
 
 
+def _remember_processed_update(update_id: int) -> bool:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO processed_telegram_updates (update_id)
+                VALUES (%s)
+                ON CONFLICT (update_id) DO NOTHING
+                """,
+                (update_id,),
+            )
+            inserted = cur.rowcount == 1
+        conn.commit()
+    return inserted
+
+
 def init_trade_request_schema() -> None:
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -306,6 +322,10 @@ def init_trade_request_schema() -> None:
                     CHECK (sender_user_id <> recipient_user_id)
                 );
                 ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS exchange_code_sent_at TIMESTAMPTZ;
+                CREATE TABLE IF NOT EXISTS processed_telegram_updates (
+                    update_id BIGINT PRIMARY KEY,
+                    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
                 CREATE INDEX IF NOT EXISTS idx_trade_requests_sender_created
                     ON trade_requests (sender_user_id, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_trade_requests_recipient_created
@@ -686,10 +706,11 @@ def _handle_app_command(command: str, chat_id: int) -> None:
             "Уведомления о заявках и кнопки подтверждения будут приходить сюда."
         ),
         "/help": (
-            "Как пользоваться обменом карт PUBG Mobile:\\n"
-            "1. Откройте приложение и обновите свою коллекцию.\\n"
-            "2. Найдите подходящий обмен и отправьте предложение.\\n"
-            "3. Ответьте на уведомление здесь с помощью кнопок.\\n4. После согласования автор предложения нажимает «Передать код обмена» и отвечает на сообщение кодом из PUBG Mobile.\\n\\n"
+            "Как пользоваться обменом карт PUBG Mobile:\n"
+            "1. Откройте приложение и обновите свою коллекцию.\n"
+            "2. Найдите подходящий обмен и отправьте предложение.\n"
+            "3. Ответьте на уведомление здесь с помощью кнопок.\n"
+            "4. После согласования автор предложения нажимает «Передать код обмена» и отвечает на сообщение кодом из PUBG Mobile.\n\n"
             "Не завершайте обмен в приложении игры, пока не согласовали детали друг с другом."
         ),
         "/app": "Нажмите кнопку ниже, чтобы открыть PUBG Mobile Mini App.",
@@ -780,7 +801,7 @@ def _handle_code_callback(callback_id: str, request_id: int, actor_id: int, requ
     _telegram_call("sendMessage", {
         "chat_id": actor_id,
         "text": (
-            f"Введите код обмена для заявки #{request_id} в ответ на это сообщение.\\n"
+            f"Введите код обмена для заявки #{request_id} в ответ на это сообщение.\n"
             "Сначала создайте код в PUBG Mobile. Я передам его второму игроку. "
             "Сам код не сохраняется в нашей базе."
         ),
@@ -883,6 +904,15 @@ async def telegram_webhook(
         raise HTTPException(status_code=503, detail="TELEGRAM_WEBHOOK_SECRET не задан на сервере")
     if not secret or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=403, detail="Forbidden")
+
+    update_id = update.get("update_id")
+    if isinstance(update_id, str):
+        try:
+            update_id = int(update_id)
+        except ValueError:
+            update_id = None
+    if update_id is not None and not _remember_processed_update(int(update_id)):
+        return {"ok": True}
 
     message = update.get("message")
     if isinstance(message, dict):
