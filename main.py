@@ -49,6 +49,7 @@ from database import measure_database, add_zero_cards, clear_user_cards, get_adm
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 from scanner_diagnostics import ScannerDiagnosticStore
 from scanner_prewarm import ScannerPrewarmController
+from database_manager import get_manager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -69,12 +70,41 @@ if SENTRY_DSN:
     )
 
 def startup_database() -> None:
+    """
+    Отказоустойчивый запуск БД.
+    1. Инициализирует DatabaseManager (выбирает PG или SQLite).
+    2. Создаёт схему активной БД.
+    3. Синхронизирует каталог карточек.
+    4. Инициализирует аналитику и схему заявок на обмен.
+
+    Если PostgreSQL недоступна и SQLite содержит данные — запускается в fallback-режиме.
+    Если обе БД недоступны — выбрасывает RuntimeError с диагностикой.
+    """
     _cleanup_temp_dir()
+
+    # Инициализация менеджера (проверка PG, выбор режима, начальная синхронизация)
+    mgr = get_manager()
+    mgr.initialize()
+
+    mode = mgr.mode.value
+    LOGGER.info("Запуск в режиме БД: %s", mode)
+
+    # Схема БД (init_db теперь работает с активной БД)
     init_db()
     init_analytics_db()
     _migrate_frame_color_hashes()
+
+    # Синхронизировать каталог карточек в обе БД
     sync_cards(load_db())
+
+    # Схема заявок на обмен
     init_trade_request_schema()
+
+    LOGGER.info(
+        "База данных инициализирована [режим=%s, статус=%s]",
+        mode,
+        mgr.get_status(),
+    )
 
 
 def _scanner_warmup() -> None:

@@ -1,10 +1,20 @@
+"""
+analytics.py — Аналитика с поддержкой PostgreSQL и SQLite (вариант B: Python-постобработка).
+
+В SQLite-режиме JSONB-операторы (->>, ?, -) заменены Python-постобработкой.
+Все функции публичного интерфейса сохранены.
+"""
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
 from typing import Any
 
-from database import get_connection
+import psycopg
+
+from database import get_connection, _SQLiteConnectionAdapter
+from database_manager import get_manager
+from db_sqlite_schema import parse_properties, remove_json_fields
 
 ALLOWED_EVENTS = {
     "app_open", "tab_open", "scan_started", "scan_completed", "scan_failed", "counter_corrected",
@@ -44,7 +54,14 @@ ALLOWED_IMAGE_FORMATS = {"BMP", "GIF", "JPEG", "PNG", "TIFF", "WEBP", "UNKNOWN",
 
 
 def init_analytics_db() -> None:
-    """Create the bounded-schema analytics table without changing collection data."""
+    """Создать таблицу аналитики (работает с активной БД через get_connection)."""
+    mgr = get_manager()
+    if mgr.is_postgres:
+        _init_analytics_db_pg()
+    # SQLite-схема уже создана через db_sqlite_schema.ensure_sqlite_schema
+
+
+def _init_analytics_db_pg() -> None:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -115,83 +132,175 @@ def _sanitize_scan_metadata(raw: dict[str, Any]) -> dict[str, Any]:
                 )
         except ValueError:
             pass
-
-    duration = raw.get("duration_ms")
-    if isinstance(duration, (int, float)) and not isinstance(duration, bool):
-        props["duration_ms"] = round(max(0.0, min(float(duration), 600000.0)), 1)
-
-    rating = raw.get("rating")
-    if isinstance(rating, int) and not isinstance(rating, bool) and 1 <= rating <= 5:
-        props["rating"] = rating
     return props
 
 
-def _sanitize_profile(profile: Any) -> dict[str, Any]:
-    if not isinstance(profile, dict):
+def _sanitize_profile(raw: dict[str, Any]) -> dict[str, Any]:
+    profile_raw = raw.get("profile")
+    if not isinstance(profile_raw, dict):
         return {}
-
-    safe_profile: dict[str, Any] = {}
-    profile_groups = (
-        (PROFILE_TIME_KEYS, 600000, True),
-        (PROFILE_COUNT_KEYS, 10000, False),
-        (PROFILE_DIMENSION_KEYS, 100000, False),
-        (PROFILE_SIZE_KEYS, 100000000, False),
-    )
-    for keys, maximum, is_duration in profile_groups:
-        for key in keys:
-            value = profile.get(key)
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                bounded = max(0, min(float(value), maximum)) if is_duration else max(0, min(int(value), maximum))
-                safe_profile[key] = round(bounded, 1) if is_duration else bounded
-
-    image_format = profile.get("upload_format")
+    profile: dict[str, Any] = {}
+    for key in PROFILE_TIME_KEYS:
+        val = profile_raw.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            bounded = max(0.0, min(float(val), 600_000.0))
+            profile[key] = round(bounded, 1)
+    for key in PROFILE_COUNT_KEYS:
+        val = profile_raw.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            profile[key] = max(0, min(int(val), 10_000))
+    for key in PROFILE_DIMENSION_KEYS:
+        val = profile_raw.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            profile[key] = max(0, min(int(val), 100_000))
+    for key in PROFILE_SIZE_KEYS:
+        val = profile_raw.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            profile[key] = max(0, min(int(val), 200_000_000))
+    image_format = profile_raw.get("upload_format")
     if isinstance(image_format, str):
-        safe_profile["upload_format"] = (
-            image_format if image_format in ALLOWED_IMAGE_FORMATS else "OTHER"
-        )
-    return safe_profile
+        profile["upload_format"] = image_format.upper() if image_format.upper() in ALLOWED_IMAGE_FORMATS else "OTHER"
+    return profile
 
 
-def sanitize_event(value: Any) -> tuple[str, dict[str, Any]] | None:
-    """Accept only named events and small, non-identifying, enumerated properties."""
-    if not isinstance(value, dict):
-        return None
-    name = value.get("name")
+def _sanitize_duration(raw: dict[str, Any]) -> dict[str, Any]:
+    duration_ms = raw.get("duration_ms")
+    if isinstance(duration_ms, (int, float)) and not isinstance(duration_ms, bool):
+        return {"duration_ms": max(0.0, min(float(duration_ms), 600_000.0))}
+    return {}
+
+
+def sanitize_event(event: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    name = event.get("name")
     if not isinstance(name, str) or name not in ALLOWED_EVENTS:
         return None
-
-    raw = value.get("properties")
-    raw = raw if isinstance(raw, dict) else {}
-    props = _sanitize_enum_properties(raw)
+    raw = event.get("properties") or {}
+    if not isinstance(raw, dict):
+        return None
+    props: dict[str, Any] = {}
+    props.update(_sanitize_enum_properties(raw))
     props.update(_sanitize_count_properties(raw))
     props.update(_sanitize_scan_metadata(raw))
-
-    safe_profile = _sanitize_profile(raw.get("profile"))
-    if safe_profile:
-        props["profile"] = safe_profile
+    props.update(_sanitize_duration(raw))
+    rating = raw.get("rating")
+    if name == "feedback_submitted" and isinstance(rating, int) and not isinstance(rating, bool) and 1 <= rating <= 5:
+        props["rating"] = rating
+    profile = _sanitize_profile(raw)
+    if profile:
+        props["profile"] = profile
     return name, props
 
 
-def record_analytics_events(user_id: int, events: list[Any]) -> int:
-    safe = [item for item in (sanitize_event(event) for event in events[:20]) if item]
-    if not safe:
+def record_analytics_events(user_id: int, events: list[dict[str, Any]]) -> int:
+    """Записать аналитические события. Работает с активной БД."""
+    sanitized = [sanitize_event(e) for e in events if isinstance(e, dict)]
+    valid = [(name, props) for item in sanitized if item is not None for name, props in [item]]
+    if not valid:
         return 0
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.executemany(
-                "INSERT INTO user_analytics_events (user_id, event_name, properties) VALUES (%s, %s, %s::jsonb)",
-                [(user_id, name, json.dumps(props, separators=(",", ":"))) for name, props in safe],
-            )
-        conn.commit()
-    return len(safe)
+    mgr = get_manager()
+    if mgr.is_postgres:
+        return _record_analytics_pg(user_id, valid)
+    else:
+        return _record_analytics_sqlite(user_id, valid)
+
+
+def _record_analytics_pg(user_id: int, valid_events: list[tuple[str, dict]]) -> int:
+    try:
+        inserted = []
+        with get_connection() as conn:
+            if isinstance(conn, _SQLiteConnectionAdapter):
+                with conn.cursor() as cur:
+                    for event_name, properties in valid_events:
+                        cur.execute(
+                            "INSERT INTO user_analytics_events (user_id, event_name, properties) VALUES (%s, %s, %s::jsonb)",
+                            (user_id, event_name, json.dumps(properties, ensure_ascii=False)),
+                        )
+                conn.commit()
+                return len(valid_events)
+            with conn.cursor() as cur:
+                for event_name, properties in valid_events:
+                    cur.execute(
+                        """INSERT INTO user_analytics_events (user_id, event_name, properties)
+                           VALUES (%s, %s, %s::jsonb) RETURNING id, created_at""",
+                        (user_id, event_name, json.dumps(properties, ensure_ascii=False)),
+                    )
+                    row = cur.fetchone()
+                    inserted.append({"id": row["id"], "created_at": row["created_at"],
+                                     "user_id": user_id, "event_name": event_name,
+                                     "properties": properties})
+            conn.commit()
+        _record_analytics_sqlite_shadow(user_id, inserted)
+        return len(valid_events)
+    except (psycopg.OperationalError, psycopg.InterfaceError):
+        return _record_analytics_sqlite(user_id, valid_events)
+
+
+def _record_analytics_sqlite(user_id: int, valid_events: list[tuple[str, dict]]) -> int:
+    return _record_analytics_sqlite_shadow(user_id, valid_events)
+
+
+def _record_analytics_sqlite_shadow(user_id: int, valid_events: list[tuple[str, dict]] | list[dict]) -> int:
+    try:
+        from database_manager import get_manager
+        from db_sqlite_schema import setup_sqlite_functions
+        mgr = get_manager()
+        with mgr.get_sqlite_connection() as con:
+            setup_sqlite_functions(con, outbox_enabled=mgr.is_postgres is False)
+            for event in valid_events:
+                if isinstance(event, dict):
+                    event_id, event_name = event["id"], event["event_name"]
+                    event_user_id, properties = event["user_id"], event["properties"]
+                    created_at = event["created_at"]
+                else:
+                    event_name, properties = event
+                    event_id, event_user_id = None, user_id
+                    created_at = None
+                props_json = json.dumps(properties, ensure_ascii=False)
+                if event_id is None:
+                    con.execute(
+                        "INSERT INTO user_analytics_events (user_id, event_name, properties) VALUES (?, ?, ?)",
+                        (event_user_id, event_name, props_json),
+                    )
+                else:
+                    con.execute(
+                        """INSERT INTO user_analytics_events (id, user_id, event_name, properties, created_at)
+                           VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET
+                           user_id=excluded.user_id, event_name=excluded.event_name,
+                           properties=excluded.properties, created_at=excluded.created_at""",
+                        (event_id, event_user_id, event_name, props_json,
+                         event["created_at"].isoformat() if hasattr(created_at, "isoformat") else created_at),
+                    )
+            con.commit()
+        return len(valid_events)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("_record_analytics_sqlite_shadow failed")
+        get_manager().invalidate_sqlite_snapshot(f"analytics shadow failed: {exc}")
+        raise RuntimeError("Событие записано в PostgreSQL, но резервная SQLite не обновлена") from exc
 
 
 def get_analytics_summary(days: int = 30) -> dict[str, Any]:
+    """Агрегированная сводка аналитики. Поддерживает PG и SQLite."""
     days = max(1, min(int(days), 90))
+    mgr = get_manager()
+    if mgr.is_postgres:
+        return _get_analytics_summary_pg(days)
+    else:
+        return _get_analytics_summary_sqlite(days)
+
+
+def _get_analytics_summary_pg(days: int) -> dict[str, Any]:
+    events = []
+    daily_active = []
+    popular_tabs = []
+    scans = {}
+    active_users = 0
+    feedback = {}
+    feedback_categories = []
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT event_name, COUNT(*) AS events, COUNT(DISTINCT user_id) AS users
+                SELECT event_name, COUNT(*) AS events
                 FROM user_analytics_events
                 WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
                 GROUP BY event_name ORDER BY events DESC, event_name
@@ -249,19 +358,132 @@ def get_analytics_summary(days: int = 30) -> dict[str, Any]:
             """, (days,))
             feedback_categories = [dict(row) for row in cur.fetchall()]
     return {
-        "days": days,
-        "active_users": active_users,
-        "events": events,
-        "daily_active": daily_active,
-        "popular_tabs": popular_tabs,
-        "scans": scans,
-        "feedback": feedback,
-        "feedback_categories": feedback_categories,
+        "days": days, "active_users": active_users, "events": events,
+        "daily_active": daily_active, "popular_tabs": popular_tabs,
+        "scans": scans, "feedback": feedback, "feedback_categories": feedback_categories,
     }
 
+
+def _get_analytics_summary_sqlite(days: int) -> dict[str, Any]:
+    """Python-постобработка JSONB-агрегаций для SQLite (вариант B)."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    mgr = get_manager()
+    with mgr.get_sqlite_connection() as con:
+        rows = con.execute(
+            "SELECT event_name, properties, created_at, user_id FROM user_analytics_events WHERE created_at >= ?",
+            (cutoff,),
+        ).fetchall()
+
+    # Постобработка в Python
+    event_counts: dict[str, int] = {}
+    daily_users: dict[str, set] = {}
+    tab_views: dict[str, int] = {}
+    tab_users: dict[str, set] = {}
+    scan_count = 0
+    scan_failed = 0
+    scan_durations: list[float] = []
+    scan_matched: list[float] = []
+    all_users: set = set()
+    ratings: list[float] = []
+    categories: dict[str, int] = {}
+
+    for row in rows:
+        event_name = row["event_name"]
+        props = parse_properties(row["properties"])
+        created_at_str = row["created_at"]
+        user_id = row["user_id"]
+
+        # event count
+        event_counts[event_name] = event_counts.get(event_name, 0) + 1
+        all_users.add(user_id)
+
+        # daily active
+        try:
+            day_str = created_at_str[:10] if isinstance(created_at_str, str) else str(created_at_str)[:10]
+        except Exception:
+            day_str = "unknown"
+        daily_users.setdefault(day_str, set()).add(user_id)
+
+        # tabs
+        if event_name == "tab_open" and "tab" in props:
+            tab = props["tab"]
+            tab_views[tab] = tab_views.get(tab, 0) + 1
+            tab_users.setdefault(tab, set()).add(user_id)
+
+        # scans
+        if event_name in ("scan_completed", "scan_failed"):
+            scan_count += 1
+            if event_name == "scan_failed":
+                scan_failed += 1
+            if event_name == "scan_completed":
+                dur = props.get("duration_ms")
+                if isinstance(dur, (int, float)):
+                    scan_durations.append(float(dur))
+                matched = props.get("matched_count")
+                if isinstance(matched, (int, float)):
+                    scan_matched.append(float(matched))
+
+        # feedback
+        if event_name == "feedback_submitted":
+            rating = props.get("rating")
+            if isinstance(rating, (int, float)):
+                ratings.append(float(rating))
+            cat = props.get("category")
+            if isinstance(cat, str):
+                categories[cat] = categories.get(cat, 0) + 1
+
+    events_list = sorted(
+        [{"event_name": k, "events": v} for k, v in event_counts.items()],
+        key=lambda x: (-x["events"], x["event_name"]),
+    )
+    daily_active = sorted(
+        [{"day": day, "active_users": len(users)} for day, users in daily_users.items()],
+        key=lambda x: x["day"],
+    )
+    popular_tabs = sorted(
+        [{"tab": tab, "views": tab_views[tab], "users": len(tab_users[tab])} for tab in tab_views],
+        key=lambda x: -x["views"],
+    )
+    avg_dur = round(sum(scan_durations) / len(scan_durations), 1) if scan_durations else None
+    avg_matched = round(sum(scan_matched) / len(scan_matched), 1) if scan_matched else None
+    avg_rating = round(sum(ratings) / len(ratings), 1) if ratings else None
+    feedback_cats = sorted(
+        [{"category": k, "ratings": v} for k, v in categories.items()],
+        key=lambda x: -x["ratings"],
+    )
+
+    return {
+        "days": days,
+        "active_users": len(all_users),
+        "events": events_list,
+        "daily_active": daily_active,
+        "popular_tabs": popular_tabs,
+        "scans": {
+            "scans": scan_count,
+            "failed_scans": scan_failed,
+            "avg_duration_ms": avg_dur,
+            "avg_matched_cards": avg_matched,
+        },
+        "feedback": {
+            "ratings": len(ratings),
+            "average_rating": avg_rating,
+        },
+        "feedback_categories": feedback_cats,
+    }
+
+
 def get_analytics_events(days: int = 30) -> dict[str, Any]:
-    """Export analytics events for a bounded period without internal user identifiers."""
+    """Экспорт аналитических событий."""
     days = max(1, min(int(days), 90))
+    mgr = get_manager()
+    if mgr.is_postgres:
+        return _get_analytics_events_pg(days)
+    else:
+        return _get_analytics_events_sqlite(days)
+
+
+def _get_analytics_events_pg(days: int) -> dict[str, Any]:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -276,7 +498,7 @@ def get_analytics_events(days: int = 30) -> dict[str, Any]:
         "events": [
             {
                 "event_name": row["event_name"],
-                "created_at": row["created_at"].isoformat(),
+                "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
                 "properties": row["properties"],
             }
             for row in rows
@@ -284,8 +506,41 @@ def get_analytics_events(days: int = 30) -> dict[str, Any]:
     }
 
 
+def _get_analytics_events_sqlite(days: int) -> dict[str, Any]:
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    mgr = get_manager()
+    with mgr.get_sqlite_connection() as con:
+        rows = con.execute(
+            """SELECT event_name, properties, created_at
+               FROM user_analytics_events
+               WHERE created_at >= ?
+               ORDER BY created_at DESC, id DESC""",
+            (cutoff,),
+        ).fetchall()
+    return {
+        "days": days,
+        "events": [
+            {
+                "event_name": row["event_name"],
+                "created_at": row["created_at"] if isinstance(row["created_at"], str) else str(row["created_at"]),
+                "properties": parse_properties(row["properties"]),
+            }
+            for row in rows
+        ],
+    }
+
+
 def clear_scan_performance_metrics() -> int:
-    """Remove only scan timing fields, retaining events and all other analytics."""
+    """Удалить timing-поля из scan-событий. Работает с активной БД."""
+    mgr = get_manager()
+    if mgr.is_postgres:
+        return _clear_scan_metrics_pg()
+    else:
+        return _clear_scan_metrics_sqlite()
+
+
+def _clear_scan_metrics_pg() -> int:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -297,4 +552,31 @@ def clear_scan_performance_metrics() -> int:
             """)
             cleared = len(cur.fetchall())
         conn.commit()
+    # Зеркалим в SQLite
+    try:
+        _clear_scan_metrics_sqlite()
+    except Exception as exc:
+        get_manager().invalidate_sqlite_snapshot(f"analytics cleanup mirror failed: {type(exc).__name__}")
+        raise RuntimeError("Аналитика очищена в PostgreSQL, но резервная SQLite не обновлена") from exc
+    return cleared
+
+
+def _clear_scan_metrics_sqlite() -> int:
+    """Python-постобработка: удалить duration_ms и profile из JSON-строк."""
+    mgr = get_manager()
+    cleared = 0
+    with mgr.get_sqlite_connection() as con:
+        rows = con.execute(
+            """SELECT id, properties FROM user_analytics_events
+               WHERE event_name IN ('scan_completed', 'scan_failed')
+                 AND (properties LIKE '%duration_ms%' OR properties LIKE '%profile%')"""
+        ).fetchall()
+        for row in rows:
+            new_props = remove_json_fields(row["properties"], "duration_ms", "profile")
+            con.execute(
+                "UPDATE user_analytics_events SET properties=? WHERE id=?",
+                (new_props, row["id"]),
+            )
+            cleared += 1
+        con.commit()
     return cleared

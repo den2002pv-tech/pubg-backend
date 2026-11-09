@@ -2,19 +2,24 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 import re
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import psycopg
 from fastapi import APIRouter, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app_config import get_public_base_url
-from database import get_connection
+from database import get_connection, _SQLiteConnectionAdapter
+from database_manager import get_manager
+from db_sqlite_schema import now_sqlite, row_to_dict, rows_to_dicts, setup_sqlite_functions
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 _validate_init_data: Callable[..., dict[str, Any]] | None = None
 _get_or_create_user: Callable[..., dict[str, Any]] | None = None
 _get_trade_matches: Callable[..., list[dict[str, Any]]] | None = None
@@ -75,7 +80,9 @@ def _create_request_record(
 ) -> dict[str, Any]:
     if sender_telegram_id == recipient_telegram_id:
         raise HTTPException(status_code=400, detail="Нельзя предложить обмен самому себе")
+    used_sqlite = False
     with get_connection() as conn:
+        used_sqlite = isinstance(conn, _SQLiteConnectionAdapter)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -122,7 +129,80 @@ def _create_request_record(
                 )
             request_id = int(row["id"])
         conn.commit()
+    if not used_sqlite and get_manager()._initialized:
+        _mirror_trade_state_pg_to_sqlite(request_id)
     return get_trade_request(request_id, sender_telegram_id)
+
+
+def _mirror_trade_state_pg_to_sqlite(request_id: int) -> None:
+    """Refresh one trade and its affected inventory/wishlist rows after a PG write."""
+    manager = get_manager()
+    try:
+        with manager.get_pg_connection() as pg:
+            request_row = pg.execute(
+                "SELECT * FROM trade_requests WHERE id=%s", (int(request_id),)
+            ).fetchone()
+            if not request_row:
+                raise RuntimeError("Committed trade request is missing from PostgreSQL")
+            request = dict(request_row)
+            user_ids = (request["sender_user_id"], request["recipient_user_id"])
+            card_ids = (request["offered_card_id"], request["requested_card_id"])
+            pg.execute(
+                """SELECT * FROM user_cards WHERE user_id IN (%s, %s)
+                   AND card_id IN (%s, %s) ORDER BY user_id, card_id""",
+                (*user_ids, *card_ids),
+            )
+            user_cards = [dict(row) for row in pg.fetchall()]
+            pg.execute(
+                """SELECT * FROM desired_cards WHERE user_id IN (%s, %s)
+                   AND card_id IN (%s, %s) ORDER BY user_id, card_id""",
+                (*user_ids, *card_ids),
+            )
+            desired_cards = [dict(row) for row in pg.fetchall()]
+
+        with manager.get_sqlite_connection() as con:
+            setup_sqlite_functions(con, outbox_enabled=False)
+            request_values = dict(request)
+            for key, value in request_values.items():
+                if hasattr(value, "isoformat"):
+                    request_values[key] = value.isoformat(timespec="microseconds").replace("+00:00", "Z")
+            cols = list(request_values)
+            col_sql = ", ".join(f'"{col}"' for col in cols)
+            value_sql = ", ".join("?" for _ in cols)
+            update_cols = [col for col in cols if col != "id"]
+            update_sql = ", ".join(f'"{col}"=excluded."{col}"' for col in update_cols)
+            con.execute(
+                f'INSERT INTO trade_requests ({col_sql}) VALUES ({value_sql}) '
+                f'ON CONFLICT (id) DO UPDATE SET {update_sql}',
+                [request_values[col] for col in cols],
+            )
+            for user_id in user_ids:
+                for card_id in card_ids:
+                    con.execute("DELETE FROM user_cards WHERE user_id=? AND card_id=?", (user_id, card_id))
+                    con.execute("DELETE FROM desired_cards WHERE user_id=? AND card_id=?", (user_id, card_id))
+            for row in user_cards:
+                values = dict(row)
+                for key, value in values.items():
+                    if hasattr(value, "isoformat"):
+                        values[key] = value.isoformat(timespec="microseconds").replace("+00:00", "Z")
+                con.execute(
+                    "INSERT INTO user_cards (user_id, card_id, quantity) VALUES (?, ?, ?)",
+                    (values["user_id"], values["card_id"], values["quantity"]),
+                )
+            for row in desired_cards:
+                values = dict(row)
+                created_at = values.get("created_at")
+                if hasattr(created_at, "isoformat"):
+                    created_at = created_at.isoformat(timespec="microseconds").replace("+00:00", "Z")
+                con.execute(
+                    "INSERT INTO desired_cards (user_id, card_id, created_at) VALUES (?, ?, ?)",
+                    (values["user_id"], values["card_id"], created_at),
+                )
+            con.commit()
+    except Exception as exc:
+        manager.invalidate_sqlite_snapshot(f"trade mirror failed: {type(exc).__name__}")
+        logger.exception("Не удалось обновить локальную копию после операции обмена")
+        raise RuntimeError("Изменение заявки сохранено в PostgreSQL, но резервная SQLite не обновлена") from exc
 
 
 def get_trade_request(request_id: int, viewer_telegram_id: int | None = None) -> dict[str, Any]:
@@ -280,22 +360,78 @@ def _notify_request(request: dict[str, Any], recipient_id: int, include_icons: b
 
 
 def _remember_processed_update(update_id: int) -> bool:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO processed_telegram_updates (update_id)
-                VALUES (%s)
-                ON CONFLICT (update_id) DO NOTHING
-                """,
+    """Запомнить обработанный Telegram update_id (дедупликация webhook)."""
+    mgr = get_manager()
+    if mgr.is_postgres:
+        return _remember_processed_update_pg(update_id)
+    else:
+        return _remember_processed_update_sqlite(update_id)
+
+
+def _remember_processed_update_pg(update_id: int) -> bool:
+    try:
+        with get_connection() as conn:
+            if isinstance(conn, _SQLiteConnectionAdapter):
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO processed_telegram_updates (update_id) VALUES (%s) ON CONFLICT DO NOTHING",
+                        (update_id,),
+                    )
+                    inserted = cur.rowcount == 1
+                conn.commit()
+                return inserted
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO processed_telegram_updates (update_id)
+                    VALUES (%s)
+                    ON CONFLICT (update_id) DO NOTHING
+                    """,
+                    (update_id,),
+                )
+                inserted = cur.rowcount == 1
+            conn.commit()
+        # Shadow SQLite
+        _remember_processed_update_sqlite_shadow(update_id)
+        return inserted
+    except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
+        mgr = get_manager()
+        mgr.notify_pg_write_failed(exc)
+        if mgr.mode.value == "sqlite":
+            return _remember_processed_update_sqlite(update_id)
+        raise
+
+
+def _remember_processed_update_sqlite(update_id: int) -> bool:
+    return _remember_processed_update_sqlite_shadow(update_id)
+
+
+def _remember_processed_update_sqlite_shadow(update_id: int) -> bool:
+    try:
+        mgr = get_manager()
+        with mgr.get_sqlite_connection() as con:
+            cur = con.execute(
+                "INSERT INTO processed_telegram_updates (update_id) VALUES (?) ON CONFLICT DO NOTHING",
                 (update_id,),
             )
             inserted = cur.rowcount == 1
-        conn.commit()
-    return inserted
+            con.commit()
+        return inserted
+    except Exception as exc:
+        mgr.invalidate_sqlite_snapshot(f"processed update mirror failed: {type(exc).__name__}")
+        logger.exception("Не удалось записать Telegram update в резервную SQLite")
+        raise RuntimeError("Обработка update сохранена в PostgreSQL, но резервная SQLite не обновлена") from exc
 
 
 def init_trade_request_schema() -> None:
+    """Создать схему для заявок на обмен (работает с активной БД)."""
+    mgr = get_manager()
+    if mgr.is_postgres:
+        _init_trade_request_schema_pg()
+    # SQLite-схема уже создана в db_sqlite_schema.ensure_sqlite_schema
+
+
+def _init_trade_request_schema_pg() -> None:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -439,7 +575,9 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
         )
     if action == "complete" and not request.get("exchange_code_sent_at"):
         raise HTTPException(status_code=409, detail="Сначала автор предложения должен передать код обмена")
+    used_sqlite = False
     with get_connection() as conn:
+        used_sqlite = isinstance(conn, _SQLiteConnectionAdapter)
         with conn.cursor() as cur:
             if action == "accept":
                 if actor_id != recipient_id or request["status"] != "pending":
@@ -557,6 +695,8 @@ def _transition(request_id: int, actor_id: int, action: str) -> dict[str, Any]:
             if action != "complete" and cur.rowcount != 1:
                 raise HTTPException(status_code=409, detail="Статус заявки уже изменился")
         conn.commit()
+    if not used_sqlite and get_manager()._initialized:
+        _mirror_trade_state_pg_to_sqlite(request_id)
     return get_trade_request(request_id, actor_id)
 
 
@@ -598,7 +738,9 @@ def _deliver_exchange_code(request_id: int, sender_telegram_id: int, code: str) 
     if not clean_code or len(clean_code) > 128 or any(ord(char) < 32 for char in clean_code):
         raise HTTPException(status_code=400, detail="Введите код длиной от 1 до 128 символов без переносов строк")
 
+    used_sqlite = False
     with get_connection() as conn:
+        used_sqlite = isinstance(conn, _SQLiteConnectionAdapter)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -655,6 +797,9 @@ def _deliver_exchange_code(request_id: int, sender_telegram_id: int, code: str) 
             if cur.rowcount != 1:
                 raise HTTPException(status_code=409, detail="Заявка изменилась; обновите список заявок")
         conn.commit()
+
+    if not used_sqlite and get_manager()._initialized:
+        _mirror_trade_state_pg_to_sqlite(request_id)
 
     # The proposer also needs the completion button when the code was sent
     # from the Mini App rather than through the Telegram bot.
