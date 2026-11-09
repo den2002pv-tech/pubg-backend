@@ -58,8 +58,13 @@ def _add_metric(name: str, value: float):
 
 @contextmanager
 def get_connection():
-    """Yield the primary PostgreSQL connection, reusing an outer transaction."""
+    """Yield active connection: PostgreSQL if available, or SQLite in fallback mode."""
     mgr = get_manager()
+    if not mgr.is_postgres:
+        with _sqlite_connection_ctx() as conn:
+            yield conn
+        return
+
     current = _CURRENT_PG_CONNECTION.get()
     if current is not None:
         savepoint = f"nested_{uuid.uuid4().hex}"
@@ -87,6 +92,11 @@ def get_connection():
         )
     except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
         mgr.notify_pg_write_failed(exc)
+        if mgr._sqlite_has_schema():
+            mgr._set_mode(DatabaseMode.SQLITE, f"PG connection failed: {exc}")
+            with _sqlite_connection_ctx() as fallback_conn:
+                yield fallback_conn
+            return
         raise
     _add_metric("db_connection_ms", (time.perf_counter() - started) * 1000)
     _add_metric("db_connection_count", 1)
@@ -97,6 +107,11 @@ def get_connection():
             yield _PGConnectionWrapper(conn, mgr)
     except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
         mgr.notify_pg_write_failed(exc)
+        if mgr._sqlite_has_schema():
+            mgr._set_mode(DatabaseMode.SQLITE, f"PG transaction failed: {exc}")
+            with _sqlite_connection_ctx() as fallback_conn:
+                yield fallback_conn
+            return
         raise
     finally:
         _CURRENT_PG_CONNECTION.reset(token)
@@ -245,7 +260,9 @@ def _record_outbox(op_type: str, payload: dict, sync_status: str = "pending") ->
 
 def init_db() -> None:
     """Создать таблицы если не существуют. Работает с активной БД."""
-    _init_db_pg()
+    mgr = get_manager()
+    if mgr.is_postgres:
+        _init_db_pg()
 
 
 def _init_db_pg() -> None:
@@ -828,6 +845,7 @@ def sync_cards(cards: dict) -> int:
 
 def _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete: bool) -> int:
     count = 0
+    mgr = get_manager()
     with get_connection() as conn:
         with conn.cursor() as cur:
             for card_id, info in valid_cards:
@@ -849,8 +867,12 @@ def _sync_cards_pg(valid_cards, active_ids, catalogue_is_complete: bool) -> int:
                     (card_id, name, rarity, icon),
                 )
                 count += 1
-            if catalogue_is_complete:
-                cur.execute("DELETE FROM cards WHERE NOT (id = ANY(%s))", (active_ids,))
+            if catalogue_is_complete and active_ids:
+                if mgr.is_postgres:
+                    cur.execute("DELETE FROM cards WHERE NOT (id = ANY(%s))", (active_ids,))
+                else:
+                    placeholders = ", ".join("?" for _ in active_ids)
+                    cur.execute(f"DELETE FROM cards WHERE id NOT IN ({placeholders})", active_ids)
         conn.commit()
     return count
 

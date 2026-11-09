@@ -184,7 +184,8 @@ class OutboxManager:
     """Управление журналом изменений в SQLite."""
 
     def __init__(self, db_path: str | None = None) -> None:
-        self._db_path = db_path or os.getenv("SQLITE_DATABASE_PATH", "/data/pubg_local.db")
+        from database_manager import _sqlite_path
+        self._db_path = db_path or _sqlite_path()
 
     def _connect(self) -> sqlite3.Connection:
         path = os.path.abspath(self._db_path)
@@ -397,7 +398,8 @@ class SyncManager:
     _sync_lock = threading.Lock()
 
     def __init__(self, db_path: str | None = None) -> None:
-        self._db_path = db_path or os.getenv("SQLITE_DATABASE_PATH", "/data/pubg_local.db")
+        from database_manager import _sqlite_path
+        self._db_path = db_path or _sqlite_path()
         self._outbox = OutboxManager(self._db_path)
         self._pg_url = os.getenv("DATABASE_URL", "").strip()
         self._max_attempts = int(os.getenv("DB_SYNC_MAX_ATTEMPTS", "10"))

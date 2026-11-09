@@ -7,3 +7,7 @@ venv/
 .polydev/
 __pycache__/
 *.pyc
+*.db
+*.db-wal
+*.db-shm
+data/*.db*

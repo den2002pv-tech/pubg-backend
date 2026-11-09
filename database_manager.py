@@ -22,7 +22,12 @@ _sqlite_schema_paths: set[str] = set()
 # ---------------------------------------------------------------------------
 
 def _sqlite_path() -> str:
-    return os.getenv("SQLITE_DATABASE_PATH", "/data/pubg_local.db").strip()
+    path = os.getenv("SQLITE_DATABASE_PATH", "").strip()
+    if path:
+        return path
+    if os.path.exists("/home/container/data") or os.path.exists("/home/container"):
+        return "/home/container/data/pubg_local.db"
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "pubg_local.db")
 
 
 def _pg_url() -> str:
@@ -134,7 +139,11 @@ class DatabaseManager:
             self._set_mode(DatabaseMode.POSTGRES, "PG доступна при старте")
         else:
             _log_event("DATABASE_POSTGRES_UNAVAILABLE", reason="startup_check_failed")
-            logger.warning("PostgreSQL недоступна; запросы к БД будут завершаться ошибкой")
+            if self._sqlite_has_schema():
+                logger.warning("PostgreSQL недоступна; активна локальная SQLite-копия (fallback)")
+                self._set_mode(DatabaseMode.SQLITE, "PG недоступна при старте, SQLite копия готова")
+            else:
+                logger.warning("PostgreSQL недоступна; запросы к БД будут завершаться ошибкой")
 
         self._initialized = True
         self._start_monitor()
@@ -176,8 +185,6 @@ class DatabaseManager:
     # ------------------------------------------------------------------
 
     def _set_mode(self, mode: DatabaseMode, reason: str) -> None:
-        if mode is not DatabaseMode.POSTGRES:
-            raise RuntimeError("SQLite fallback отключён: PostgreSQL является единственной основной БД")
         with self._mode_lock:
             if self._mode != mode:
                 old = self._mode.value
@@ -261,8 +268,9 @@ class DatabaseManager:
             self._pending_outbox_count = 0
             self._last_sync_at = time.monotonic()
             self._sync_error_count = 0
-            if not was_available:
+            if not was_available or self._mode != DatabaseMode.POSTGRES:
                 _log_event("DATABASE_POSTGRES_RESTORED")
+                self._set_mode(DatabaseMode.POSTGRES, "PostgreSQL восстановлена")
             _log_event("DATABASE_SYNC_COMPLETED", applied=applied)
         except Exception as exc:
             self._sync_error_count += 1
