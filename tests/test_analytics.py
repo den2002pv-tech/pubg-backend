@@ -149,10 +149,15 @@ def test_clear_scan_performance_removes_only_timing_fields():
     connection.__enter__.return_value = connection
     cursor_context = connection.cursor.return_value
     cursor = cursor_context.__enter__.return_value
-    cursor.fetchall.return_value = [{"id": 1}, {"id": 2}]
+    cursor.fetchall.return_value = [
+        {"id": 1, "properties": '{"duration_ms": 5}'},
+        {"id": 2, "properties": '{"profile": {}}'},
+    ]
 
     with patch("analytics.get_connection", return_value=connection):
-        cleared = clear_scan_performance_metrics()
+        with patch("analytics.get_manager") as manager:
+            manager.return_value.is_postgres = True
+            cleared = clear_scan_performance_metrics()
 
     assert cleared == 2
     query = cursor.execute.call_args.args[0]

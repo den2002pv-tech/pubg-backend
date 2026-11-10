@@ -54,9 +54,10 @@
 
 ### Данные — `database.py`
 
-- Подключается к PostgreSQL через `psycopg`.
-- Получает строку подключения из `DATABASE_URL`; если переменная отсутствует, соединение завершается ошибкой.
-- Инициализирует таблицы и индексы.
+- SQLite — основная база. Соединения открываются через `database_manager.get_manager().get_sqlite_connection()`.
+- Путь задаётся `SQLITE_DATABASE_PATH` (по умолчанию `/home/container/data/pubg_local.db`).
+- `DATABASE_URL` опционален: если задан, `db_sync.backup_snapshot_to_pg()` периодически отправляет снапшот в PostgreSQL; приложение не читает и не пишет PostgreSQL напрямую.
+- Таблицы создаются в `db_sqlite_schema.SQLITE_SCHEMA_SQL`.
 - Хранит пользователей, SQL-каталог карточек, инвентарь, список «Ищу» и отметки активности.
 
 ### Каталог карточек: файлы и SQL
