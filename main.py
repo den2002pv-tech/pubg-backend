@@ -10,6 +10,7 @@ import logging
 import math
 import os
 import platform
+import sqlite3
 import re
 import tempfile
 import threading
@@ -96,6 +97,7 @@ def startup_database() -> None:
         mode,
         mgr.get_status(),
     )
+    LOGGER.info("SQLite runtime version: %s", sqlite3.sqlite_version)
 
 
 def _scanner_warmup() -> None:
@@ -107,6 +109,20 @@ def _scanner_warmup() -> None:
         with Image.open(encoded) as decoded:
             decoded.load()
             decoded.convert("RGB")
+
+
+def _final_database_backup() -> None:
+    """Flush any pending SQLite changes to PostgreSQL before shutdown."""
+    manager = get_manager()
+    if not manager.has_pending_backup():
+        LOGGER.info("Final PostgreSQL backup skipped (no pending changes or no DATABASE_URL)")
+        return
+    from db_sync import backup_snapshot_to_pg
+    try:
+        rows = backup_snapshot_to_pg()
+        LOGGER.info("Final PostgreSQL backup completed (%s rows)", rows)
+    except Exception as exc:
+        LOGGER.warning("Final PostgreSQL backup failed: %s", exc)
 
 
 SCANNER_DIAGNOSTICS = ScannerDiagnosticStore(
@@ -151,6 +167,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             ),
             "warmup_status": SCANNER_PREWARM.status,
         })
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(_final_database_backup),
+                timeout=5.0,
+            )
+        except asyncio.TimeoutError:
+            LOGGER.warning("Final PostgreSQL backup timed out (5s)")
+        finally:
+            get_manager().stop_backup()
 
 
 app = FastAPI(title="PUBG Card Scanner", lifespan=lifespan)
