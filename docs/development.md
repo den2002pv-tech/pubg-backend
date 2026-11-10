@@ -5,8 +5,8 @@
 Проект использует Python и FastAPI. Основные зависимости перечислены в `requirements.txt`; `requirements-dev.txt` включает основной список и добавляет pytest.
 
 GitHub Actions настроены так:
-- `.github/workflows/tests.yml`: Python 3.12, компиляция `main.py database.py scanner.py tests`, затем `python -m pytest -q`.
-- `.github/workflows/counter-tests.yml`: Python 3.11, компиляция `main.py scanner.py tests`, затем `python -m pytest -v tests`.
+- `.github/workflows/tests.yml`: Node.js 22 (`check_inline_js.cjs` и `test_collection_ui.cjs`), затем Python 3.12, `python -m compileall -q main.py database.py scanner.py tests` и `python -m pytest -q`.
+- `.github/workflows/counter-tests.yml`: Node.js 22 (те же две проверки), затем Python 3.11, `python -m compileall -q main.py scanner.py tests` и `python -m pytest -v tests`.
 
 ## Локальная настройка
 
@@ -45,10 +45,21 @@ python -m pytest -q
 python -m pytest -v tests
 ```
 
-Компиляция Python-файлов, используемая основным workflow:
+Компиляция Python-файлов в workflow:
 
 ```sh
+# .github/workflows/tests.yml (Python 3.12)
 python -m compileall -q main.py database.py scanner.py tests
+
+# .github/workflows/counter-tests.yml (Python 3.11)
+python -m compileall -q main.py scanner.py tests
+```
+
+Проверки JavaScript из обоих workflow:
+
+```sh
+node scripts/check_inline_js.cjs
+node scripts/test_collection_ui.cjs
 ```
 
 Тесты используют как pytest-функции, так и тесты в стиле `unittest`; pytest запускает оба вида. Успешный статус одного workflow не доказывает, что второй workflow прошёл. Проверяйте фактический результат для SHA конкретного коммита.
@@ -73,8 +84,8 @@ python -m compileall -q main.py database.py scanner.py tests
 - Не меняйте `expected_quantity` или прямоугольники только ради прохождения теста.
 - Сохраните исходные размеры скриншота: координаты относятся к оригиналу.
 - Наличие тестов счётчика не доказывает точность обнаружения контуров.
-- Если манифест screenshot fixtures пуст, тест размеченных случаев пропускается. На момент последней проверки `tests/fixtures/screenshots/cases.json` содержал пустой список `cases`.
-- Поле `state: "unowned"` в текущем тесте не проверяется отдельно по каждой области. Это ограничение документировано; не считайте классификацию владения покрытой до появления явного теста.
+- На момент сверки `tests/fixtures/counter/cases.json` содержит 95 случаев распознавания количества. `tests/fixtures/screenshots/cases.json` содержит 25 скриншотов и 85 размеченных областей: 81 `owned`, 4 `unowned`; 81 область имеет `identity_verified: true`.
+- `tests/test_screenshot_fixtures.py` отдельно проверяет, что найденные области не перекрывают размеченные `unowned`-карты выше порога IoU, а для `identity_verified: true` проверяет сопоставление ID. Это покрытие относится только к сохранённым фикстурам и не доказывает универсальную классификацию владения.
 
 Рекомендуемые команды:
 
@@ -126,16 +137,17 @@ python -m pytest -v tests
 
 ## Проверка встроенного JavaScript в HTML
 
-В обоих CI workflow перед Python-проверками выполняется:
+В обоих CI workflow перед Python-проверками выполняются:
 
 ```sh
 node scripts/check_inline_js.cjs
+node scripts/test_collection_ui.cjs
 ```
 
-Скрипт обходит HTML-файлы репозитория, находит встроенные классические блоки `<script>` и компилирует каждый блок без выполнения. Это позволяет поймать синтаксические ошибки, из-за которых браузер может отключить обработчики интерфейса, например вход в админку. В частности, проверка должна обнаруживать буквальные символы `\n`, случайно попавшие в JavaScript вместо реального переноса строки, если они делают блок синтаксически некорректным.
+`check_inline_js.cjs` обходит HTML-файлы репозитория, находит встроенные классические блоки `<script>` и компилирует каждый блок без выполнения. `test_collection_ui.cjs` запускает проверки клиентских сценариев сохранения коллекции и очереди сканирования. Это позволяет поймать синтаксические ошибки, из-за которых браузер может отключить обработчики интерфейса, например вход в админку. В частности, проверка должна обнаруживать буквальные символы `\n`, случайно попавшие в JavaScript вместо реального переноса строки, если они делают блок синтаксически некорректным.
 
-- `.github/workflows/tests.yml` запускает проверку с Node.js 22 перед Python 3.12 и полным pytest.
-- `.github/workflows/counter-tests.yml` запускает ту же проверку с Node.js 22 перед тестами на Python 3.11.
+- `.github/workflows/tests.yml` запускает обе Node-проверки с Node.js 22, затем компиляцию Python 3.12 и `python -m pytest -q`.
+- `.github/workflows/counter-tests.yml` запускает обе Node-проверки с Node.js 22, затем компиляцию Python 3.11 и `python -m pytest -v tests`.
 - Проверка компилирует встроенный JavaScript, но **не исполняет его в браузере** и не проверяет работу DOM, запросов API, авторизации или взаимодействия пользователя.
 - Внешние скрипты, подключённые через `src`, и модульные скрипты пропускаются этой проверкой. Для них нужны отдельные проверки.
 - Успешный CI — не подтверждение успешного входа в админку. Критические пользовательские сценарии следует дополнительно покрывать браузерными тестами.

@@ -55,7 +55,7 @@
 ### Данные — `database.py`
 
 - SQLite — основная база. Соединения открываются через `database_manager.get_manager().get_sqlite_connection()`.
-- Путь задаётся `SQLITE_DATABASE_PATH` (по умолчанию `/home/container/data/pubg_local.db`).
+- Путь задаётся `SQLITE_DATABASE_PATH`; без переменной `database_manager._sqlite_path()` выбирает `/home/container/data/pubg_local.db`, если существует `/home/container/data` или `/home/container`, иначе `./data/pubg_local.db`.
 - `DATABASE_URL` опционален: если задан, `db_sync.backup_snapshot_to_pg()` периодически отправляет снапшот в PostgreSQL; приложение не читает и не пишет PostgreSQL напрямую.
 - Таблицы создаются в `db_sqlite_schema.SQLITE_SCHEMA_SQL`.
 - Хранит пользователей, SQL-каталог карточек, инвентарь, список «Ищу» и отметки активности.
