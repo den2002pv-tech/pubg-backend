@@ -58,19 +58,7 @@ def init_analytics_db() -> None:
     # SQLite-схема уже создана через db_sqlite_schema.ensure_sqlite_schema
 
 
-Z NOT NULL DEFAULT NOW()
-                );
-                CREATE INDEX IF NOT EXISTS idx_user_analytics_created
-                    ON user_analytics_events (created_at DESC);
-                CREATE INDEX IF NOT EXISTS idx_user_analytics_name_created
-                    ON user_analytics_events (event_name, created_at DESC);
-                CREATE INDEX IF NOT EXISTS idx_user_analytics_user_created
-                    ON user_analytics_events (user_id, created_at DESC);
-            """)
-        conn.commit()
-        from db_sync import ensure_postgres_outbox_schema
-        ensure_postgres_outbox_schema(conn)
-        conn.commit()
+
 
 
 def _sanitize_enum_properties(raw: dict[str, Any]) -> dict[str, Any]:

@@ -190,49 +190,7 @@ def init_db() -> None:
     ensure_sqlite_schema(_sqlite_path())
 
 
-Z NOT NULL DEFAULT NOW(),
-                    last_seen_at TIMESTAMPTZ,
-                    last_activity_at TIMESTAMPTZ
-                );
 
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT '';
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT NOT NULL DEFAULT '';
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT NOT NULL DEFAULT '';
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
-                CREATE INDEX IF NOT EXISTS idx_users_last_activity_at ON users (last_activity_at DESC);
-
-                CREATE TABLE IF NOT EXISTS cards (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    rarity INTEGER NOT NULL DEFAULT 1,
-                    icon TEXT NOT NULL DEFAULT ''
-                );
-
-                CREATE TABLE IF NOT EXISTS user_cards (
-                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
-                    quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
-                    PRIMARY KEY (user_id, card_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS desired_cards (
-                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    PRIMARY KEY (user_id, card_id)
-                );
-
-                CREATE TABLE IF NOT EXISTS trades (
-                    id BIGSERIAL PRIMARY KEY,
-                    from_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    to_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    status TEXT NOT NULL DEFAULT 'pending',
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-                """
-            )
-        conn.commit()
 
 
 # ---------------------------------------------------------------------------

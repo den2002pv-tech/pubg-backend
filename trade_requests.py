@@ -318,30 +318,7 @@ def init_trade_request_schema() -> None:
     # SQLite-схема уже создана в db_sqlite_schema.ensure_sqlite_schema
 
 
-Z,
-                    recipient_agreed_at TIMESTAMPTZ,
-                    sender_completed_at TIMESTAMPTZ,
-                    recipient_completed_at TIMESTAMPTZ,
-                    exchange_code_sent_at TIMESTAMPTZ,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    CHECK (sender_user_id <> recipient_user_id)
-                );
-                ALTER TABLE trade_requests ADD COLUMN IF NOT EXISTS exchange_code_sent_at TIMESTAMPTZ;
-                CREATE TABLE IF NOT EXISTS processed_telegram_updates (
-                    update_id BIGINT PRIMARY KEY,
-                    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-                CREATE INDEX IF NOT EXISTS idx_trade_requests_sender_created
-                    ON trade_requests (sender_user_id, created_at DESC);
-                CREATE INDEX IF NOT EXISTS idx_trade_requests_recipient_created
-                    ON trade_requests (recipient_user_id, created_at DESC);
-                """
-            )
-        conn.commit()
-        from db_sync import ensure_postgres_outbox_schema
-        ensure_postgres_outbox_schema(conn)
-        conn.commit()
+
 
 
 @router.post("/me/trade-requests")
