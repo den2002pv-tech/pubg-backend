@@ -70,9 +70,10 @@ def backup_snapshot_to_pg(db_path: str | None = None, database_url: str | None =
                 tuple(_postgres_value(table, name, row[name]) for name in columns)
                 for row in rows
             ]
-            pg.executemany(
-                f'INSERT INTO "{table}" ({names}) VALUES ({placeholders})', values
-            )
+            with pg.cursor() as cursor:
+                cursor.executemany(
+                    f'INSERT INTO "{table}" ({names}) VALUES ({placeholders})', values
+                )
     return total_rows
 
 
