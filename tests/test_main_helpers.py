@@ -1220,7 +1220,12 @@ def test_scan_fast_pass_falls_back_when_catalog_match_rate_is_below_40_percent(m
         }
 
     monkeypatch.setattr(main, "_read_image", read_image)
-    monkeypatch.setattr(main, "get_user_settings", lambda _user_id: {
+    monkeypatch.setattr(
+        main,
+        "_validate_telegram_init_data",
+        lambda _init_data: {"id": 12345, "user": {"id": 12345}},
+    )
+    monkeypatch.setattr(main, "get_user_settings", lambda user_id: {
         "column_bounds": '[{"x": 10, "w": 80}]',
         "calibration_width": 400,
     })
@@ -1234,7 +1239,7 @@ def test_scan_fast_pass_falls_back_when_catalog_match_rate_is_below_40_percent(m
 
     request = Request({"type": "http", "headers": [], "client": ("192.0.2.20", 12345)})
     result = asyncio.run(main.scan(
-        request=request, file=object(), init_data="", fast_scan=True,
+        request=request, file=object(), init_data="test-init-data", fast_scan=True,
     ))
 
     assert len(calls) == 2
