@@ -493,6 +493,56 @@ def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
     return cards
 
 
+def fast_detect_inventory_cards(
+    image: Image.Image,
+    column_bounds_json: str,
+    calibration_width: int,
+) -> list[dict[str, Any]]:
+    import json
+
+    try:
+        bounds = json.loads(column_bounds_json)
+        if not bounds or not isinstance(bounds, list):
+            return []
+    except Exception:
+        return []
+
+    img_w, img_h = image.size
+    if calibration_width <= 0:
+        calibration_width = img_w
+
+    scale = img_w / calibration_width
+    cards = []
+
+    # Эталонная высота карты в игре (при ширине 1600)
+    base_card_h = 352
+    card_h = int(base_card_h * scale)
+
+    # Отступ между рядами (примерно 20% от высоты карты)
+    y_step = int(card_h * 1.2)
+
+    # Верхний отступ (примерно 10% от высоты экрана)
+    current_y = int(img_h * 0.12)
+    row = 0
+
+    # Идем сверху вниз, пока карта помещается на экране
+    while current_y + card_h <= img_h:
+        for col_idx, bound in enumerate(bounds):
+            x = int(bound["x"] * scale)
+            width = int(bound["w"] * scale)
+            if x < 0 or width <= 0 or x + width > img_w:
+                continue
+            cards.append({
+                "row": row,
+                "col": col_idx,
+                "box": [x, current_y, width, card_h],
+            })
+        row += 1
+        current_y += y_step
+
+    return cards
+
+
 def extract_visual_area(card: Image.Image) -> Image.Image:
     w, h = card.size
     return card.crop((int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.78)))
@@ -1588,14 +1638,18 @@ def _has_counter_evidence(quantity_confidence: float, counter_debug: dict[str, A
     )
 
 
-def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
+def scan_screenshot(
+    image: Image.Image,
+    save_previews: bool = True,
+    pre_detected: list | None = None,
+) -> dict[str, Any]:
     total_started = time.perf_counter()
     stage_started = time.perf_counter()
     image = _image_from_any(image)
     decode_ms = (time.perf_counter() - stage_started) * 1000
 
     stage_started = time.perf_counter()
-    detected = detect_inventory_cards(image)
+    detected = pre_detected if pre_detected is not None else detect_inventory_cards(image)
     geometric_detected_count = len(detected)
     detection_ms = (time.perf_counter() - stage_started) * 1000
     counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0

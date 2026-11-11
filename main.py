@@ -27,7 +27,7 @@ from urllib.request import Request as UrlRequest, urlopen
 
 import sentry_sdk
 
-from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -42,6 +42,7 @@ from scanner import (
     CARD_HASH_KEYS,
     calculate_card_hashes,
     detect_inventory_cards,
+    fast_detect_inventory_cards,
     diagnose_inventory_cards,
     scan_screenshot,
 )
@@ -4010,6 +4011,8 @@ async def record_save_client_result(
 async def scan(
     request: Request,
     file: UploadFile = File(...),
+    fast_scan: bool = Form(default=False),
+    calibrate: bool = Form(default=False),
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
     request_started = time.perf_counter()
@@ -4071,7 +4074,58 @@ async def scan(
             (time.perf_counter() - queue_started) * 1000, 3
         )
         image = await _read_image(file, upload_profile)
-        result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
+        user_settings = get_user_settings(auth["id"]) if auth else {}
+        used_fast_scan = False
+        calibrated_now = False
+        pre_detected = None
+
+        # Если запрошена калибровка, принудительно отключаем fast_scan на этот раз
+        if calibrate:
+            fast_scan = False
+
+        if fast_scan and user_settings.get("column_bounds"):
+            fast_cards = await asyncio.to_thread(
+                fast_detect_inventory_cards,
+                image,
+                user_settings["column_bounds"],
+                user_settings["calibration_width"],
+            )
+            if fast_cards:
+                pre_detected = fast_cards
+                used_fast_scan = True
+
+        result = await asyncio.to_thread(
+            scan_screenshot,
+            image,
+            save_previews=True,
+            pre_detected=pre_detected,
+        )
+
+    # Калибровка: если у пользователя нет настроек или явно запрошена калибровка
+    if auth and (calibrate or not user_settings.get("column_bounds")):
+        from collections import defaultdict
+
+        rows = defaultdict(list)
+        for card in result.get("cards", []):
+            rows[card["row"]].append(card)
+
+        # Ищем ряд, где ровно 4 карты (стандартный инвентарь)
+        for row_idx, row_cards in rows.items():
+            if len(row_cards) == 4:
+                # Сортируем по X, чтобы границы шли слева направо
+                row_cards.sort(key=lambda card: card["box"][0])
+                bounds = [
+                    {"x": card["box"][0], "w": card["box"][2]}
+                    for card in row_cards
+                ]
+                update_user_settings(
+                    auth["id"],
+                    fast_scan_enabled=user_settings.get("fast_scan_enabled", False),
+                    column_bounds=json.dumps(bounds),
+                    calibration_width=image.width,
+                )
+                calibrated_now = True
+                break
     image_size = getattr(image, "size", (None, None))
     request_diag.update({
         "image_upload_size_bytes": upload_profile.get("upload_size_bytes"),
@@ -4177,6 +4231,8 @@ async def scan(
         "count": len(matches),
         "authenticated": bool(auth),
         "profile": profile,
+        "fast_scan_used": used_fast_scan,
+        "calibrated_now": calibrated_now,
     }
     response_build_ms = round((time.perf_counter() - response_started) * 1000, 3)
     request_diag.update({
