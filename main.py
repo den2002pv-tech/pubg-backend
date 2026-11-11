@@ -4094,12 +4094,19 @@ async def scan(
                 pre_detected = fast_cards
                 used_fast_scan = True
 
-        result = await asyncio.to_thread(
-            scan_screenshot,
-            image,
-            save_previews=True,
-            pre_detected=pre_detected,
-        )
+        if pre_detected is not None:
+            result = await asyncio.to_thread(
+                scan_screenshot,
+                image,
+                save_previews=True,
+                pre_detected=pre_detected,
+            )
+        else:
+            result = await asyncio.to_thread(
+                scan_screenshot,
+                image,
+                save_previews=True,
+            )
 
     # Калибровка: если у пользователя нет настроек или явно запрошена калибровка
     if auth and (calibrate or not user_settings.get("column_bounds")):
