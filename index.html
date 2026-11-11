@@ -1419,10 +1419,12 @@ async function uploadImage(file) {
     if (d.calibrated_now === true) {
       recalibrateToggle.checked = false;
       showToast('Колонки откалиброваны', 'success');
+      await loadScannerSettings();
       let columnCount = null;
-      if (d.column_bounds) {
+      const calibrationBounds = d.column_bounds || currentColumnBounds;
+      if (calibrationBounds) {
         try {
-          const bounds = typeof d.column_bounds === 'string' ? JSON.parse(d.column_bounds) : d.column_bounds;
+          const bounds = typeof calibrationBounds === 'string' ? JSON.parse(calibrationBounds) : calibrationBounds;
           if (Array.isArray(bounds)) columnCount = bounds.length;
         } catch (_) {}
       }
