@@ -46,7 +46,7 @@ from scanner import (
     scan_screenshot,
 )
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
-from database import measure_database, add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
+from database import measure_database, add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, get_user_settings, update_user_settings, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 from scanner_diagnostics import ScannerDiagnosticStore
 from scanner_prewarm import ScannerPrewarmController
@@ -677,6 +677,12 @@ class CardSaveSchema(BaseModel):
 
 class CardPreviewSchema(BaseModel):
     preview: str
+
+
+class UserSettingsSchema(BaseModel):
+    fast_scan_enabled: bool = False
+    column_bounds: str = ""
+    calibration_width: int = 0
 
 
 def _hamming(a: str, b: str) -> int | None:
@@ -3698,6 +3704,34 @@ async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Ini
         "cards": get_user_cards(auth["id"]),
         "desired_cards": get_desired_cards(auth["id"]),
     }
+
+
+@app.get("/me/settings")
+async def get_my_settings(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
+    auth = _validate_telegram_init_data(init_data)
+    get_or_create_user(auth["id"])
+    settings = get_user_settings(auth["id"])
+    return {"status": "ok", **settings}
+
+
+@app.put("/me/settings")
+async def update_my_settings(
+    data: UserSettingsSchema,
+    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
+):
+    auth = _validate_telegram_init_data(init_data)
+    get_or_create_user(auth["id"])
+    # Ограничиваем размер строки column_bounds, чтобы не забить БД
+    safe_bounds = data.column_bounds[:2000] if data.column_bounds else ""
+    safe_width = max(0, min(data.calibration_width, 10000))
+
+    settings = update_user_settings(
+        auth["id"],
+        fast_scan_enabled=data.fast_scan_enabled,
+        column_bounds=safe_bounds,
+        calibration_width=safe_width
+    )
+    return {"status": "ok", **settings}
 
 
 @app.put("/me/desired-cards")
