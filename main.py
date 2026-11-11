@@ -4108,6 +4108,43 @@ async def scan(
                 save_previews=True,
             )
 
+        fast_scan_fallback = False
+        preliminary_db = None
+        if pre_detected is not None:
+            # Fast detection can return plausible crops at incorrect Y positions.
+            # Validate them against the catalog before accepting the fast pass.
+            preliminary_db = load_db()
+            detected_count = len(result.get("cards", []))
+            preliminary_matches = 0
+            threshold = float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
+            for card in result.get("cards", []):
+                match = _match_card_detailed(
+                    card.get("hashes", {}), preliminary_db, {},
+                )
+                raw_hashes = card.get("raw_hashes", {})
+                if raw_hashes and raw_hashes != card.get("hashes", {}):
+                    raw_match = _match_card_detailed(raw_hashes, preliminary_db, {})
+                    if raw_match["id"] is not None and (
+                        match["id"] is None or raw_match["score"] < match["score"]
+                    ):
+                        match = raw_match
+                if match["id"] is not None and match["score"] <= threshold:
+                    preliminary_matches += 1
+
+            if detected_count == 0 or preliminary_matches < detected_count * 0.4:
+                LOGGER.info(
+                    "Fast scan fallback: matched %s of %s detected cards",
+                    preliminary_matches, detected_count,
+                )
+                async with SCAN_SEMAPHORE:
+                    result = await asyncio.to_thread(
+                        scan_screenshot,
+                        image,
+                        save_previews=True,
+                    )
+                fast_scan_fallback = True
+                used_fast_scan = False
+
     # Калибровка: если у пользователя нет настроек или явно запрошена калибровка
     if auth and (calibrate or not user_settings.get("column_bounds")):
         from collections import defaultdict
@@ -4146,7 +4183,7 @@ async def scan(
     request_diag["image_preprocess_ms"] = result.get("profile", {}).get("rgb_convert_ms")
     matching_started = time.perf_counter()
     catalog_load_started = time.perf_counter()
-    db = load_db()
+    db = preliminary_db if preliminary_db is not None else load_db()
     catalog_load_ms = (time.perf_counter() - catalog_load_started) * 1000
 
     matches = []
@@ -4239,6 +4276,7 @@ async def scan(
         "authenticated": bool(auth),
         "profile": profile,
         "fast_scan_used": used_fast_scan,
+        "fast_scan_fallback": fast_scan_fallback,
         "calibrated_now": calibrated_now,
     }
     response_build_ms = round((time.perf_counter() - response_started) * 1000, 3)

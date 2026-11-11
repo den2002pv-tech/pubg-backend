@@ -1431,8 +1431,13 @@ async function uploadImage(file) {
       fastScanStatus.textContent = columnCount === null
         ? 'Колонки сохранены'
         : 'Колонки сохранены: ' + columnCount;
+    } else if (d.fast_scan_fallback === true) {
+      const message = '⚠️ Быстрый проход не удался (возможно, сместилась сетка), выполнен полный скан';
+      fastScanStatus.textContent = message;
+      console.warn(message);
     } else if (d.fast_scan_used === true) {
-      fastScanStatus.textContent = 'Использован быстрый проход по сохранённым колонкам';
+      fastScanStatus.textContent = '⚡ Использован быстрый проход';
+      console.info('⚡ Использован быстрый проход');
     } else if (fastScanRequested && d.fast_scan_used === false) {
       fastScanStatus.textContent = 'Быстрый проход недоступен — выполнен обычный скан';
     }

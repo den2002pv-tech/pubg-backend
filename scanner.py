@@ -498,50 +498,91 @@ def fast_detect_inventory_cards(
     column_bounds_json: str,
     calibration_width: int,
 ) -> list[dict[str, Any]]:
+    """Detect card rows independently in each calibrated vertical column."""
     import json
 
     try:
         bounds = json.loads(column_bounds_json)
-        if not bounds or not isinstance(bounds, list):
+        if not isinstance(bounds, list) or not bounds:
             return []
-    except Exception:
+    except (TypeError, ValueError, json.JSONDecodeError):
         return []
 
-    img_w, img_h = image.size
+    pil = _image_from_any(image)
+    img_w, img_h = pil.size
     if calibration_width <= 0:
         calibration_width = img_w
+    scale = img_w / float(calibration_width)
+    cards: list[dict[str, Any]] = []
 
-    scale = img_w / calibration_width
-    cards = []
+    for col_idx, bound in enumerate(bounds):
+        try:
+            x = int(round(float(bound["x"]) * scale))
+            width = int(round(float(bound["w"]) * scale))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if x < 0 or width <= 0 or x + width > img_w:
+            continue
 
-    # Эталонная высота карты в игре (при ширине 1600)
-    base_card_h = 352
-    card_h = int(base_card_h * scale)
+        strip = pil.crop((x, 0, x + width, img_h)).convert("L")
+        gray = np.asarray(strip, dtype=np.float32)
+        if gray.size == 0:
+            continue
 
-    # Отступ между рядами (примерно 20% от высоты карты)
-    y_step = int(card_h * 1.2)
+        # Horizontal projection: one mean brightness value per image row.
+        projection = gray.mean(axis=1)
+        if projection.size < 3:
+            continue
+        differences = np.diff(projection)
+        magnitude = np.abs(differences)
+        adaptive_floor = max(2.0, float(np.percentile(magnitude, 85)) * 0.65)
+        threshold = max(adaptive_floor, float(magnitude.mean() + magnitude.std() * 1.25))
+        edge_positions = np.flatnonzero(magnitude >= threshold) + 1
+        if edge_positions.size < 2:
+            continue
 
-    # Верхний отступ (примерно 10% от высоты экрана)
-    current_y = int(img_h * 0.12)
-    row = 0
+        # Merge nearby responses belonging to the same visual boundary.
+        boundaries: list[int] = []
+        groups: list[list[int]] = []
+        for position in edge_positions.tolist():
+            if groups and position - groups[-1][-1] <= max(2, int(width * 0.025)):
+                groups[-1].append(position)
+            else:
+                groups.append([position])
+        for group in groups:
+            boundaries.append(int(round(float(np.mean(group)))))
 
-    # Идем сверху вниз, пока карта помещается на экране
-    while current_y + card_h <= img_h:
-        for col_idx, bound in enumerate(bounds):
-            x = int(bound["x"] * scale)
-            width = int(bound["w"] * scale)
-            if x < 0 or width <= 0 or x + width > img_w:
+        # Pair each top edge with the next plausible bottom edge. Card height
+        # is inferred from the calibrated column width, not from screen Y.
+        expected_height = width / 0.68
+        min_height = max(24, int(expected_height * 0.62))
+        max_height = min(img_h, int(expected_height * 1.42))
+        column_cards: list[tuple[int, int]] = []
+        index = 0
+        while index < len(boundaries) - 1:
+            top = boundaries[index]
+            candidates = [
+                bottom for bottom in boundaries[index + 1:]
+                if min_height <= bottom - top <= max_height
+            ]
+            if not candidates:
+                index += 1
+                continue
+            bottom = candidates[0]
+            column_cards.append((top, bottom))
+            index = boundaries.index(bottom) + 1
+
+        for row_idx, (top, bottom) in enumerate(column_cards):
+            height = bottom - top
+            if height <= 0:
                 continue
             cards.append({
-                "row": row,
+                "row": row_idx,
                 "col": col_idx,
-                "box": [x, current_y, width, card_h],
+                "box": [x, top, width, height],
             })
-        row += 1
-        current_y += y_step
 
-    return cards
-
+    return sorted(cards, key=lambda card: (card["row"], card["col"]))
 
 def extract_visual_area(card: Image.Image) -> Image.Image:
     w, h = card.size
