@@ -13,7 +13,7 @@
 - Регистрирует маршруты обменов из `trade_requests.py` через `register_trade_request_routes(...)`.
 - Проверяет Telegram Mini App `initData` в пользовательских обработчиках, использующих эту проверку. Не предполагайте, что каждый маршрут требует Telegram-аутентификацию: проверяйте конкретный обработчик.
 - Подключает Sentry только при наличии непустого `SENTRY_DSN`; `send_default_pii=False`.
-- Содержит API-обработчики, статические маршруты и страницы интерфейса. Фактическое размещение приложения и публичный origin требуют проверки в панели Enzonic; frontend и API рассчитаны на same-origin.
+- Содержит API-обработчики, статические маршруты и страницы интерфейса. На Enzonic приложение запускается кастомным bash-скриптом из панели: он подготавливает `/home/container`, проверяет `SERVER_PORT`, экспортирует `PORT`, `PYTHONPATH`, `TMPDIR` и `SQLITE_DATABASE_PATH`, устанавливает зависимости в `.deps` при изменении `requirements.txt` и запускает `exec python3 -m uvicorn main:app --app-dir /home/container --host 0.0.0.0 --port $SERVER_PORT`. `exec` обеспечивает PID 1 процесса Uvicorn и доставку SIGTERM приложению для graceful shutdown и `_final_database_backup()` в `lifespan`. На момент проверки: один worker (параметр `--workers` не задан), порт `25722`, Docker image `ghcr.io/parkervcp/yolks:python_3.14` (Python 3.14). Внешний managed-домен `https://pubg-card.enzonic.dev` проксирует HTTPS на контейнер; frontend и API рассчитаны на same-origin.
 
 ### Администрирование эталонных тестов счётчика
 
@@ -56,8 +56,8 @@
 
 - SQLite — первичная база приложения. `database.py` выполняет операции с пользователями, карточками, инвентарём и списком «Ищу» через SQLite; PostgreSQL используется только как цель снапшот-бэкапа через `db_sync.backup_snapshot_to_pg()`.
 - `get_connection()` — контекстный менеджер SQLite-соединения через `database._SQLiteConnectionAdapter`; psycopg в путь запросов не входит. Низкоуровневые соединения открываются через `database_manager.get_manager().get_sqlite_connection()`.
-- Путь задаётся `SQLITE_DATABASE_PATH`; без переменной `database_manager._sqlite_path()` выбирает `/home/container/data/pubg_local.db`, если существует `/home/container/data` или `/home/container`, иначе `./data/pubg_local.db`.
-- `DATABASE_URL` используется для подключения к PostgreSQL при создании резервного снапшота; обработчики приложения не используют PostgreSQL для запросов.
+- Startup-скрипт Enzonic задаёт `SQLITE_DATABASE_PATH=/home/container/data/pubg_local.db`. Файл находится на постоянном томе: его наличие и сохранность подтверждаются uptime контейнера около 356 дней, файлами с датами 2026-10-25 и позднее, а также ручной резервной копией от 2026-11-06 с данными. На момент проверки SQLite-файл занимал около 440 KB; WAL/SHM-файлы отсутствовали. Без переменной `database_manager._sqlite_path()` выбирает `/home/container/data/pubg_local.db`, если существует `/home/container/data` или `/home/container`, иначе `./data/pubg_local.db`.
+- `DATABASE_URL` указывает на отдельный PostgreSQL pooler Enzonic: `pubg-db-m6azzf-pooler.db.enzonic.com:5432`, БД `main`, `sslmode=require`. Он используется только для создания резервного снапшота; обработчики приложения не используют PostgreSQL для запросов. MySQL-сервис `s131204_pubg_cards` в панели присутствует, но приложением не используется.
 - Таблицы создаются в SQLite по `db_sqlite_schema.SQLITE_SCHEMA_SQL`.
 
 ### Каталог карточек: файлы и SQL
@@ -82,7 +82,7 @@
 
 ## Хранилище
 
-SQLite — первичная база приложения. PostgreSQL является только целью резервного снапшота, выполняемого `db_sync.backup_snapshot_to_pg()`; `DATABASE_URL` используется для этого соединения, а не для пути запросов. Фактическое размещение приложения и PostgreSQL, внутренний адрес подключения, постоянство SQLite-тома, политика резервного копирования и хранения данных требуют проверки в Enzonic.
+SQLite — первичная база приложения. `SQLITE_DATABASE_PATH=/home/container/data/pubg_local.db` задаётся startup-скриптом Enzonic; файл расположен на постоянном томе, что подтверждается длительным uptime контейнера (~356 дней), наличием файлов с датами 2026-10-25 и позднее и данными в ручном бэкапе от 2026-11-06. PostgreSQL — отдельный сервис Enzonic, доступный через pooler `pubg-db-m6azzf-pooler.db.enzonic.com:5432` (БД `main`, `sslmode=require`); он является только целью `db_sync.backup_snapshot_to_pg()`, а не хранилищем запросов приложения. Автоматические бэкапы контейнера отключены; сведения о ручном бэкапе и непроверенных политиках приведены ниже.
 
 Основные таблицы создаются в SQLite согласно `db_sqlite_schema.SQLITE_SCHEMA_SQL`; их описание:
 
@@ -107,10 +107,14 @@ SQLite — первичная база приложения. PostgreSQL явля
 
 ## Проверенные эксплуатационные точки
 
-- Фактическое размещение backend/frontend и PostgreSQL на Enzonic, публичный origin и параметры подключения требуют проверки в панели платформы. По коду подтверждается только то, что `DATABASE_URL` используется для PostgreSQL-снапшот-бэкапа.
-- Файл конфигурации Enzonic в репозитории отсутствует. Команда запуска в панели, build/start-настройки, привязка порта, PID 1, cgroup-лимиты и постоянство SQLite-тома требуют отдельной проверки; зависимости перечислены в `requirements.txt`.
+- Enzonic использует Docker image `ghcr.io/parkervcp/yolks:python_3.14` с Python 3.14. Startup command — кастомный bash-скрипт панели, завершающийся `exec python3 -m uvicorn main:app --app-dir /home/container --host 0.0.0.0 --port $SERVER_PORT`; это делает Uvicorn процессом PID 1 и обеспечивает доставку SIGTERM приложению. Запущен один worker, `SERVER_PORT=25722`; внешний HTTPS managed-домен `pubg-card.enzonic.dev:443` проксирует на контейнер.
+- По разделу Limits панели установлены memory=512 MB, CPU=100% (1 core), disk=1024 MB. На 2026-11-11 панель показывала RAM около 80.4 MB, CPU около 23%, disk около 511.5 MB (примерно 50% лимита), uptime 30 807 616 секунд. Это значения панели, а не runtime cgroup-замеры.
+- `SQLITE_DATABASE_PATH=/home/container/data/pubg_local.db` задаётся startup-скриптом; постоянство тома подтверждается uptime контейнера и сохранностью файлов с датами 2026-10-25 и позднее. PostgreSQL — отдельный сервис Enzonic через pooler `pubg-db-m6azzf-pooler.db.enzonic.com:5432`, БД `main`, `sslmode=require`; приложение использует его только для снапшот-бэкапа.
+- `PUBLIC_BASE_URL` в Enzonic не задан. `app_config.DEFAULT_PUBLIC_BASE_URL=https://pubg-card.enzonic.dev` совпадает с активным managed-доменом панели.
+- Автоматические бэкапы контейнера отключены (`auto_backup_enabled: false`), лимит панели — один бэкап. Есть один успешный ручной бэкап от 2026-11-06 09:33 UTC размером около 282 MB в S3; бэкап контейнера включает файлы и SQLite, но не отдельный PostgreSQL-сервис. Политика retention S3 и наличие/периодичность бэкапов PostgreSQL требуют проверки.
+- Точные runtime-значения `ps`, `ss`, `df`, `du` и `/sys/fs/cgroup/*` требуют проверки из shell контейнера; показатели Limits/потребления панели не заменяют эти замеры. Фактическое значение `app_config.get_app_commit()` для запущенного процесса также требует проверки в логах/диагностике.
 - В `main.py` объявлен `GET /health`, возвращающий `{"status":"ok"}`. Это проверка доступности HTTP-процесса, но не полноценная проверка всех операций БД или бизнес-логики.
 - Sentry включается через переменную окружения `SENTRY_DSN`; внешний статус доставки событий надо проверять в Sentry, а не выводить из факта наличия SDK в зависимостях.
-- `app_config.get_app_commit()` выбирает первое непустое значение в порядке `APP_COMMIT` → `GITHUB_SHA` → `RENDER_GIT_COMMIT` → `SOURCE_VERSION`. Если переменные отсутствуют, функция запрашивает HEAD настроенной GitHub-ветки через `_github_head_sha`, затем выполняет `git rev-parse --short=12 HEAD`; при неудаче возвращает `unknown`. GitHub API fallback предусмотрен потому, что Enzonic может копировать файлы без обновления локального `.git`.
+- `app_config.get_app_commit()` выбирает первое непустое значение в порядке `APP_COMMIT` → `GITHUB_SHA` → `RENDER_GIT_COMMIT` → `SOURCE_VERSION`. Все четыре переменные в Enzonic не заданы; поэтому применяется fallback через GitHub API (`_github_head_sha`), затем выполняется `git rev-parse --short=12 HEAD`, а при неудаче возвращается `unknown`. Фактический результат для текущего запущенного процесса требует проверки в логах/диагностике.
 
 Не храните в документации значения секретов, токены или реальные пользовательские данные.
