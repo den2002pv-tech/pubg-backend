@@ -109,14 +109,6 @@ CREATE INDEX IF NOT EXISTS idx_trade_requests_sender_created
 CREATE INDEX IF NOT EXISTS idx_trade_requests_recipient_created
     ON trade_requests (recipient_user_id, created_at DESC);
 
--- Настройки пользователя
-CREATE TABLE IF NOT EXISTS user_settings (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    fast_scan_enabled INTEGER NOT NULL DEFAULT 0,
-    column_bounds TEXT NOT NULL DEFAULT '',
-    calibration_width INTEGER NOT NULL DEFAULT 0
-);
-
 -- Дедупликация Telegram-webhook
 CREATE TABLE IF NOT EXISTS processed_telegram_updates (
     update_id INTEGER PRIMARY KEY,

@@ -27,7 +27,7 @@ from urllib.request import Request as UrlRequest, urlopen
 
 import sentry_sdk
 
-from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -42,12 +42,11 @@ from scanner import (
     CARD_HASH_KEYS,
     calculate_card_hashes,
     detect_inventory_cards,
-    fast_detect_inventory_cards,
     diagnose_inventory_cards,
     scan_screenshot,
 )
 from analytics import clear_scan_performance_metrics, get_analytics_events, get_analytics_summary, init_analytics_db, record_analytics_events
-from database import measure_database, add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, get_user_settings, update_user_settings, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
+from database import measure_database, add_zero_cards, clear_user_cards, get_admin_user, get_admin_users, get_desired_cards, get_or_create_user, get_trade_matches, get_user_cards, init_db, set_desired_cards, set_user_card_quantities, set_user_card_quantity, sync_cards
 from trade_requests import create_trade_request_for_match, init_trade_request_schema, register_trade_request_routes
 from scanner_diagnostics import ScannerDiagnosticStore
 from scanner_prewarm import ScannerPrewarmController
@@ -678,12 +677,6 @@ class CardSaveSchema(BaseModel):
 
 class CardPreviewSchema(BaseModel):
     preview: str
-
-
-class UserSettingsSchema(BaseModel):
-    fast_scan_enabled: bool = False
-    column_bounds: str = ""
-    calibration_width: int = 0
 
 
 def _hamming(a: str, b: str) -> int | None:
@@ -3707,34 +3700,6 @@ async def get_my_cards(init_data: str = Header(default="", alias="X-Telegram-Ini
     }
 
 
-@app.get("/me/settings")
-async def get_my_settings(init_data: str = Header(default="", alias="X-Telegram-Init-Data")):
-    auth = _validate_telegram_init_data(init_data)
-    get_or_create_user(auth["id"])
-    settings = get_user_settings(auth["id"])
-    return {"status": "ok", **settings}
-
-
-@app.put("/me/settings")
-async def update_my_settings(
-    data: UserSettingsSchema,
-    init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
-):
-    auth = _validate_telegram_init_data(init_data)
-    get_or_create_user(auth["id"])
-    # Ограничиваем размер строки column_bounds, чтобы не забить БД
-    safe_bounds = data.column_bounds[:2000] if data.column_bounds else ""
-    safe_width = max(0, min(data.calibration_width, 10000))
-
-    settings = update_user_settings(
-        auth["id"],
-        fast_scan_enabled=data.fast_scan_enabled,
-        column_bounds=safe_bounds,
-        calibration_width=safe_width
-    )
-    return {"status": "ok", **settings}
-
-
 @app.put("/me/desired-cards")
 async def update_desired_cards(
     data: dict[str, Any],
@@ -4011,8 +3976,6 @@ async def record_save_client_result(
 async def scan(
     request: Request,
     file: UploadFile = File(...),
-    fast_scan: bool = Form(default=False),
-    calibrate: bool = Form(default=False),
     init_data: str = Header(default="", alias="X-Telegram-Init-Data"),
 ):
     request_started = time.perf_counter()
@@ -4074,102 +4037,7 @@ async def scan(
             (time.perf_counter() - queue_started) * 1000, 3
         )
         image = await _read_image(file, upload_profile)
-        user_settings = get_user_settings(auth["id"]) if auth else {}
-        used_fast_scan = False
-        calibrated_now = False
-        pre_detected = None
-
-        # Если запрошена калибровка, принудительно отключаем fast_scan на этот раз
-        if calibrate:
-            fast_scan = False
-
-        if fast_scan and user_settings.get("column_bounds"):
-            fast_cards = await asyncio.to_thread(
-                fast_detect_inventory_cards,
-                image,
-                user_settings["column_bounds"],
-                user_settings["calibration_width"],
-            )
-            if fast_cards:
-                pre_detected = fast_cards
-                used_fast_scan = True
-
-        if pre_detected is not None:
-            result = await asyncio.to_thread(
-                scan_screenshot,
-                image,
-                save_previews=True,
-                pre_detected=pre_detected,
-            )
-        else:
-            result = await asyncio.to_thread(
-                scan_screenshot,
-                image,
-                save_previews=True,
-            )
-
-        fast_scan_fallback = False
-        preliminary_db = None
-        if pre_detected is not None:
-            # Fast detection can return plausible crops at incorrect Y positions.
-            # Validate them against the catalog before accepting the fast pass.
-            preliminary_db = load_db()
-            detected_count = len(result.get("cards", []))
-            preliminary_matches = 0
-            threshold = float(os.getenv("CARD_MATCH_THRESHOLD", "18"))
-            for card in result.get("cards", []):
-                match = _match_card_detailed(
-                    card.get("hashes", {}), preliminary_db, {},
-                )
-                raw_hashes = card.get("raw_hashes", {})
-                if raw_hashes and raw_hashes != card.get("hashes", {}):
-                    raw_match = _match_card_detailed(raw_hashes, preliminary_db, {})
-                    if raw_match["id"] is not None and (
-                        match["id"] is None or raw_match["score"] < match["score"]
-                    ):
-                        match = raw_match
-                if match["id"] is not None and match["score"] <= threshold:
-                    preliminary_matches += 1
-
-            if detected_count == 0 or preliminary_matches < detected_count * 0.4:
-                LOGGER.info(
-                    "Fast scan fallback: matched %s of %s detected cards",
-                    preliminary_matches, detected_count,
-                )
-                async with SCAN_SEMAPHORE:
-                    result = await asyncio.to_thread(
-                        scan_screenshot,
-                        image,
-                        save_previews=True,
-                    )
-                fast_scan_fallback = True
-                used_fast_scan = False
-
-    # Калибровка: если у пользователя нет настроек или явно запрошена калибровка
-    if auth and (calibrate or not user_settings.get("column_bounds")):
-        from collections import defaultdict
-
-        rows = defaultdict(list)
-        for card in result.get("cards", []):
-            rows[card["row"]].append(card)
-
-        # Ищем ряд, где ровно 4 карты (стандартный инвентарь)
-        for row_idx, row_cards in rows.items():
-            if len(row_cards) == 4:
-                # Сортируем по X, чтобы границы шли слева направо
-                row_cards.sort(key=lambda card: card["box"][0])
-                bounds = [
-                    {"x": card["box"][0], "w": card["box"][2]}
-                    for card in row_cards
-                ]
-                update_user_settings(
-                    auth["id"],
-                    fast_scan_enabled=user_settings.get("fast_scan_enabled", False),
-                    column_bounds=json.dumps(bounds),
-                    calibration_width=image.width,
-                )
-                calibrated_now = True
-                break
+        result = await asyncio.to_thread(scan_screenshot, image, save_previews=True)
     image_size = getattr(image, "size", (None, None))
     request_diag.update({
         "image_upload_size_bytes": upload_profile.get("upload_size_bytes"),
@@ -4183,7 +4051,7 @@ async def scan(
     request_diag["image_preprocess_ms"] = result.get("profile", {}).get("rgb_convert_ms")
     matching_started = time.perf_counter()
     catalog_load_started = time.perf_counter()
-    db = preliminary_db if preliminary_db is not None else load_db()
+    db = load_db()
     catalog_load_ms = (time.perf_counter() - catalog_load_started) * 1000
 
     matches = []
@@ -4275,9 +4143,6 @@ async def scan(
         "count": len(matches),
         "authenticated": bool(auth),
         "profile": profile,
-        "fast_scan_used": used_fast_scan,
-        "fast_scan_fallback": fast_scan_fallback,
-        "calibrated_now": calibrated_now,
     }
     response_build_ms = round((time.perf_counter() - response_started) * 1000, 3)
     request_diag.update({

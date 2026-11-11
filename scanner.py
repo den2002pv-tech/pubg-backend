@@ -493,97 +493,6 @@ def detect_inventory_cards(image: Image.Image) -> list[dict[str, Any]]:
     return cards
 
 
-def fast_detect_inventory_cards(
-    image: Image.Image,
-    column_bounds_json: str,
-    calibration_width: int,
-) -> list[dict[str, Any]]:
-    """Detect card rows independently in each calibrated vertical column."""
-    import json
-
-    try:
-        bounds = json.loads(column_bounds_json)
-        if not isinstance(bounds, list) or not bounds:
-            return []
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return []
-
-    pil = _image_from_any(image)
-    img_w, img_h = pil.size
-    if calibration_width <= 0:
-        calibration_width = img_w
-    scale = img_w / float(calibration_width)
-    cards: list[dict[str, Any]] = []
-
-    for col_idx, bound in enumerate(bounds):
-        try:
-            x = int(round(float(bound["x"]) * scale))
-            width = int(round(float(bound["w"]) * scale))
-        except (KeyError, TypeError, ValueError):
-            continue
-        if x < 0 or width <= 0 or x + width > img_w:
-            continue
-
-        strip = pil.crop((x, 0, x + width, img_h)).convert("L")
-        gray = np.asarray(strip, dtype=np.float32)
-        if gray.size == 0:
-            continue
-
-        # Horizontal projection: one mean brightness value per image row.
-        projection = gray.mean(axis=1)
-        if projection.size < 3:
-            continue
-        differences = np.diff(projection)
-        magnitude = np.abs(differences)
-        adaptive_floor = max(2.0, float(np.percentile(magnitude, 85)) * 0.65)
-        threshold = max(adaptive_floor, float(magnitude.mean() + magnitude.std() * 1.25))
-        edge_positions = np.flatnonzero(magnitude >= threshold) + 1
-        if edge_positions.size < 2:
-            continue
-
-        # Merge nearby responses belonging to the same visual boundary.
-        boundaries: list[int] = []
-        groups: list[list[int]] = []
-        for position in edge_positions.tolist():
-            if groups and position - groups[-1][-1] <= max(2, int(width * 0.025)):
-                groups[-1].append(position)
-            else:
-                groups.append([position])
-        for group in groups:
-            boundaries.append(int(round(float(np.mean(group)))))
-
-        # Pair each top edge with the next plausible bottom edge. Card height
-        # is inferred from the calibrated column width, not from screen Y.
-        expected_height = width / 0.68
-        min_height = max(24, int(expected_height * 0.62))
-        max_height = min(img_h, int(expected_height * 1.42))
-        column_cards: list[tuple[int, int]] = []
-        index = 0
-        while index < len(boundaries) - 1:
-            top = boundaries[index]
-            candidates = [
-                bottom for bottom in boundaries[index + 1:]
-                if min_height <= bottom - top <= max_height
-            ]
-            if not candidates:
-                index += 1
-                continue
-            bottom = candidates[0]
-            column_cards.append((top, bottom))
-            index = boundaries.index(bottom) + 1
-
-        for row_idx, (top, bottom) in enumerate(column_cards):
-            height = bottom - top
-            if height <= 0:
-                continue
-            cards.append({
-                "row": row_idx,
-                "col": col_idx,
-                "box": [x, top, width, height],
-            })
-
-    return sorted(cards, key=lambda card: (card["row"], card["col"]))
-
 def extract_visual_area(card: Image.Image) -> Image.Image:
     w, h = card.size
     return card.crop((int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.78)))
@@ -1679,18 +1588,14 @@ def _has_counter_evidence(quantity_confidence: float, counter_debug: dict[str, A
     )
 
 
-def scan_screenshot(
-    image: Image.Image,
-    save_previews: bool = True,
-    pre_detected: list | None = None,
-) -> dict[str, Any]:
+def scan_screenshot(image: Image.Image, save_previews: bool = True) -> dict[str, Any]:
     total_started = time.perf_counter()
     stage_started = time.perf_counter()
     image = _image_from_any(image)
     decode_ms = (time.perf_counter() - stage_started) * 1000
 
     stage_started = time.perf_counter()
-    detected = pre_detected if pre_detected is not None else detect_inventory_cards(image)
+    detected = detect_inventory_cards(image)
     geometric_detected_count = len(detected)
     detection_ms = (time.perf_counter() - stage_started) * 1000
     counter_ms = raw_hash_ms = clean_hash_ms = preview_ms = 0.0

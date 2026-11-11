@@ -520,9 +520,6 @@ body.floating-bar-open .scroll-top{bottom:calc(86px + env(safe-area-inset-bottom
 @media(prefers-reduced-motion:reduce){
   .scroll-top{transition:opacity .01ms}
 }
-.scan-settings{display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:13px}
-.scan-settings label{display:flex;align-items:center;gap:6px;cursor:pointer}
-.scan-settings input[type=checkbox]{width:18px;height:18px}
 </style>
 </head>
 <body>
@@ -564,11 +561,6 @@ body.floating-bar-open .scroll-top{bottom:calc(86px + env(safe-area-inset-bottom
       <span id="statusText" style="font-weight:700">📷 Загрузить скриншот альбома</span>
       <input type="file" id="fileInput" accept="image/*" multiple aria-describedby="scannerInstructions">
     </label>
-    <div class="scan-settings">
-      <label><input type="checkbox" id="fastScanToggle"> ⚡ Быстрое сканирование по колонкам</label>
-      <label><input type="checkbox" id="recalibrateToggle"> 🎯 Откалибровать колонки при следующем скане</label>
-      <div id="fastScanStatus" class="hint" role="status" aria-live="polite"></div>
-    </div>
     <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></div>
     <div id="uploadProgress" class="upload-progress" aria-hidden="true"><div class="upload-progress-fill"></div></div>
     <button id="retryScanBtn" class="scan-retry" type="button" hidden>Повторить сканирование</button>
@@ -907,41 +899,6 @@ const retryScanBtn = document.getElementById('retryScanBtn');
 const uploadProgressEl = document.getElementById('uploadProgress');
 const uploadProgressFill = uploadProgressEl.querySelector('.upload-progress-fill');
 const toastContainer = document.getElementById('toastContainer');
-const fastScanToggle = document.getElementById('fastScanToggle');
-const recalibrateToggle = document.getElementById('recalibrateToggle');
-const fastScanStatus = document.getElementById('fastScanStatus');
-let currentColumnBounds = '';
-let currentCalibrationWidth = 0;
-let savedFastScanEnabled = false;
-let scannerSettingsLoaded = false;
-
-fastScanToggle.addEventListener('change', async () => {
-  const nextValue = fastScanToggle.checked;
-  if (!scannerSettingsLoaded || nextValue === savedFastScanEnabled) {
-    fastScanToggle.checked = savedFastScanEnabled;
-    return;
-  }
-  try {
-    const response = await fetch(API + '/me/settings', {
-      method: 'PUT',
-      headers: { ...telegramHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fast_scan_enabled: nextValue,
-        column_bounds: currentColumnBounds,
-        calibration_width: currentCalibrationWidth
-      })
-    });
-    if (!response.ok) throw new Error('Не удалось сохранить настройку');
-    const data = await response.json();
-    savedFastScanEnabled = !!data.fast_scan_enabled;
-    currentColumnBounds = data.column_bounds || currentColumnBounds;
-    currentCalibrationWidth = Number(data.calibration_width) || currentCalibrationWidth;
-    fastScanToggle.checked = savedFastScanEnabled;
-  } catch (error) {
-    fastScanToggle.checked = savedFastScanEnabled;
-    showToast('Не удалось сохранить настройку', 'error');
-  }
-});
 
 // State
 let pendingCards = [];
@@ -1385,10 +1342,7 @@ async function uploadImage(file) {
   }
 
   const fd = new FormData();
-  const fastScanRequested = !!fastScanToggle.checked;
   fd.append('file', uploadFile);
-  fd.append('fast_scan', String(fastScanRequested));
-  fd.append('calibrate', String(!!recalibrateToggle.checked));
   const clientProfile = {
     client_form_data_ms: performance.now() - formStartedAt,
     client_file_size_bytes: uploadFile.size
@@ -1416,32 +1370,6 @@ async function uploadImage(file) {
     } finally {
       clientProfile.client_request_ms = performance.now() - requestStartedAt;
     }
-    if (d.calibrated_now === true) {
-      recalibrateToggle.checked = false;
-      showToast('Колонки откалиброваны', 'success');
-      await loadScannerSettings();
-      let columnCount = null;
-      const calibrationBounds = d.column_bounds || currentColumnBounds;
-      if (calibrationBounds) {
-        try {
-          const bounds = typeof calibrationBounds === 'string' ? JSON.parse(calibrationBounds) : calibrationBounds;
-          if (Array.isArray(bounds)) columnCount = bounds.length;
-        } catch (_) {}
-      }
-      fastScanStatus.textContent = columnCount === null
-        ? 'Колонки сохранены'
-        : 'Колонки сохранены: ' + columnCount;
-    } else if (d.fast_scan_fallback === true) {
-      const message = '⚠️ Быстрый проход не удался (возможно, сместилась сетка), выполнен полный скан';
-      fastScanStatus.textContent = message;
-      console.warn(message);
-    } else if (d.fast_scan_used === true) {
-      fastScanStatus.textContent = '⚡ Использован быстрый проход';
-      console.info('⚡ Использован быстрый проход');
-    } else if (fastScanRequested && d.fast_scan_used === false) {
-      fastScanStatus.textContent = 'Быстрый проход недоступен — выполнен обычный скан';
-    }
-
     trackAnalytics('scan_completed', {
       scan_id: currentScanId,
       cards_detected: Number(d.count || 0),
@@ -1820,27 +1748,6 @@ async function confirmCollection() {
 }
 
 // User & Collection Loading
-async function loadScannerSettings() {
-  try {
-    const response = await fetch(API + '/me/settings', { headers: telegramHeaders() });
-    if (!response.ok) throw new Error('Не удалось получить настройки сканера');
-    const data = await response.json();
-    savedFastScanEnabled = !!data.fast_scan_enabled;
-    currentColumnBounds = data.column_bounds || '';
-    currentCalibrationWidth = Number(data.calibration_width) || 0;
-    fastScanToggle.checked = savedFastScanEnabled;
-    scannerSettingsLoaded = true;
-    if (data.fast_scan_enabled === true && !data.column_bounds) {
-      fastScanStatus.textContent = 'Колонки ещё не откалиброваны — первый скан с включённым переключателем сохранит границы';
-    } else if (!data.fast_scan_enabled) {
-      fastScanStatus.textContent = '';
-    }
-  } catch (error) {
-    scannerSettingsLoaded = false;
-    console.warn('Не удалось загрузить настройки сканера:', error);
-  }
-}
-
 async function loadMyCollection() {
   if (!telegramInitData) {
     accountEl.innerHTML = '<div class="account-user">🔒 Чтобы загрузить личную коллекцию, откройте это приложение из чата с ботом в Telegram.</div>';
@@ -1864,7 +1771,6 @@ async function loadMyCollection() {
 
     renderInventory();
     checkDesiredChanges();
-    await loadScannerSettings();
   } catch (e) {
     accountEl.innerHTML = '<div class="account-user">❌ Не удалось загрузить коллекцию. Проверьте соединение и повторите попытку.</div><button type="button" id="retryLoadCollectionBtn" class="retry-save-btn">Повторить подключение</button>';
     document.getElementById('retryLoadCollectionBtn').addEventListener('click', loadMyCollection, { once: true });
