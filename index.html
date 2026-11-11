@@ -1447,14 +1447,30 @@ function showResults(cards) {
     helpSeen = true; writeLocalFlag('pubg:scan-help-seen');
   }
   const root = document.getElementById('cardsList');
-  root.innerHTML = '';
+  
   if (!cards.length) {
     root.innerHTML = '<div class="empty">Карты на скриншоте не распознаны. Попробуйте скриншот лучшего качества.</div>';
     document.getElementById('results').style.display = 'block';
     confirmBtn.style.display = 'none';
     return;
   }
+
+  // Убираем заглушку "карты не найдены", если она была от предыдущего сканирования
+  const emptyMsg = root.querySelector('.empty');
+  if (emptyMsg) emptyMsg.remove();
+
+  // Считаем, сколько карт уже в DOM, чтобы правильно задать задержку анимации для новых
+  const existingCardsCount = root.querySelectorAll('.card').length;
+
   cards.forEach((c, index) => {
+    // Уникальный ключ карты (включает номер скриншота в очереди)
+    const key = c.row + '_' + c.col;
+    
+    // Если карта уже отрисована — пропускаем (предотвращает мерцание)
+    if (root.querySelector(`[data-key="${key}"]`)) {
+      return;
+    }
+
     const recognized = !!c.id;
     const pending = recognized ? pendingCards.find(x => x.id === c.id && x.row === c.row && x.col === c.col) : null;
     const detected = pending && pending.editQuantity != null ? pending.editQuantity : Math.max(1, num(c.quantity, 1));
@@ -1474,7 +1490,12 @@ function showResults(cards) {
 
     const el = document.createElement('div');
     el.className = 'card enter' + (pending?.selected ? ' desired-active' : '');
-    el.style.animationDelay = Math.min(index * 45, 400) + 'ms';
+    el.dataset.key = key; // Сохраняем ключ для инкрементального рендеринга
+    
+    // Задержку анимации применяем только к новым картам, чтобы они выезжали друг за другом
+    const newIndex = Math.max(0, index - existingCardsCount);
+    el.style.animationDelay = Math.min(newIndex * 45, 400) + 'ms';
+    
     el.innerHTML =
       '<div class="scan-card-art">' + scanImage +
         '<span class="scan-detected-badge" title="Количество на скриншоте" aria-label="Распознано: ' + (detected == null ? 'неизвестно' : detected) + '">×' + (detected == null ? '—' : detected) + '</span>' +
@@ -1530,6 +1551,8 @@ function showResults(cards) {
         else q.value = pending.editQuantity;
       });
     }
+    
+    // Добавляем в DOM только новые карты. Старые остаются нетронутыми.
     root.appendChild(el);
   });
 
