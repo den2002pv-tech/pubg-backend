@@ -1,5 +1,7 @@
 fastapi
 uvicorn
+uvloop; sys_platform != "win32"
+httptools
 pillow
 imagehash
 python-multipart
